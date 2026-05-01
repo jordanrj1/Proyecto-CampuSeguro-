@@ -1,0 +1,98 @@
+# ----- SO -----
+.DS_Store
+Thumbs.db
+
+# ----- IDE/Editor -----
+.vscode/
+.idea/
+*.iml
+
+# ----- Python general -----
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+develop-eggs/
+parts/
+sdist/
+var/
+share/python-wheels/
+.installed.cfg
+.pytest_cache/
+.coverage*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pytype/
+.pyre/
+
+# ----- Logs -----
+*.log
+
+# ----- Django -----
+# DB local (mantén fuera de Git en desarrollo)
+db.sqlite3
+*.sqlite3
+*.sqlite3-journal
+
+# Ajustes locales
+local_settings.py
+
+# Archivos generados por collectstatic (STATIC_ROOT)
+staticfiles/
+static_root/
+
+# Subidas de usuarios (MEDIA_ROOT)
+media/
+
+# Archivos de traducción compilados (opc.)
+*.mo
+
+# ----- Entorno / secretos -----
+.env
+.env.*
+.envrc
+*.pem
+*.key
+secrets.json
+
+# ----- Node / Tooling de Frontend (si usas bundlers) -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+.parcel-cache/
+.cache/
+dist/
+build/
+
+# Frameworks específicos (se ignoran salidas, no el código)
+.next/
+.out/
+.vite/
+.svelte-kit/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Mapas (opcional; ignóralos si no los publicas)
+*.map
+
+# Bytecode/compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
