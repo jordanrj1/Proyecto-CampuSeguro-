@@ -1,0 +1,396 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo Ticket - Campus Seguro DuocUC</title>
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS Personalizado DuocUC -->
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'css/crear_ticket.css' %}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="{% url 'app:dashboard' %}" class="sidebar-brand">
+                    <div class="sidebar-brand-icon">CS</div>
+                    <span>Campus Seguro</span>
+                </a>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="{% url 'app:dashboard' %}" class="nav-item">
+                    <i class="bi bi-ticket-detailed-fill"></i>
+                    <span>Mis Tickets</span>
+                </a>
+                <a href="{% url 'app:crear_ticket' %}" class="nav-item active">
+                    <i class="bi bi-plus-circle-fill"></i>
+                    <span>Crear Ticket</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Historial</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="bi bi-gear-fill"></i>
+                    <span>Configuración</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <form method="post" action="{% url 'logout' %}" style="width: 100%;">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-item" style="width: 100%; background: none; border: none; cursor: pointer; color: var(--duoc-gris);">
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="search-bar">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Buscar tickets, activos o usuarios..." id="searchInput">
+                </div>
+                
+                <div class="header-actions">
+                    <button class="notification-btn">
+                        <i class="bi bi-bell-fill"></i>
+                        <span class="notification-badge"></span>
+                    </button>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar">
+                            {{ user.username|first|upper }}
+                        </div>
+                        <div class="user-info">
+                            <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                            <span class="user-role">Usuario Base</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="form-container">
+                    <!-- Page Header -->
+                    <div class="page-header" style="margin-bottom: 2rem;">
+                        <h1 class="page-title">Nuevo Ticket de Incidencia</h1>
+                        <p class="page-subtitle">Registro enriquecido para BI y derivación a SAP PM</p>
+                    </div>
+
+                    <!-- Formulario -->
+                    <form id="ticketForm" method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Sección 1: Datos del Solicitante -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h2 class="section-title">1. Datos del Solicitante (Análisis BI)</h2>
+                                <span class="section-badge section-badge-analisis">Análisis</span>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Vínculo Institucional <span class="required">*</span></label>
+                                    <select name="vinculo" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="estudiante">Estudiante</option>
+                                        <option value="docente">Docente</option>
+                                        <option value="administrativo">Administrativo</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Carrera / Área <span class="required">*</span></label>
+                                    <select name="carrera" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="administracion-y-negocios">Administración y Negocios</option>
+                                        <option value="comunicacion">Comunicación</option>
+                                        <option value="construccion">Construcción</option>
+                                        <option value="diseño">Diseño</option>
+                                        <option value="gastronomia">Gastronomía</option>
+                                        <option value="informatica-y-telecomunicaciones">Informática y telecomunicaciones</option>
+                                        <option value="otro">Ingeniería y Recursos Naturales</option>
+                                        <option value="otro">Salud y Bienestar</option>
+                                        <option value="otro">Turismo y Hospitalidad</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Jornada <span class="required">*</span></label>
+                                    <select name="jornada" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="diurna">Diurna</option>
+                                        <option value="vespertina">Vespertina</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Teléfono de Contacto</label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">+56 9</span>
+                                        <input type="tel" name="telefono" class="form-control" placeholder="Ej: 12345678" maxlength="8">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección 2: Ubicación Técnica -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h2 class="section-title">2. Ubicación Técnica</h2>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Edificio <span class="required">*</span></label>
+                                    <select name="edificio" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="edificio-h">Edificio H</option>
+                                        <option value="edificio-e">Edificio E</option>
+                                        <option value="cabaña-norte-1">Cabañas Norte 1</option>
+                                        <option value="cabaña-norte-2">Cabañas Norte 2</option>
+                                        <option value="cabaña-norte-3">Cabañas Norte 3</option>
+                                        <option value="casino-e">Casino E</option>
+                                        <option value="casino-h">Casino H</option>
+                                        <option value="centro-citt-e">Centro CITT E</option>
+                                        <option value="centro-citt-h">Centro CITT H</option>
+                                        <option value="canchas">Canchas</option>
+                                        <option value="estacionamiento">Estacionamientos</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Piso <span class="required">*</span></label>
+                                    <select name="piso" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="planta-baja">Planta Baja</option>
+                                        <option value="piso-1">Piso 1</option>
+                                        <option value="piso-2">Piso 2</option>
+                                        <option value="piso-3">Piso 3</option>
+                                        <option value="piso-4">Piso 4</option>
+                                        <option value="piso-5">Piso 5</option>
+                                        <option value="piso-6">Piso 6</option>
+                                        <option value="piso-7">Piso 7</option>
+                                        <option value="piso-8">Piso 8</option>
+                                        <option value="sotano">Sótano</option>
+                                        <option value="azotea">Azotea</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Tipo de Sala <span class="required">*</span></label>
+                                    <select name="tipo_sala" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="sala-clases">Sala de Clases</option>
+                                        <option value="laboratorio-computacion">Laboratorio de Computación</option>
+                                        <option value="taller">Taller</option>
+                                        <option value="oficina">Oficina</option>
+                                        <option value="baños">Baños</option>
+                                        <option value="pasarela">Pasarela</option>
+                                        <option value="area-comun">Área común</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group" style="max-width: 300px;">
+                                    <label class="form-label">Capacidad Afectada</label>
+                                    <input type="number" name="capacidad" class="form-control" placeholder="Ej: 35" min="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección 3: Clasificación e Impacto -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h2 class="section-title">3. Clasificación e Impacto</h2>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Categoría del Problema <span class="required">*</span></label>
+                                    <select name="categoria" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="electrico">Eléctrico</option>
+                                        <option value="plomeria">Plomería / Agua</option>
+                                        <option value="estructural">Estructural</option>
+                                        <option value="audiovisual">Audiovisual</option>
+                                        <option value="mobiliario">Mobiliario</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Nivel de Urgencia percibido <span class="required">*</span></label>
+                                    <select name="urgencia" class="form-control" required>
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="baja">Baja - No impide el uso normal</option>
+                                        <option value="media">Media - Dificulta el uso</option>
+                                        <option value="alta">Alta - Impide la actividad</option>
+                                        <option value="urgente">Urgente - Riesgo a personas/infraestructura</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Checklist de Riesgo -->
+                            <div class="checklist-container">
+                                <h3 class="checklist-title">Checklist de Riesgo y Operación:</h3>
+                                
+                                <label class="checklist-item">
+                                    <div class="custom-checkbox">
+                                        <input type="checkbox" name="afecta_clase" value="si">
+                                        <span class="checkmark"></span>
+                                    </div>
+                                    <span class="checklist-text">¿Afecta directamente el desarrollo de una clase?</span>
+                                </label>
+                                
+                                <label class="checklist-item">
+                                    <div class="custom-checkbox">
+                                        <input type="checkbox" name="riesgo_electrico" value="si">
+                                        <span class="checkmark"></span>
+                                    </div>
+                                    <span class="checklist-text warning">¿Presenta riesgo eléctrico o chispas?</span>
+                                </label>
+                                
+                                <label class="checklist-item">
+                                    <div class="custom-checkbox">
+                                        <input type="checkbox" name="afecta_evacuacion" value="si">
+                                        <span class="checkmark"></span>
+                                    </div>
+                                    <span class="checklist-text">¿Afecta vías de evacuación o accesibilidad universal?</span>
+                                </label>
+                            </div>
+
+                            <div class="form-row" style="margin-top: 1.25rem;">
+                                <div class="form-group form-group-full">
+                                    <label class="form-label">Descripción detallada <span class="required">*</span></label>
+                                    <textarea name="descripcion" class="form-control" placeholder="Describa el problema exacto..." required></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección 4: Evidencia Fotográfica -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h2 class="section-title">4. Evidencia Fotográfica</h2>
+                                <span class="section-badge section-badge-obligatorio">Obligatoria</span>
+                            </div>
+
+                            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                                <input type="file" id="fileInput" accept="image/*" class="d-none" onchange="handleFiles(this.files)">
+                                <div class="upload-icon">
+                                    <i class="bi bi-camera"></i>
+                                </div>
+                                <p class="upload-text">Arrastre una imagen o haga clic para subir</p>
+                                <p class="upload-hint"><strong>PNG, JPG</strong> hasta 5MB. Requerido para enviar a Gestor.</p>
+                            </div>
+
+                            <div class="image-preview-container" id="imagePreview"></div>
+                        </div>
+
+                        <!-- Botones de Acción -->
+                        <div class="form-actions">
+                            <button type="button" class="btn-cancel" onclick="history.back()">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="btn-submit">
+                                <i class="bi bi-send-fill"></i>
+                                Enviar Ticket
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Drag and Drop
+        const uploadZone = document.getElementById('uploadZone');
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // Manejar archivos
+        function handleFiles(files) {
+            const previewContainer = document.getElementById('imagePreview');
+            
+            Array.from(files).forEach(file => {
+                if (!file.type.startsWith('image/')) {
+                    alert('Solo se permiten imágenes');
+                    return;
+                }
+                
+                if (file.size > 5 * 1024 * 1024) {
+                    alert(`La imagen ${file.name} excede el límite de 5MB`);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'image-preview-item';
+                    div.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview">
+                        <button type="button" class="image-preview-remove" onclick="removeImage(this)">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    previewContainer.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function removeImage(btn) {
+            btn.parentElement.remove();
+        }
+
+        // Validación y envío del formulario
+        document.getElementById('ticketForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Verificar que haya al menos una imagen
+            const hasImages = document.querySelectorAll('.image-preview-item').length > 0;
+            if (!hasImages) {
+                alert('⚠️ Debe adjuntar al menos una foto de evidencia.');
+                return;
+            }
+
+            // Aquí iría la lógica para enviar a Django
+            // Por ahora, redirigimos al dashboard
+            alert('✅ Ticket enviado exitosamente');
+            window.location.href = "{% url 'app:dashboard' %}";
+        });
+    </script>
+</body>
+</html>
