@@ -10,3 +10,9 @@ def dashboard(request):
 def crear_ticket(request):
     """Vista para crear nuevo ticket"""
     return render(request, 'app/crear_ticket.html')
+
+def gestor_tickets(request):
+    return render(request, 'app/gestor_tickets.html')
+
+def gestor_dashboard(request):
+    return render(request, 'app/gestor_dashboard.html')
