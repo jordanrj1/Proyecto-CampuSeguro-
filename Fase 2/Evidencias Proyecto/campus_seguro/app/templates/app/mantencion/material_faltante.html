@@ -1,0 +1,50 @@
+{% extends 'app/base.html' %}
+{% block title %}Registrar Material Faltante · Ticket #{{ ticket.pk }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Registrar material faltante</div>
+    <div class="page-subtitle">Ticket #{{ ticket.pk }} · {{ ticket.titulo }}</div>
+  </div>
+  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Cancelar</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="form-section-title">📋 Trabajo de mantención</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px;">
+    <div><div style="color:var(--text-muted);font-size:11px;">TICKET</div>#{{ ticket.pk }} – {{ ticket.titulo }}</div>
+    <div><div style="color:var(--text-muted);font-size:11px;">TÉCNICO RESPONSABLE</div>{{ registro.tecnico.get_full_name }}</div>
+    <div style="grid-column:1/-1;"><div style="color:var(--text-muted);font-size:11px;">DESCRIPCIÓN DEL TRABAJO</div>{{ registro.descripcion_trabajo|truncatechars:120 }}</div>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom:18px;">
+    <div class="form-section-title">📦 Material faltante</div>
+    {% if form.errors %}
+    <div style="background:rgba(245,54,92,0.1);border:1px solid var(--accent-red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--accent-red);">
+      {{ form.errors }}
+    </div>
+    {% endif %}
+    <div style="margin-bottom:14px;">
+      <label class="form-label">{{ form.material.label }} *</label>
+      {{ form.material }}
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="form-label">{{ form.cantidad_requerida.label }} *</label>
+      {{ form.cantidad_requerida }}
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="form-label">{{ form.observaciones.label }}</label>
+      {{ form.observaciones }}
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;">
+    <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Registrar material faltante</button>
+  </div>
+</form>
+{% endblock %}

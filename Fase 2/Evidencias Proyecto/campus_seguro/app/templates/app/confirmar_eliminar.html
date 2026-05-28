@@ -1,0 +1,30 @@
+{% extends 'app/base.html' %}
+{% block title %}Eliminar Ticket{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Eliminar Ticket #{{ ticket.id }}</div>
+    <div class="page-subtitle">Esta acción no se puede deshacer</div>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px;">
+  <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:18px;">
+    <div style="width:48px;height:48px;background:rgba(245,54,92,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">⚠️</div>
+    <div>
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:6px;">¿Confirmas la eliminación?</h3>
+      <p style="font-size:13px;color:var(--text-secondary);line-height:1.5;">
+        Vas a eliminar el ticket <strong>"{{ ticket.titulo }}"</strong>.
+        Quedará registrado como eliminado en el historial de auditoría pero no podrá recuperarse.
+      </p>
+    </div>
+  </div>
+
+  <form method="post" style="display:flex;gap:10px;justify-content:flex-end;">
+    {% csrf_token %}
+    <a href="{% url 'app:detalle_ticket' ticket.id %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-danger">🗑️ Confirmar eliminación</button>
+  </form>
+</div>
+{% endblock %}

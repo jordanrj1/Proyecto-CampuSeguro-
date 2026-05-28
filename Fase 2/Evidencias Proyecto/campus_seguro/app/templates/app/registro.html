@@ -1,0 +1,291 @@
+{% extends 'app/base.html' %}
+{% block title %}Registro de Cuenta – Campus Seguro{% endblock %}
+
+{% block auth_content %}
+<style>
+body { display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; min-height: 100vh; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 30% 20%, rgba(74,143,255,0.08) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(45,206,137,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.reg-wrapper {
+  max-width: 720px; width: 100%;
+  background: var(--bg-800); border: 1px solid var(--border); border-radius: 20px;
+  box-shadow: var(--shadow-lg); z-index: 1; position: relative; overflow: hidden;
+}
+.reg-header {
+  padding: 30px 40px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-800), var(--bg-850));
+  display: flex; align-items: center; justify-content: space-between;
+}
+.reg-header .brand { display: flex; align-items: center; gap: 14px; }
+.reg-header .logo {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.reg-header h1 { font-size: 18px; font-weight: 800; }
+.reg-header .sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+.reg-back { color: var(--text-secondary); font-size: 13px; }
+.reg-back:hover { color: var(--accent-blue); }
+
+.reg-body { padding: 36px 40px; }
+.reg-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
+.reg-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
+
+.role-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 24px; }
+.role-card {
+  padding: 14px; background: var(--bg-700); border: 2px solid var(--border);
+  border-radius: 10px; cursor: pointer; transition: all 0.2s; display: flex; gap: 12px; align-items: center;
+}
+.role-card:hover { border-color: var(--border-strong); }
+.role-card.selected { border-color: var(--accent-blue); background: var(--bg-600); }
+.role-card .role-ic { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+.role-card.usuario .role-ic { background: rgba(74,143,255,0.2); }
+.role-card.gestor .role-ic { background: rgba(17,205,239,0.2); }
+.role-card.guardia .role-ic { background: rgba(244,197,66,0.2); }
+.role-card.mantencion .role-ic { background: rgba(45,206,137,0.2); }
+.role-card .role-info .nm { font-size: 13px; font-weight: 700; }
+.role-card .role-info .ds { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.section-title {
+  font-size: 11px; font-weight: 800; color: var(--accent-teal);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+.btn-submit {
+  width: 100%; padding: 14px; background: var(--accent-blue); color: #fff;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; margin-top: 20px; transition: all 0.2s;
+}
+.btn-submit:hover { background: #3a7fee; transform: translateY(-1px); }
+
+.role-fields { display: none; }
+.role-fields.active { display: block; }
+
+@media (max-width: 600px) {
+  .role-picker { grid-template-columns: 1fr; }
+  .field-grid, .field-grid-3 { grid-template-columns: 1fr; }
+  .reg-body, .reg-header { padding: 20px; }
+}
+</style>
+
+<div class="reg-wrapper">
+  <div class="reg-header">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div>
+        <h1>Campus Seguro</h1>
+        <div class="sub">Registro Institucional</div>
+      </div>
+    </div>
+    <a href="{% url 'app:login' %}" class="reg-back">← Volver al login</a>
+  </div>
+
+  <div class="reg-body">
+    <h2 class="reg-title">Solicitar Cuenta</h2>
+    <p class="reg-desc">Tu solicitud será revisada y aprobada por un gestor antes de poder ingresar.</p>
+
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+
+    {% if form.errors %}
+    <div class="alert alert-error">
+      <strong>Revisa los siguientes campos:</strong>
+      <ul style="margin-top:6px;margin-left:18px;">
+        {% for field, errors in form.errors.items %}
+          {% for error in errors %}<li>{{ field|title }}: {{ error }}</li>{% endfor %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" id="regForm">
+      {% csrf_token %}
+
+      <div class="section-title">Tipo de Cuenta</div>
+      <div class="role-picker">
+        <label class="role-card usuario" onclick="selectRole('usuario', this)">
+          <div class="role-ic">👤</div>
+          <div class="role-info">
+            <div class="nm">Usuario Base</div>
+            <div class="ds">Alumno · Docente · Administrativo</div>
+          </div>
+        </label>
+        <label class="role-card gestor" onclick="selectRole('gestor', this)">
+          <div class="role-ic">🧠</div>
+          <div class="role-info">
+            <div class="nm">Gestor</div>
+            <div class="ds">Control y supervisión</div>
+          </div>
+        </label>
+        <label class="role-card guardia" onclick="selectRole('guardia', this)">
+          <div class="role-ic">🛡️</div>
+          <div class="role-info">
+            <div class="nm">Guardia</div>
+            <div class="ds">Validación en terreno</div>
+          </div>
+        </label>
+        <label class="role-card mantencion" onclick="selectRole('mantencion', this)">
+          <div class="role-ic">🔧</div>
+          <div class="role-info">
+            <div class="nm">Mantención</div>
+            <div class="ds">Reparaciones</div>
+          </div>
+        </label>
+      </div>
+      <input type="hidden" name="rol" id="rolInput" value="usuario">
+
+      <div class="section-title">Datos Personales</div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Nombres *</label>
+          <input type="text" name="first_name" placeholder="Juan" required value="{{ form.first_name.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apellidos *</label>
+          <input type="text" name="last_name" placeholder="Pérez González" required value="{{ form.last_name.value|default:'' }}">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">RUT *</label>
+          <input type="text" name="rut" placeholder="12345678-9" required value="{{ form.rut.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="tel" name="telefono" placeholder="+56 9 1234 5678" value="{{ form.telefono.value|default:'' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correo Institucional *</label>
+        <input type="email" name="correo_institucional" placeholder="tu.correo@duoc.cl" required value="{{ form.correo_institucional.value|default:'' }}">
+      </div>
+
+      <!-- Campos para Usuario Base -->
+      <div class="role-fields active" id="fields-usuario">
+        <div class="section-title">Datos Académicos</div>
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Vínculo *</label>
+            <select name="vinculo">
+              <option value="">Seleccionar...</option>
+              <option value="alumno">Alumno</option>
+              <option value="docente">Docente</option>
+              <option value="administrativo">Administrativo</option>
+              <option value="funcionario">Funcionario</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Jornada</label>
+            <select name="jornada">
+              <option value="">Seleccionar...</option>
+              <option value="diurna">Diurna</option>
+              <option value="vespertina">Vespertina</option>
+              <option value="mixta">Mixta</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Carrera / Departamento</label>
+            <input type="text" name="carrera" placeholder="Ingeniería en Informática">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sede</label>
+            <input type="text" name="sede" placeholder="Concepción">
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos para Gestor -->
+      <div class="role-fields" id="fields-gestor">
+        <div class="section-title">Datos del Cargo</div>
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Departamento *</label>
+            <input type="text" name="departamento_gestor" placeholder="Operaciones">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sede</label>
+            <input type="text" name="sede_gestor" placeholder="Concepción">
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos para Guardia / Mantención -->
+      <div class="role-fields" id="fields-guardia">
+        <div class="section-title">Datos Operativos</div>
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Turno</label>
+            <input type="text" name="turno" placeholder="Mañana / Tarde / Noche">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sede</label>
+            <input type="text" name="sede" placeholder="Concepción">
+          </div>
+        </div>
+      </div>
+      <div class="role-fields" id="fields-mantencion">
+        <div class="section-title">Datos Operativos</div>
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Especialidad *</label>
+            <select name="especialidad">
+              <option value="">Seleccionar...</option>
+              <option value="electrico">Eléctrico</option>
+              <option value="plomeria">Plomería</option>
+              <option value="construccion">Construcción</option>
+              <option value="climatizacion">Climatización</option>
+              <option value="general">Mantención General</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Turno</label>
+            <input type="text" name="turno_m" placeholder="Mañana / Tarde">
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Seguridad</div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Contraseña *</label>
+          <input type="password" name="password1" placeholder="Mínimo 8 caracteres" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirmar Contraseña *</label>
+          <input type="password" name="password2" placeholder="Repite la contraseña" required>
+        </div>
+      </div>
+
+      <div class="form-check" style="margin-top:10px;">
+        <input type="checkbox" name="acepta_terminos" id="terminos" required>
+        <label for="terminos">Acepto las políticas de uso institucional y protección de datos</label>
+      </div>
+
+      <button type="submit" class="btn-submit">Enviar Solicitud →</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function selectRole(rol, el) {
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('rolInput').value = rol;
+  document.querySelectorAll('.role-fields').forEach(f => f.classList.remove('active'));
+  document.getElementById('fields-' + rol).classList.add('active');
+}
+// Pre-seleccionar el primero
+document.querySelector('.role-card').classList.add('selected');
+</script>
+{% endblock %}

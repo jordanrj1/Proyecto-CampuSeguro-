@@ -1,0 +1,102 @@
+{% extends 'app/base.html' %}
+{% block title %}Reporte de Materiales{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">📦 Reporte de Materiales</div>
+    <div class="page-subtitle">Inventario, consumo y stock crítico</div>
+  </div>
+  <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">Gestionar materiales</a>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="kpi-label">Total materiales</div>
+    <div class="kpi-value">{{ total_materiales }}</div>
+    <div class="kpi-sub">en catálogo</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Bajo stock mínimo</div>
+    <div class="kpi-value">{{ total_bajo_stock }}</div>
+    <div class="kpi-sub">requieren reposición</div>
+  </div>
+</div>
+
+{% if total_bajo_stock %}
+<div class="card" style="margin-bottom:18px;border-left:3px solid var(--accent-red);">
+  <div class="card-title">⚠️ Materiales bajo stock mínimo</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Material</th><th>Categoría</th><th>Stock actual</th><th>Stock mínimo</th><th>Déficit</th></tr>
+      </thead>
+      <tbody>
+        {% for m in stock_bajo %}
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:12px;">{{ m.codigo }}</td>
+          <td style="font-size:13px;font-weight:500;">{{ m.nombre }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_categoria_display }}</td>
+          <td style="font-size:13px;color:var(--accent-red);font-weight:700;">{{ m.stock_actual }}</td>
+          <td style="font-size:13px;">{{ m.stock_minimo }}</td>
+          <td style="font-size:13px;color:var(--accent-yellow);font-weight:600;">{{ m.stock_minimo|add:"-"|add:m.stock_actual }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Consumo por material -->
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">📊 Materiales más consumidos</div>
+  {% if consumo %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Material</th><th>Categoría</th><th style="text-align:center;">Veces usado</th><th style="text-align:center;">Total consumido</th></tr>
+      </thead>
+      <tbody>
+        {% for c in consumo %}
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:12px;">{{ c.material__codigo }}</td>
+          <td style="font-size:13px;font-weight:500;">{{ c.material__nombre }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ c.material__categoria|capfirst }}</td>
+          <td style="text-align:center;font-size:13px;">{{ c.veces_usado }}</td>
+          <td style="text-align:center;font-size:13px;font-weight:600;">{{ c.total_consumido }} {{ c.material__unidad }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--text-muted);">Sin registros de consumo aún.</div>
+  {% endif %}
+</div>
+
+<!-- Inventario completo -->
+<div class="card">
+  <div class="card-title">📋 Inventario completo</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Material</th><th>Categoría</th><th>Unidad</th><th style="text-align:center;">Stock</th><th style="text-align:center;">Mínimo</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        {% for m in materiales %}
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:12px;">{{ m.codigo }}</td>
+          <td style="font-size:13px;">{{ m.nombre }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_categoria_display }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_unidad_display }}</td>
+          <td style="text-align:center;font-size:13px;font-weight:600;color:{% if m.bajo_stock %}var(--accent-red){% else %}var(--accent-green){% endif %};">{{ m.stock_actual }}</td>
+          <td style="text-align:center;font-size:13px;">{{ m.stock_minimo }}</td>
+          <td><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:{% if m.bajo_stock %}rgba(245,54,92,0.15){% else %}rgba(45,206,137,0.15){% endif %};color:{% if m.bajo_stock %}var(--accent-red){% else %}var(--accent-green){% endif %};">{% if m.bajo_stock %}Bajo stock{% else %}OK{% endif %}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

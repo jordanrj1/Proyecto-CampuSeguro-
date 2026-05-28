@@ -1,0 +1,80 @@
+{% extends 'app/base.html' %}
+{% block title %}Historial · Ticket #{{ ticket.pk }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Historial de acciones</div>
+    <div class="page-subtitle">Ticket #{{ ticket.pk }} · {{ ticket.titulo }}</div>
+  </div>
+  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="form-section-title">📋 Información del ticket</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:13px;">
+    <div><div style="color:var(--text-muted);font-size:11px;">SOLICITANTE</div>{{ ticket.creado_por.get_full_name }}</div>
+    <div><div style="color:var(--text-muted);font-size:11px;">ESTADO ACTUAL</div>{{ ticket.get_estado_display }}</div>
+    <div><div style="color:var(--text-muted);font-size:11px;">URGENCIA</div><span class="urgencia-{{ ticket.urgencia }}">{{ ticket.get_urgencia_display }}</span></div>
+    <div><div style="color:var(--text-muted);font-size:11px;">CATEGORÍA</div>{{ ticket.get_categoria_display }}</div>
+    <div><div style="color:var(--text-muted);font-size:11px;">CREADO</div>{{ ticket.created_at|date:"d/m/Y H:i" }}</div>
+    <div><div style="color:var(--text-muted);font-size:11px;">ACTIVO SAP</div>{{ ticket.id_activo_sap|default:'—' }}</div>
+  </div>
+</div>
+
+{% if historial %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">📊 Historial de acciones</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Acción</th><th>Usuario</th><th>Estado anterior</th><th>Estado nuevo</th><th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in historial %}
+        <tr>
+          <td style="font-size:12px;white-space:nowrap;">{{ h.created_at|date:"d/m/Y H:i" }}</td>
+          <td><span style="font-size:12px;background:var(--bg-600);padding:3px 8px;border-radius:6px;">{{ h.get_tipo_accion_display }}</span></td>
+          <td style="font-size:13px;">{{ h.usuario.get_full_name|default:'—' }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ h.estado_anterior|default:'—' }}</td>
+          <td style="font-size:12px;color:var(--accent-green);">{{ h.estado_nuevo|default:'—' }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ h.descripcion|default:'—'|truncatechars:60 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">📝 Log de auditoría</div>
+  {% if logs %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Acción</th><th>Usuario</th><th>Estado ant.</th><th>Estado nuevo</th><th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="font-size:12px;white-space:nowrap;">{{ log.created_at|date:"d/m/Y H:i" }}</td>
+          <td style="font-size:13px;">{{ log.accion }}</td>
+          <td style="font-size:13px;">{{ log.usuario.get_full_name|default:'Sistema' }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ log.estado_anterior|default:'—' }}</td>
+          <td style="font-size:12px;color:var(--accent-green);">{{ log.estado_nuevo|default:'—' }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ log.detalle|default:'—'|truncatechars:60 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--text-muted);">Sin registros de auditoría.</div>
+  {% endif %}
+</div>
+{% endblock %}

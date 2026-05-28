@@ -1,0 +1,108 @@
+{% extends 'app/base.html' %} {% block title %}Mis Tickets – Campus Seguro{%endblock%} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Mis Tickets</div>
+    <div class="page-subtitle">Historial completo de tus reportes</div>
+  </div>
+  <a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"
+    >➕ Nuevo ticket</a
+  >
+</div>
+
+<form method="get" class="filters-bar">
+  <select name="estado" class="filter-input" onchange="this.form.submit()">
+    <option value="">Todos los estados</option>
+    {% for k, v in estados %}
+    <option value="{{ k }}" {% if estado_filtro="" ="k" %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  {% if estado_filtro %}<a
+    href="{% url 'app:mis_tickets' %}"
+    class="btn btn-ghost btn-sm"
+    >✕ Limpiar</a
+  >{% endif %}
+</form>
+
+<div class="card">
+  {% if tickets %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Categoría</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:35 }}</strong></td>
+          <td>{{ t.get_categoria_display }}</td>
+          <td>{{ t.ubicacion }}</td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td>
+            {% if t.estado.codigo == 'cerrado' %}<span class="badge badge-green"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'pausado' %}<span
+              class="badge badge-yellow"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'no_reparado' %}<span
+              class="badge badge-red"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'enviado' %}<span
+              class="badge badge-blue"
+              >{{ t.get_estado_display }}</span
+            >
+            {% else %}<span class="badge badge-teal"
+              >{{ t.get_estado_display }}</span
+            >{% endif %}
+          </td>
+          <td>
+            <span class="id-mono">{{ t.created_at|date:"d/m/Y H:i" }}</span>
+          </td>
+          <td>
+            <a
+              href="{% url 'app:detalle_ticket' t.id %}"
+              class="btn btn-ghost btn-sm"
+              >Ver</a
+            >
+            {% if t.es_editable %}
+            <a
+              href="{% url 'app:editar_ticket' t.id %}"
+              class="btn btn-ghost btn-sm"
+              >✏️</a
+            >
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">📭</div>
+    <div class="label">Sin tickets que mostrar</div>
+    <div class="sub">
+      No hay tickets que coincidan con los filtros aplicados.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

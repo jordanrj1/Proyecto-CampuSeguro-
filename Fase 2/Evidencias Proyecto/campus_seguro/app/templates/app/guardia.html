@@ -1,0 +1,177 @@
+{% extends 'app/base.html' %} {% block title %}Panel Guardia{% endblock %} {%block content%}
+<div class="topbar">
+  <div>
+    <div class="page-title">Panel de Guardia</div>
+    <div class="page-subtitle">
+      Validaciones en terreno · {{ user.turno|default:"Turno general" }}
+    </div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi yellow">
+    <div class="kpi-label">Pendientes</div>
+    <div class="kpi-value">{{ pendientes_count }}</div>
+    <div class="kpi-sub">por validar</div>
+  </div>
+  <div class="kpi blue">
+    <div class="kpi-label">Total validados</div>
+    <div class="kpi-value">{{ total_validados }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Válidos</div>
+    <div class="kpi-value">{{ validos }}</div>
+    <div class="kpi-sub">incidencias reales</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Inválidos</div>
+    <div class="kpi-value">{{ invalidos }}</div>
+    <div class="kpi-sub">no requerían acción</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">🚨 Validaciones pendientes</div>
+  {% if pendientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Solicitante</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Hace</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in pendientes %}
+        <tr
+          {%if t.urgencia="" ="critica"%}style="background:rgba(245,54,92,0.05);"
+          {%endif%}
+        >
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:30 }}</strong></td>
+          <td>{{ t.creado_por.get_full_name|truncatechars:24 }}</td>
+          <td>
+            {{ t.ubicacion.edificio }} P{{ t.ubicacion.piso }}{%if t.ubicacion.sala%} · {{ t.ubicacion.sala }}{% endif %}
+          </td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td><span class="id-mono">{{ t.created_at|timesince }}</span></td>
+          <td>
+            <a
+              href="{% url 'app:validar_ticket' t.id %}"
+              class="btn btn-primary btn-sm"
+              >🛡️ Validar</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">✓</div>
+    <div class="label">No hay validaciones pendientes</div>
+    <div class="sub">Sin alertas activas en este momento.</div>
+  </div>
+  {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
+  <div class="card">
+    <div class="card-title">📋 Mis validaciones recientes</div>
+    {% if mis_validaciones %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Resultado</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in mis_validaciones %}
+          <tr>
+            <td>
+              <strong>#{{ v.ticket.id }}</strong> · {{v.ticket.titulo|truncatechars:30}}
+            </td>
+            <td>
+              {% if v.resultado == 'valido' %}<span class="badge badge-green"
+                >Válido</span
+              >
+              {% else %}<span class="badge badge-red">Inválido</span>{% endif %}
+            </td>
+            <td>
+              <span class="id-mono">{{ v.created_at|date:"d/m H:i" }}</span>
+            </td>
+            <td>
+              <a
+                href="{% url 'app:detalle_ticket' v.ticket.id %}"
+                class="btn btn-ghost btn-sm"
+                >→</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px">
+      <div class="sub">Sin validaciones realizadas</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">📅 Mis inasistencias</div>
+    {% if inasistencias %} {% for i in inasistencias %}
+    <div
+      style="
+        padding: 10px;
+        background: var(--bg-700);
+        border-radius: 8px;
+        margin-bottom: 8px;
+      "
+    >
+      <div style="font-size: 12px; font-weight: 600">
+        {{ i.fecha_desde|date:"d/m" }} → {{ i.fecha_hasta|date:"d/m/Y" }}
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px">
+        {{ i.get_motivo_display }}
+      </div>
+      <div style="margin-top: 6px">
+        {% if i.estado.codigo == 'aprobada' %}<span class="badge badge-green"
+          >Aprobada</span
+        >
+        {% elif i.estado.codigo == 'rechazada' %}<span class="badge badge-red"
+          >Rechazada</span
+        >
+        {% else %}<span class="badge badge-yellow">Pendiente</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %} {% else %}
+    <div class="empty-state" style="padding: 18px">
+      <div class="sub">Sin registros</div>
+    </div>
+    {% endif %}
+    <a
+      href="{% url 'app:registrar_inasistencia' %}"
+      class="btn btn-ghost btn-full btn-sm"
+      style="margin-top: 10px"
+      >+ Registrar inasistencia</a
+    >
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,755 @@
+{% extends 'app/base.html' %} {% block title %}Ticket #{{ ticket.pk }} ·
+Trazabilidad{% endblock %} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Ticket #{{ ticket.pk }}</div>
+    <div class="page-subtitle">{{ ticket.titulo }}</div>
+  </div>
+  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<!-- Estado general -->
+<div
+  style="
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  "
+>
+  <span class="urgencia-{{ ticket.urgencia }}" style="font-size: 13px"
+    >{{ ticket.get_urgencia_display }}</span
+  >
+  <span
+    style="font-size:13px;font-weight:600;padding:4px 12px;border-radius:6px;
+    background:{% if ticket.estado.codigo == 'cerrado' %}rgba(45,206,137,0.15){% elif ticket.estado.codigo == 'no_reparable' %}rgba(245,54,92,0.15){% elif ticket.estado.codigo == 'en_mantencion' %}rgba(74,143,255,0.15){% else %}rgba(244,197,66,0.15){% endif %};
+    color:{% if ticket.estado.codigo == 'cerrado' %}var(--accent-green){% elif ticket.estado.codigo == 'no_reparable' %}var(--accent-red){% elif ticket.estado.codigo == 'en_mantencion' %}var(--accent-blue){% else %}var(--accent-yellow){% endif %};"
+  >
+    {{ ticket.get_estado_display }}
+  </span>
+  {% if ticket.afecta_clase %}<span
+    style="
+      font-size: 12px;
+      background: rgba(74, 143, 255, 0.15);
+      color: var(--accent-blue);
+      padding: 3px 10px;
+      border-radius: 6px;
+    "
+    >📚 Afecta clases</span
+  >{% endif %} {% if ticket.riesgo_electrico %}<span
+    style="
+      font-size: 12px;
+      background: rgba(245, 54, 92, 0.15);
+      color: var(--accent-red);
+      padding: 3px 10px;
+      border-radius: 6px;
+    "
+    >⚡ Riesgo eléctrico</span
+  >{% endif %} {% if ticket.riesgo_estructural %}<span
+    style="
+      font-size: 12px;
+      background: rgba(245, 54, 92, 0.15);
+      color: var(--accent-red);
+      padding: 3px 10px;
+      border-radius: 6px;
+    "
+    >🏗️ Riesgo estructural</span
+  >{% endif %} {% if ticket.riesgo_accesibilidad %}<span
+    style="
+      font-size: 12px;
+      background: rgba(244, 197, 66, 0.15);
+      color: var(--accent-yellow);
+      padding: 3px 10px;
+      border-radius: 6px;
+    "
+    >♿ Accesibilidad</span
+  >{% endif %}
+</div>
+
+<div
+  style="
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  "
+>
+  <!-- Columna principal: info + timeline -->
+  <div>
+    <!-- Información del incidente -->
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">📋 Información del incidente</div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          font-size: 13px;
+        "
+      >
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            SOLICITANTE
+          </div>
+          <div style="font-weight: 500">
+            {{ ticket.creado_por.get_full_name }}
+          </div>
+        </div>
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            CATEGORÍA
+          </div>
+          <div>{{ ticket.get_categoria_display }}</div>
+        </div>
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            UBICACIÓN
+          </div>
+          <div>{{ ticket.ubicacion }}</div>
+        </div>
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            TIPO DE ESPACIO
+          </div>
+          <div>
+            {{ ticket.ubicacion.get_tipo_display|default:'—' }}{%if ticket.ubicacion.capacidad%} ({{ ticket.ubicacion.capacidad }}
+            personas){% endif %}
+          </div>
+        </div>
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            REPORTADO
+          </div>
+          <div>{{ ticket.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            ASIGNADO A
+          </div>
+          <div>
+            {% if ticket.asignado_a %}{{ ticket.asignado_a.get_full_name }}{%else%}<span style="color: var(--text-muted)">Sin asignar</span>{%endif%}
+          </div>
+        </div>
+        {% if ticket.validado_por %}
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            VALIDADO POR (GUARDIA)
+          </div>
+          <div style="color: var(--accent-yellow)">
+            {{ ticket.validado_por.get_full_name }}
+          </div>
+        </div>
+        {% endif %} {% if ticket.gestor_responsable %}
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            GESTOR
+          </div>
+          <div>{{ ticket.gestor_responsable.get_full_name }}</div>
+        </div>
+        {% endif %} {% if ticket.inicio_trabajo_at %}
+        <div>
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 11px;
+              margin-bottom: 2px;
+            "
+          >
+            INICIO DE TRABAJO
+          </div>
+          <div style="color: var(--accent-green)">
+            {{ ticket.inicio_trabajo_at|date:"d/m/Y H:i" }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% if ticket.descripcion %}
+      <div
+        style="
+          background: var(--bg-700);
+          border-radius: 8px;
+          padding: 12px;
+          font-size: 13px;
+          color: var(--text-secondary);
+          margin-top: 14px;
+        "
+      >
+        <strong style="color: var(--text-primary)">Descripción:</strong><br />{{ticket.descripcion|linebreaks}}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Galería de evidencia fotográfica (solo roles autorizados) -->
+    {% if request.user.rol != 'usuario' %} {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">
+        📷 Evidencia fotográfica
+        <span
+          style="
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 8px;
+          "
+          >trazabilidad completa</span
+        >
+      </div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 14px;
+        "
+      >
+        {% if ticket.foto_evidencia %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-blue);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              📸 INCIDENTE
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.creado_por.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.validacion and ticket.validacion.foto_evidencia%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.validacion.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.validacion.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-yellow);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🛡️ VALIDACIÓN GUARDIA
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.validacion.guardia.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.validacion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {% if ticket.mantencion and ticket.mantencion.foto_final %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.mantencion.foto_final.url }}" target="_blank">
+            <img
+              src="{{ ticket.mantencion.foto_final.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-green);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔧 TRABAJO COMPLETADO
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.mantencion.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.mantencion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.no_reparable and ticket.no_reparable.foto_diagnostico%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a
+            href="{{ ticket.no_reparable.foto_diagnostico.url }}"
+            target="_blank"
+          >
+            <img
+              src="{{ ticket.no_reparable.foto_diagnostico.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-red);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔍 DIAGNÓSTICO (NO REPARABLE)
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.no_reparable.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.no_reparable.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %} {% endif %}
+
+    <!-- Timeline de auditoría completo -->
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">🕐 Línea de tiempo completa</div>
+      {% if logs %}
+      <div style="position: relative; padding-left: 26px">
+        <div
+          style="
+            position: absolute;
+            left: 10px;
+            top: 6px;
+            bottom: 6px;
+            width: 2px;
+            background: var(--border);
+          "
+        ></div>
+        {% for log in logs %}
+        <div style="position: relative; margin-bottom: 16px">
+          <div
+            style="position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;
+            background:{% if 'cerrado' in log.accion|lower or 'completado' in log.accion|lower %}var(--accent-green)
+            {% elif 'no reparable' in log.accion|lower or 'rechaz' in log.accion|lower %}var(--accent-red)
+            {% elif 'inicia' in log.accion|lower or 'toma' in log.accion|lower %}var(--accent-blue)
+            {% elif 'deriv' in log.accion|lower or 'asign' in log.accion|lower %}var(--accent-yellow)
+            {% else %}var(--accent-blue){% endif %};
+            border:2px solid var(--bg-850);"
+          ></div>
+          <div
+            style="
+              font-size: 11px;
+              color: var(--text-muted);
+              margin-bottom: 2px;
+            "
+          >
+            {{ log.created_at|date:"d/m/Y H:i" }} {% if log.usuario %} ·
+            <strong style="color: var(--text-secondary)"
+              >{{ log.usuario.get_full_name|default:'Sistema' }}</strong
+            >{% endif %} {% if log.estado_anterior and log.estado_nuevo %}<span
+              style="
+                font-size: 10px;
+                background: var(--bg-600);
+                padding: 1px 6px;
+                border-radius: 4px;
+                margin-left: 6px;
+              "
+              >{{ log.estado_anterior }} → {{ log.estado_nuevo }}</span
+            >{% endif %}
+          </div>
+          <div
+            style="
+              font-size: 13px;
+              font-weight: 600;
+              color: var(--text-primary);
+            "
+          >
+            {{ log.accion }}
+          </div>
+          {% if log.detalle %}
+          <div
+            style="
+              font-size: 12px;
+              color: var(--text-secondary);
+              margin-top: 3px;
+              line-height: 1.5;
+            "
+          >
+            {{ log.detalle }}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <div class="label">Sin historial registrado</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Columna lateral: reparación / no-reparable / materiales -->
+  <div>
+    <!-- Registro de mantención -->
+    {% if ticket.mantencion %} {% with r=ticket.mantencion %}
+    <div
+      class="card"
+      style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)"
+    >
+      <div class="form-section-title" style="color: var(--accent-green)">
+        ✓ Registro de reparación
+      </div>
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+        <div style="font-weight: 500">{{ r.tecnico.get_full_name }}</div>
+      </div>
+      {% if r.fecha_inicio %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">PERÍODO</div>
+        <div>
+          {{ r.fecha_inicio|date:"d/m H:i" }} → {{r.fecha_finalizacion|date:"d/m H:i"|default:'—'}}
+        </div>
+        {% if r.tiempo_total_minutos %}
+        <div style="color: var(--accent-blue); font-size: 12px">
+          {{ r.tiempo_total_minutos }} min totales
+        </div>
+        {% endif %}
+      </div>
+      {% endif %} {% if r.horas_hombre %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          HORAS HOMBRE
+        </div>
+        <div style="font-weight: 700; font-size: 18px">
+          {{ r.horas_hombre }} hrs
+        </div>
+      </div>
+      {% endif %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          TRABAJO REALIZADO
+        </div>
+        <div style="color: var(--text-secondary); line-height: 1.5">
+          {{ r.descripcion_trabajo }}
+        </div>
+      </div>
+      {% if r.causa_raiz %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">CAUSA RAÍZ</div>
+        <div style="color: var(--text-secondary)">{{ r.causa_raiz }}</div>
+      </div>
+      {% endif %} {% if r.herramientas_utilizadas %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          HERRAMIENTAS
+        </div>
+        <div style="color: var(--text-secondary)">
+          {{ r.herramientas_utilizadas }}
+        </div>
+      </div>
+      {% endif %}
+      <div
+        style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px"
+      >
+        {% if r.personal_adicional_requerido %}<span
+          style="
+            font-size: 11px;
+            background: rgba(244, 197, 66, 0.15);
+            color: var(--accent-yellow);
+            padding: 2px 8px;
+            border-radius: 4px;
+          "
+          >Personal adicional</span
+        >{% endif %} {% if r.requiere_nivel_mayor %}<span
+          style="
+            font-size: 11px;
+            background: rgba(245, 54, 92, 0.15);
+            color: var(--accent-red);
+            padding: 2px 8px;
+            border-radius: 4px;
+          "
+          >Requiere nivel mayor</span
+        >{% endif %}
+      </div>
+      {% if r.observaciones %}
+      <div
+        style="
+          font-size: 12px;
+          background: var(--bg-700);
+          border-radius: 6px;
+          padding: 10px;
+          color: var(--text-secondary);
+        "
+      >
+        <strong style="color: var(--text-muted); font-size: 10px"
+          >OBSERVACIONES:</strong
+        ><br />{{ r.observaciones }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Materiales utilizados -->
+    {% if r.materiales_utilizados.exists %}
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">📦 Materiales consumidos</div>
+      {% for mat in r.materiales_utilizados.all %}
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+          border-bottom: 1px solid var(--border);
+          font-size: 13px;
+        "
+      >
+        <div>
+          <div style="font-weight: 500">{{ mat.material.nombre }}</div>
+          {% if mat.observacion %}
+          <div style="font-size: 11px; color: var(--text-muted)">
+            {{ mat.observacion }}
+          </div>
+          {% endif %}
+        </div>
+        <div style="font-weight: 700; color: var(--accent-blue)">
+          {{ mat.cantidad }} {{ mat.material.unidad }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %} {% endwith %} {% endif %}
+
+    <!-- Registro no reparable -->
+    {% if ticket.no_reparable %} {% with nr=ticket.no_reparable %}
+    <div
+      class="card"
+      style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
+    >
+      <div class="form-section-title" style="color: var(--accent-red)">
+        ✗ No reparable
+      </div>
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+        <div style="font-weight: 500">{{ nr.tecnico.get_full_name }}</div>
+      </div>
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">CRITICIDAD</div>
+        <span
+          style="font-size:12px;padding:2px 10px;border-radius:6px;font-weight:600;
+          background:{% if nr.criticidad == 'critica' %}rgba(245,54,92,0.2){% elif nr.criticidad == 'alta' %}rgba(245,54,92,0.12){% elif nr.criticidad == 'media' %}rgba(244,197,66,0.15){% else %}rgba(100,100,100,0.2){% endif %};
+          color:{% if nr.criticidad == 'critica' or nr.criticidad == 'alta' %}var(--accent-red){% elif nr.criticidad == 'media' %}var(--accent-yellow){% else %}var(--text-secondary){% endif %};"
+        >
+          {{ nr.get_criticidad_display }}
+        </span>
+      </div>
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          MOTIVO TÉCNICO
+        </div>
+        <div style="color: var(--text-secondary); line-height: 1.5">
+          {{ nr.motivo_tecnico }}
+        </div>
+      </div>
+      {% if nr.material_requerido %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          MATERIAL REQUERIDO
+        </div>
+        <div style="color: var(--text-secondary)">
+          {{ nr.material_requerido }}
+        </div>
+      </div>
+      {% endif %} {% if nr.personal_especializado_requerido %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          ESPECIALISTA REQUERIDO
+        </div>
+        <div style="color: var(--text-secondary)">
+          {{ nr.personal_especializado_requerido }}
+        </div>
+      </div>
+      {% endif %} {% if nr.herramientas_faltantes %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">
+          HERRAMIENTAS FALTANTES
+        </div>
+        <div style="color: var(--text-secondary)">
+          {{ nr.herramientas_faltantes }}
+        </div>
+      </div>
+      {% endif %} {% if nr.requiere_externalizacion %}
+      <div
+        style="
+          background: rgba(245, 54, 92, 0.08);
+          border-radius: 6px;
+          padding: 10px;
+          font-size: 12px;
+          margin-bottom: 10px;
+        "
+      >
+        <strong style="color: var(--accent-red)"
+          >Requiere externalización</strong
+        >
+        <div
+          style="font-size: 11px; color: var(--text-secondary); margin-top: 4px"
+        >
+          El gestor debe gestionar la empresa externa.
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endwith %} {% endif %}
+
+    <!-- Acciones del gestor (solo si es gestor) -->
+    {% if request.user.rol == 'gestor' %}
+    <div class="card">
+      <div class="form-section-title">⚡ Acciones</div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        {%if ticket.estado.codigo == 'enviado' or ticket.estado.codigo == 'validado'%}
+        <a
+          href="{% url 'app:derivar_ticket' ticket.pk %}"
+          class="btn btn-primary"
+          style="text-align: center"
+          >Derivar a mantención</a
+        >
+        {% endif %} {% if ticket.estado.codigo == 'no_reparado' %}
+        <a
+          href="{% url 'app:derivar_ticket' ticket.pk %}"
+          class="btn btn-primary"
+          style="text-align: center"
+          >Re-derivar a otro técnico</a
+        >
+        {% endif %} {% if ticket.estado.codigo == 'reparado' %}
+        <a
+          href="{% url 'app:cerrar_ticket' ticket.pk %}"
+          class="btn btn-success"
+          style="text-align: center"
+          >✓ Cerrar ticket</a
+        >
+        {% endif %} {%if ticket.estado.codigo == 'en_mantencion' or ticket.estado.codigo == 'enviado' or ticket.estado.codigo == 'validado'%}
+        <a
+          href="{% url 'app:pausar_ticket' ticket.pk %}"
+          class="btn btn-ghost"
+          style="text-align: center"
+          >⏸ Pausar ticket</a
+        >
+        {% endif %} {% if ticket.estado.codigo == 'pausado' %}
+        <a
+          href="{% url 'app:reactivar_ticket' ticket.pk %}"
+          class="btn btn-ghost"
+          style="text-align: center"
+          >▶ Reactivar</a
+        >
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
