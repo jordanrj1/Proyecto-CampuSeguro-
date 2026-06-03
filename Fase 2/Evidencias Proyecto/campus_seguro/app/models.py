@@ -141,6 +141,21 @@ class Usuario(AbstractUser):
     aprobado_por = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='cuentas_aprobadas')
     activo = models.BooleanField(default=True)
 
+    # ── Auth0 ────────────────────────────────────────────────
+    # Identificador único del usuario en Auth0 (Subject claim del JWT).
+    # Formato: "auth0|<id>" — ejemplo: "auth0|66a1b2c3d4e5f6a7b8c9d0e1"
+    # Nulo cuando Auth0 no está configurado (autenticación local de desarrollo).
+    # Cuando existe, se usa para vincular la sesión Auth0 con el usuario local
+    # y para llamadas a la Management API (actualizar rol, revocar sesiones).
+    auth0_sub = models.CharField(
+        max_length=120,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name='Auth0 Subject ID',
+        help_text='Identificador único del usuario en Auth0. Se asigna automáticamente al registrar vía Auth0.',
+    )
+
     objects = UsuarioManager()
 
     def __str__(self):

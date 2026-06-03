@@ -1,4 +1,68 @@
-{% extends 'app/base.html' %} {% block title %}Panel Guardia{% endblock %} {%block content%}
+{% extends 'app/base.html' %}
+{% block title %}Panel Guardia{% endblock %}
+
+{# ═══════════════════════════════════════════════════════════════
+   TEMPLATE: app/guardia.html
+   ─────────────────────────────────────────────────────────────
+   CONTROLADOR (views.py):
+     Función: dashboard_guardia(request)
+     URL:     /dashboard/  (el router dashboard() redirige aquí cuando user.rol == 'guardia')
+     Acceso:  Solo usuarios con rol 'guardia' y cuenta activa.
+
+   VARIABLES DE CONTEXTO (enviadas desde dashboard_guardia):
+     pendientes (QuerySet<Ticket>)
+       → Tickets con estado 'en_validacion' y sin soft-delete.
+       → Ordenados por urgencia DESC y fecha de creación DESC.
+       → Cada objeto tiene: id, titulo, urgencia, created_at,
+         creado_por (Usuario), ubicacion (Ubicacion).
+
+     pendientes_count (int)
+       → Cantidad de tickets pendientes de validar. Usado en el KPI amarillo.
+
+     mis_validaciones (QuerySet<ValidacionGuardia>)
+       → Las últimas 8 validaciones realizadas por este guardia.
+       → Tiene: ticket (FK), resultado ('valido'/'invalido'), created_at.
+
+     total_validados (int)
+       → Total histórico de validaciones de este guardia (no solo las 8 recientes).
+
+     validos (int)
+       → Cantidad de validaciones con resultado='valido'.
+
+     invalidos (int)
+       → Cantidad de validaciones con resultado='invalido'.
+
+     inasistencias (QuerySet<Inasistencia>)
+       → Últimas 3 inasistencias del guardia actual.
+       → Tiene: fecha_desde, fecha_hasta, motivo, estado (FK → EstadoCatalogo).
+
+     user (Usuario)
+       → El guardia autenticado. Viene del context processor estándar de Django
+         (request.user), no se pasa explícitamente desde la vista.
+       → Se usa para: user.turno (muestra el turno del guardia en el subtítulo).
+
+   FILTRO URGENCIA CRÍTICA (línea ~53):
+     El condicional {% if t.urgencia == "critica" %} resalta la fila en rojo tenue.
+     Corregido en sesión actual: era '="" ="critica"' (typo), ahora es '== "critica"'.
+     urgencia es un CharField del modelo Ticket con valores: baja/media/alta/critica.
+
+   URLS QUE GENERA:
+     app:validar_ticket → /guardia/validar/<ticket_id>/
+       Formulario de validación en terreno (ValidacionForm en forms.py).
+     app:detalle_ticket → /tickets/<ticket_id>/
+       Vista de detalle del ticket.
+     app:registrar_inasistencia → /inasistencias/nueva/
+       Formulario para que el guardia registre su propia inasistencia.
+
+   CONEXIONES:
+     - Modelo Ticket:            app/models.py → class Ticket
+     - Modelo ValidacionGuardia: app/models.py → class ValidacionGuardia
+     - Modelo Inasistencia:      app/models.py → class Inasistencia
+     - Vista que alimenta:       app/views.py → dashboard_guardia()
+     - CSS urgencia-{valor}:     static/css/main.css → .urgencia-critica, .urgencia-alta, etc.
+   ═══════════════════════════════════════════════════════════════ #}
+
+{%block content%}
 <div class="topbar">
   <div>
     <div class="page-title">Panel de Guardia</div>
@@ -50,8 +114,8 @@
       <tbody>
         {% for t in pendientes %}
         <tr
-          {%if t.urgencia="" ="critica"%}style="background:rgba(245,54,92,0.05);"
-          {%endif%}
+          {% if t.urgencia == "critica" %}style="background:rgba(245,54,92,0.05);"
+          {% endif %}
         >
           <td><span class="id-mono">#{{ t.id }}</span></td>
           <td><strong>{{ t.titulo|truncatechars:30 }}</strong></td>
