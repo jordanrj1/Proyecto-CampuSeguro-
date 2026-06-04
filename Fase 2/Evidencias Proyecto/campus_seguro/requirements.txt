@@ -1,0 +1,29 @@
+# ═══════════════════════════════════════════════════════════════
+# Campus Seguro – Dependencias del proyecto
+# ─────────────────────────────────────────────────────────────
+# Para instalar:  pip install -r requirements.txt
+# Entorno:        Python 3.13+
+# ═══════════════════════════════════════════════════════════════
+
+# ── Framework principal ──────────────────────────────────────
+Django==5.2.7
+asgiref==3.10.0
+sqlparse==0.5.3
+
+# ── Variables de entorno (.env) ──────────────────────────────
+python-dotenv==1.2.2
+
+# ── Imágenes (ImageField en modelos) ────────────────────────
+pillow==11.3.0
+
+# ── Auth0 / JWT ──────────────────────────────────────────────
+requests==2.34.0
+PyJWT==2.12.1
+python-jose==3.5.0
+cryptography==48.0.0
+
+# ── Utilidades HTTP ─────────────────────────────────────────
+urllib3==2.4.0
+certifi==2025.6.15
+charset-normalizer==3.4.2
+idna==3.10
