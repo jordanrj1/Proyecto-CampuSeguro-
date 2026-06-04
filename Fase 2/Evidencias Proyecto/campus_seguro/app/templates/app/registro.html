@@ -1,7 +1,7 @@
 {% extends 'app/base.html' %}
 {% block title %}Solicitar Cuenta – Campus Seguro{% endblock %}
 
-{# ═══════════════════════════════════════════════════════════════
+{% comment %}
    TEMPLATE: app/registro.html
    ─────────────────────────────────────────────────────────────
    CONTROLADOR (views.py):
@@ -34,7 +34,7 @@
      messages (built-in Django)
        → Mensajes flash del sistema. Se usan para mostrar errores o éxito.
        → Ejemplo: "Solicitud enviada correctamente." después de registrarse.
-       → Se accede con: {% if messages %}{% for message in messages %}...{% endfor %}{% endif %}
+       → Se accede con {% for message in messages %}.
 
    FLUJO POST-SUBMIT:
      1. POST → registro_view() valida RegistroUsuarioForm.
@@ -60,7 +60,7 @@
      - Formulario:    app/forms.py → RegistroUsuarioForm
      - Auth0 service: app/auth0_service.py → crear_usuario_auth0()
      - Flujo siguiente: gestor en app/templates/app/revisar_cuenta.html
-   ═══════════════════════════════════════════════════════════════ #}
+{% endcomment %}
 
 {% block auth_content %}
 <style>
@@ -152,12 +152,10 @@ body::before {
       </div>
     </div>
 
-    {# ── Mensajes del sistema (CORREGIDO: for/endfor correctamente cerrado) ── #}
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
-      {% endfor %}
-    {% endif %}
+    {# ── Mensajes del sistema ── #}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
 
     {# ── Errores de validación del formulario ── #}
     {% if form.errors %}
@@ -282,7 +280,7 @@ body::before {
         </label>
       </div>
 
-      <button type="submit" class="btn-submit" id="btnSubmit" disabled>
+      <button type="submit" class="btn-submit" id="btnSubmit">
         Enviar Solicitud →
       </button>
     </form>

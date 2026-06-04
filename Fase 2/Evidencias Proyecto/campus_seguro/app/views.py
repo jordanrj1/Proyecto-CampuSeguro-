@@ -11,8 +11,6 @@
 # AUTENTICACIÓN (flujo Auth0):
 #   - login_view(): Autentica vía Auth0 ROPC si AUTH0_ENABLED=True,
 #     o via Django authenticate() como fallback de desarrollo.
-#     INCLUYE SINCRONIZACIÓN AUTOMÁTICA: Si el usuario existe en Auth0
-#     pero no en BD local, se crea automáticamente.
 #   - logout_view(): Limpia sesión local + redirige a Auth0 logout.
 #   - registro_view(): Crea usuario en Auth0 (si habilitado) y en BD local.
 #   - aprobar_cuenta(): Gestor aprueba + asigna rol + sincroniza con Auth0.
@@ -127,9 +125,7 @@ def login_view(request):
         3. Auth0 valida las credenciales contra su base de usuarios.
         4. Si válidas: Auth0 retorna access_token + id_token (JWT).
         5. Se decodifica id_token para extraer email y auth0_sub.
-        6. ★ NUEVO: Se llama a auth0_service.sincronizar_usuario_local()
-           que crea automáticamente el usuario en BD local si no existe.
-           Esto resuelve el problema de "Auth0 autenticó a X pero no existe en BD local".
+        6. Se busca al usuario local por correo_institucional.
         7. Se verifica estado_cuenta (pendiente/suspendida/rechazada/activa).
         8. Si puede ingresar: login() + registro en LogAuditoria + redirect.
 
@@ -142,14 +138,6 @@ def login_view(request):
         La cuenta en Auth0 puede estar activa, pero el estado local
         (estado_cuenta.codigo) puede ser 'pendiente', 'suspendida', etc.
         El estado local es la fuente de verdad para el acceso al sistema.
-
-    SINCRONIZACIÓN AUTOMÁTICA:
-        Si el usuario existe en Auth0 pero NO en la BD local, el sistema
-        lo crea automáticamente con:
-        - rol detectado según el email (gestor, guardia, mantencion, usuario)
-        - estado='activa' si es gestor, 'pendiente' para otros
-        - is_staff=True si es gestor
-        - auth0_sub vinculado para futuras autenticaciones
 
     Template: app/login.html
     Redirect exitoso: app:dashboard (router por rol)
@@ -185,24 +173,21 @@ def login_view(request):
                     email_auth0 = claims.get('email', '').lower()
                     auth0_sub = claims.get('sub', '')
 
-                    # ★ NUEVO: Sincronizar usuario en BD local
-                    # Esta función crea automáticamente el usuario si no existe
-                    # o actualiza sus datos si ya existe
+                    # Buscar usuario local por correo institucional
                     try:
-                        user = auth0_service.sincronizar_usuario_local({
-                            'email': email_auth0,
-                            'sub': auth0_sub,
-                            'given_name': claims.get('given_name', ''),
-                            'family_name': claims.get('family_name', ''),
-                            'name': claims.get('name', ''),
-                        })
-                        logger.info(f"✅ Usuario sincronizado: {email_auth0} (rol: {user.rol})")
-                    except Exception as e:
-                        logger.error(f"Error al sincronizar usuario {email_auth0}: {e}")
+                        user = Usuario.objects.get(correo_institucional__iexact=email_auth0)
+                        # Actualizar auth0_sub si no lo tenía (primera vez)
+                        if not user.auth0_sub and auth0_sub:
+                            user.auth0_sub = auth0_sub
+                            user.save(update_fields=['auth0_sub'])
+                    except Usuario.DoesNotExist:
+                        logger.warning(
+                            f"Auth0 autenticó a {email_auth0} pero no existe en BD local."
+                        )
                         messages.error(
                             request,
-                            'Error al sincronizar tu cuenta con el sistema. '
-                            'Contacta al administrador.'
+                            'Tu cuenta no está registrada en Campus Seguro. '
+                            'Solicita registro institucional.'
                         )
                         return render(request, 'app/login.html', {'form': form})
 
@@ -535,7 +520,7 @@ def dashboard_gestor(request):
         'tickets_con_ausentes': tickets_con_ausentes,
         'pausa_choices': Ticket.PAUSA_CHOICES,
     }
-    return render(request, 'app/dashboarddd.html', context)
+    return render(request, 'app/dashboard_gestor.html', context)
 
 
 def dashboard_guardia(request):
@@ -903,6 +888,16 @@ def aprobar_cuenta(request, pk):
                 })
 
             rol_asignado = form_rol.cleaned_data['rol']
+
+            # RUT temporal: usuarios importados por sincronizar_auth0 tienen RUT con prefijo SYNC-.
+            # Si el gestor ingresa un RUT real en revisar_cuenta.html, se actualiza aqui.
+            # Ver: app/templates/app/revisar_cuenta.html seccion "RUT pendiente de correccion"
+            rut_nuevo = request.POST.get('rut_nuevo', '').strip()
+            if rut_nuevo and rut_nuevo != user.rut:
+                if not Usuario.objects.filter(rut=rut_nuevo).exclude(pk=user.pk).exists():
+                    user.rut = rut_nuevo
+                else:
+                    messages.warning(request, f'El RUT {rut_nuevo} ya pertenece a otro usuario. Se mantuvo el RUT temporal.')
 
             # Actualizar datos locales del usuario
             user.rol = rol_asignado
@@ -1528,7 +1523,7 @@ def registrar_inasistencia(request):
 def gestor_inasistencias(request):
     pendientes = Inasistencia.objects.filter(estado__codigo='pendiente').select_related('usuario').order_by('-created_at')
     recientes = Inasistencia.objects.exclude(estado__codigo='pendiente').select_related('usuario').order_by('-created_at')[:15]
-    return render(request, 'app/inacistencia.html', {
+    return render(request, 'app/inasistencia.html', {
         'pendientes': pendientes, 'recientes': recientes,
     })
 
@@ -1860,3 +1855,179 @@ def reasignar_por_inasistencia(request, pk):
         'tickets': tickets_afectados,
         'tecnicos': tecnicos,
     })
+
+
+# ═══════════════════════════════════════════════════════════════
+# AUTH0 WEBHOOK – Auditoría de acciones externas
+# ─────────────────────────────────────────────────────────────
+# Recibe eventos del Log Streaming de Auth0 y los registra en
+# LogAuditoria local, cerrando la brecha de trazabilidad entre
+# acciones que ocurren en Auth0 (cambio de contraseña desde el
+# dashboard, bloqueo manual, etc.) y el registro local de Django.
+#
+# CONFIGURACIÓN EN AUTH0 DASHBOARD:
+#   1. Ir a: Monitoring → Log Streams → Create Log Stream
+#   2. Tipo: Custom Webhook
+#   3. Payload URL: https://TU-URL/auth0/webhook/
+#   4. Authorization: Bearer + el valor de AUTH0_WEBHOOK_SECRET en .env
+#
+# EVENTOS QUE REGISTRA (tipos de log Auth0):
+#   scp  → cambio de contraseña
+#   sui  → usuario bloqueado/desbloqueado
+#   s    → login exitoso externo
+#   f    → login fallido externo
+#   ss   → logout
+#   otros → registrados como 'evento_auth0' genérico
+#
+# SEGURIDAD:
+#   Valida el header Authorization antes de procesar el payload.
+#   Sin el secret correcto, retorna 401 sin revelar información.
+# ═══════════════════════════════════════════════════════════════
+import json as _json
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+
+
+@csrf_exempt
+@require_POST
+def auth0_webhook(request):
+    """
+    Endpoint para recibir eventos de Auth0 Log Streaming.
+    Registra en LogAuditoria las acciones que ocurren fuera de Django.
+    """
+    # Validar secret del webhook
+    webhook_secret = settings.AUTH0_WEBHOOK_SECRET
+    if webhook_secret:
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.replace('Bearer ', '').strip()
+        if token != webhook_secret:
+            logger.warning('Auth0 webhook: token inválido rechazado.')
+            return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    # Auth0 Log Streaming usa NDJSON: cada línea es un JSON independiente.
+    # También puede enviar un objeto único o un array, según configuración.
+    raw_body = request.body.decode('utf-8', errors='replace').strip()
+    eventos = []
+    try:
+        parsed = _json.loads(raw_body)
+        eventos = parsed if isinstance(parsed, list) else [parsed]
+    except ValueError:
+        # Intentar NDJSON: un objeto JSON por línea
+        for linea in raw_body.splitlines():
+            linea = linea.strip()
+            if not linea:
+                continue
+            try:
+                eventos.append(_json.loads(linea))
+            except ValueError:
+                logger.warning(f'Auth0 webhook: linea no parseable: {linea[:80]}')
+
+    if not eventos:
+        logger.warning(f'Auth0 webhook: body no parseable. Raw: {raw_body[:200]}')
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    # ── Mapa completo de códigos de evento Auth0 → descripción legible ──
+    # Fuente: https://auth0.com/docs/deploy-monitor/logs/log-event-type-codes
+    tipo_map = {
+        # Login / Logout
+        's':        'Login exitoso',
+        'f':        'Login fallido (credenciales incorrectas)',
+        'fp':       'Login fallido (contrasena incorrecta)',
+        'fu':       'Login fallido (usuario no existe)',
+        'fc':       'Login fallido (cuenta bloqueada)',
+        'fco':      'Login fallido (origin no autorizado)',
+        'ss':       'Registro exitoso',
+        'fs':       'Registro fallido',
+        'slo':      'Logout exitoso',
+        'flo':      'Logout fallido',
+        # Contrasena
+        'scp':      'Cambio de contrasena exitoso',
+        'fcp':      'Cambio de contrasena fallido',
+        'spwd':     'Solicitud de cambio de contrasena enviada',
+        'fpwd':     'Solicitud de cambio de contrasena fallida',
+        # Email
+        'sce':      'Cambio de email exitoso',
+        'fce':      'Cambio de email fallido',
+        # Usuario (gestion)
+        'su':       'Usuario actualizado (dashboard Auth0)',
+        'fu':       'Actualizacion de usuario fallida',
+        'sdu':      'Usuario eliminado de Auth0',
+        'fdu':      'Eliminacion de usuario fallida',
+        'scupm':    'Metadatos de usuario actualizados',
+        # Bloqueos
+        'limit_wc': 'Cuenta bloqueada (demasiados intentos)',
+        'limit_ui': 'Demasiadas solicitudes del usuario',
+        'limit_mu': 'Multiples usuarios detectados',
+        # Admin
+        'adi':      'Usuario invitado por administrador',
+        'admin_update_launch': 'Actualizacion de Auth0 iniciada',
+        # API interna (llamadas M2M del propio sistema)
+        'sapi':     '[INTERNO] Llamada a Management API (operacion automatica del sistema)',
+        'fapi':     '[INTERNO] Llamada a Management API fallida',
+        # MFA
+        'gd_auth_succeed': 'Autenticacion MFA exitosa',
+        'gd_auth_failed':  'Autenticacion MFA fallida',
+        # Otros
+        'scoa':     'Autenticacion cross-origin exitosa',
+        'fcoa':     'Autenticacion cross-origin fallida',
+    }
+
+    # Eventos que son ruido interno (operaciones automaticas del propio sistema)
+    # y no aportan valor a la auditoria de seguridad del gestor.
+    # sapi = cada vez que Django llama a la Management API (crear usuario, actualizar rol, etc.)
+    TIPOS_IGNORADOS = {'sapi', 'fapi'}
+
+    for evento in eventos:
+        # Auth0 envuelve el evento real dentro de un campo "data"
+        datos = evento.get('data', evento)
+        tipo_raw  = datos.get('type', evento.get('type', ''))
+        user_name = datos.get('user_name', '') or datos.get('user_id', '') or evento.get('user_name', '')
+        descripcion = tipo_map.get(tipo_raw, f'Evento Auth0 ({tipo_raw})')
+
+        # Ignorar eventos internos del sistema (ruido de la Management API)
+        if tipo_raw in TIPOS_IGNORADOS:
+            logger.debug(f'Auth0 webhook: evento interno ignorado ({tipo_raw}) para {user_name}')
+            continue
+
+        # Buscar usuario local por email si está disponible
+        usuario_local = None
+        if user_name and '@' in user_name:
+            try:
+                usuario_local = Usuario.objects.get(correo_institucional__iexact=user_name)
+            except Usuario.DoesNotExist:
+                pass
+
+        # Cuando Auth0 elimina un usuario, suspenderlo en Django para mantener
+        # consistencia: el registro local se preserva (con sus tickets e historial)
+        # pero el usuario queda inactivo, reflejando que ya no existe en Auth0.
+        if tipo_raw == 'sdu' and usuario_local:
+            try:
+                estado_suspendida = EstadoCatalogo.objects.get(entidad='cuenta', codigo='suspendida')
+                usuario_local.is_active = False
+                usuario_local.estado_cuenta = estado_suspendida
+                usuario_local.save(update_fields=['is_active', 'estado_cuenta'])
+                logger.info(f'Auth0 webhook: usuario {user_name} suspendido en Django tras eliminacion en Auth0')
+            except EstadoCatalogo.DoesNotExist:
+                logger.warning('Auth0 webhook: no se encontro estado "suspendida" en catalogo')
+
+        # Construir detalle legible
+        ip_evento = datos.get('ip', '')
+        log_id    = evento.get('log_id', datos.get('log_id', ''))
+        detalle_partes = [f'Tipo: {tipo_raw}']
+        if user_name:
+            detalle_partes.append(f'Usuario Auth0: {user_name}')
+        if ip_evento:
+            detalle_partes.append(f'IP: {ip_evento}')
+        if log_id:
+            detalle_partes.append(f'Event ID: {log_id[:20]}...')
+
+        LogAuditoria.objects.create(
+            usuario=usuario_local,
+            accion=descripcion,
+            detalle=' | '.join(detalle_partes),
+            modulo='cuenta',
+            es_interno=True,
+        )
+        logger.info(f'Auth0 webhook: {descripcion} para {user_name}')
+
+    return JsonResponse({'received': len(eventos)}, status=200)

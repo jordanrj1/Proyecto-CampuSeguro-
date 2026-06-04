@@ -17,10 +17,10 @@ python-dotenv==1.2.2
 pillow==11.3.0
 
 # ── Auth0 / JWT ──────────────────────────────────────────────
+# requests: llamadas HTTP a Auth0 API (login ROPC, Management API, webhook)
+# PyJWT: decodificacion de id_token JWT recibido de Auth0 en el login
 requests==2.34.0
 PyJWT==2.12.1
-python-jose==3.5.0
-cryptography==48.0.0
 
 # ── Utilidades HTTP ─────────────────────────────────────────
 urllib3==2.4.0
