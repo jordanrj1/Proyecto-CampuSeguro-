@@ -1,15 +1,25 @@
 # Guía de Setup – Nuevo Entorno de Desarrollo
 
-> **Para quién es esto:** Cualquier integrante del equipo que clone el repositorio por primera vez y necesite levantar Campus Seguro en su máquina local.
+> **Para quién es esto:** Cualquier integrante del equipo que clone el repositorio
+> y necesite levantar Campus Seguro en su máquina local para **desarrollo de código**.
+>
+> **Si solo quieres hacer pruebas funcionales**, no necesitas esta guía.
+> Solo pídele la URL ngrok a Jordan y ábrela en el navegador.
+
+> **Historial de versiones**
+> - **v1 – Sprint 1:** Setup básico con SQLite y Auth0 fallback. Sin comandos de gestión.
+> - **v2 – Sprint 2 (Junio 2026):** Se reemplaza la creación manual del gestor por `crear_gestor`. Se agregan `sincronizar_auth0` y `limpiar_cuentas`. Se documenta la distinción entre desarrollo local y pruebas compartidas (ngrok).
 
 ---
 
 ## Antes de empezar: ¿necesito mi propia cuenta de Auth0?
 
-**No.** El equipo comparte un mismo tenant (instancia) de Auth0. Jordan tiene las credenciales y debe
-compartir el archivo `.env` por un canal seguro (WhatsApp, correo directo, USB). **No se sube a git.**
+**No.** El equipo comparte un mismo tenant (instancia) de Auth0. El archivo `.env`
+ya viene incluido en el repositorio con las credenciales reales configuradas.
+Al clonar el repo ya tienes todo lo necesario.
 
-Si por alguna razón necesitas tu propio tenant de Auth0 (ej: entorno de producción separado), sigue la guía en `docs/AUTH0_CONFIGURACION.md`.
+> Si por alguna razón no aparece el archivo `.env` después de clonar, pide
+> el archivo directamente a Jordan.
 
 ---
 
@@ -46,16 +56,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Esto instala: Django 5.2, Pillow, python-dotenv, requests, PyJWT, certifi.
+Instala: Django 5.2, Pillow, python-dotenv, requests, PyJWT y demás dependencias.
 
 ---
 
 ### 4. Variables de entorno (`.env`)
 
-El archivo `.env` ya viene incluido en el repositorio con las credenciales reales de Auth0.
-**No necesitas crear nada ni pedirle nada.** Al clonar el repo ya lo tienes.
+#### v1 – Sprint 1 _(referencia histórica)_
 
-Solo verifica que el archivo exista en la raíz del proyecto (junto a `manage.py`):
+En Sprint 1 el `.env` no estaba en el repositorio y debía pedirse a Jordan.
+Las variables de Auth0 podían dejarse vacías para usar autenticación local Django.
+
+#### v2 – Sprint 2
+
+El archivo `.env` ya viene en el repositorio con todas las credenciales configuradas.
+**No necesitas crear nada.** Verifica que exista en la raíz del proyecto:
 
 ```
 campus_seguro/
@@ -65,10 +80,6 @@ campus_seguro/
 └── ...
 ```
 
-> Si por alguna razón no aparece el archivo `.env`, es posible que tu cliente de git
-> no descargue archivos que empiezan con punto en algunos sistemas. En ese caso
-> pide el archivo directamente al responsable (Jordan).
-
 ---
 
 ### 5. Aplicar migraciones
@@ -77,79 +88,143 @@ campus_seguro/
 python manage.py migrate
 ```
 
-Esto crea todas las tablas en `db.sqlite3`, incluyendo la tabla `app_usuario`
-con el campo `auth0_sub` (ID de Auth0, puede ser nulo en desarrollo local).
+Crea todas las tablas en `db.sqlite3`, incluyendo el catálogo de estados
+(30 estados para tickets, cuentas, asignaciones, etc.) que se pobla automáticamente.
 
-> Por qué hay 8+ migraciones: el proyecto evolucionó iterativamente. La migración
-> más reciente (`0008_add_auth0_sub_to_usuario`) agregó el campo `auth0_sub`
-> al modelo `Usuario` para vincular cada usuario con su identidad en Auth0.
+> Las migraciones son acumulativas. Correr `migrate` en cualquier momento
+> aplica solo lo que falta; no borra datos existentes.
 
 ---
 
 ### 6. Crear el usuario Gestor
 
-El sistema requiere al menos un usuario con `rol='gestor'` para aprobar cuentas nuevas.
-Los usuarios de prueba del desarrollo **no deben existir en tu entorno local**.
+#### v1 – Sprint 1 _(referencia histórica)_
 
-> Por qué este usuario: el gestor es el único rol que puede aprobar solicitudes de cuentas.
-> Sin él, cualquier usuario que se registre queda bloqueado en estado 'pendiente' y no puede entrar.
+Se creaba manualmente desde el Django shell con un bloque Python, asignando
+campos uno a uno. El proceso era propenso a errores y requería conocer
+el ID exacto de `EstadoCatalogo`.
+
+#### v2 – Sprint 2
+
+Se usa el comando `crear_gestor` que guía el proceso interactivamente:
+
+```bash
+python manage.py crear_gestor
+```
+
+El comando pide: correo institucional, RUT, nombre y apellido.
+Crea el usuario con `rol='gestor'`, `estado='activa'`, sin contraseña local
+(Auth0 la gestiona). El `auth0_sub` se vincula automáticamente en el primer login.
+
+También acepta argumentos para no requerir interacción:
+
+```bash
+python manage.py crear_gestor --email gestor@duocuc.cl --rut 12.345.678-9 --nombre Jordan --apellido Garcia
+```
 
 ---
 
-### 7. Eliminar usuarios de prueba
+### 7. Sincronizar usuarios desde Auth0 (v2 – Sprint 2)
 
-Si clonaste el repositorio y ya tiene datos de prueba en `db.sqlite3`
-(ej: `alumnoo@duocuc.cl`, `prueba@duocuc.cl`, etc.), límpialos;
+> Este paso no existía en v1.
 
+Cuando otros integrantes crearon cuentas desde sus propios entornos locales
+antes de adoptar ngrok, esos usuarios están en Auth0 pero no en tu SQLite local.
+Importarlos con:
 
+```bash
+python manage.py sincronizar_auth0
+```
 
-### 8. Levantar el servidor
+Para ver qué se importaría sin crear nada:
+
+```bash
+python manage.py sincronizar_auth0 --dry-run
+```
+
+> Si eres un integrante nuevo que clona el repo para desarrollo local,
+> este paso trae a tu SQLite todos los usuarios que ya existen en Auth0.
+
+---
+
+### 8. Limpiar cuentas de prueba (v2 – Sprint 2)
+
+> Este paso no existía en v1.
+
+Para resetear el entorno antes de una nueva sesión de pruebas,
+sin borrar toda la base de datos (tickets, ubicaciones, catálogos se preservan):
+
+```bash
+# Ver qué se eliminaría (sin borrar nada)
+python manage.py limpiar_cuentas --dry-run
+
+# Eliminar solo de la BD local
+python manage.py limpiar_cuentas
+
+# Eliminar de la BD local Y de Auth0 (limpieza total)
+python manage.py limpiar_cuentas --auth0
+```
+
+> El gestor nunca se elimina con este comando.
+
+---
+
+### 9. Levantar el servidor
 
 ```bash
 python manage.py runserver
 ```
 
-Navega a `http://localhost:8000/login/` e ingresa con el gestor que creaste.
+Navega a `http://localhost:8000/login/` e ingresa con el gestor.
 
 ---
 
-### 9. Verificar que Auth0 funciona (si tienes el .env real)
+### 10. Verificar que Auth0 funciona
 
 1. Ve a `http://localhost:8000/login/`
-2. Ingresa con las credenciales del gestor que existe en Auth0 (las que Jordan configuró)
-3. Si ves el panel del gestor → Auth0 está funcionando correctamente
-4. Haz clic en "Cerrar Sesión" → debe redirigirte de vuelta a la pantalla de login sin error
+2. Ingresa con las credenciales del gestor configurado en Auth0
+3. Si ves el panel del gestor → funciona correctamente
+4. Haz clic en "Cerrar Sesión" → debe redirigirte al login sin error
 
-Si al cerrar sesión aparece un error de Auth0 (`invalid_request` o similar):
-- Verifica que en Auth0 Dashboard → Application → Settings → `Allowed Logout URLs`
-  incluya exactamente `http://localhost:8000/login/`
-- El valor debe coincidir con `AUTH0_LOGOUT_RETURN_URL` en tu `.env`
+Si al cerrar sesión hay error (`invalid_request`):
+- Verifica que `http://localhost:8000/login/` esté en `Allowed Logout URLs`
+  en Auth0 Dashboard → Application → Settings
+- Debe coincidir exactamente con `AUTH0_LOGOUT_RETURN_URL` en tu `.env`
 
 ---
 
-## Resumen de comandos
+## Resumen de comandos (v2 – Sprint 2)
 
 ```bash
-# 1. Clonar
+# Clonar y preparar
 git clone <repo-url> && cd campus_seguro
-
-# 2. Entorno virtual
 python -m venv venv && venv\Scripts\activate
-
-# 3. Dependencias
 pip install -r requirements.txt
 
-# 4. .env ya viene en el repo — no se necesita ningún comando
-
-# 5. Base de datos
+# Base de datos
 python manage.py migrate
 
-# 6. Crear gestor (pegar el bloque Python del paso 6 en el shell)
-python manage.py shell
+# Primer uso: crear gestor local
+python manage.py crear_gestor
 
-# 7. Servidor
+# Traer usuarios que existen en Auth0 pero no en la BD local
+python manage.py sincronizar_auth0
+
+# Limpiar cuentas de prueba
+python manage.py limpiar_cuentas
+
+# Levantar servidor
 python manage.py runserver
 
+---
 
-# 8. Servidor
-Fin 
+## Distinción importante: desarrollo local vs pruebas compartidas
+
+| Escenario | Qué usar |
+|-----------|----------|
+| Escribir y probar código en tu máquina | `python manage.py runserver` en tu entorno local |
+| Probar flujos completos con otros integrantes | Abrir la URL ngrok que Jordan comparte |
+| Ver todas las solicitudes de cuenta del equipo | Acceder por la URL ngrok (van al SQLite de Jordan) |
+
+Cuando se trabaja en entorno local propio, la base de datos es independiente.
+Para pruebas cruzadas entre integrantes, siempre usar la URL ngrok.

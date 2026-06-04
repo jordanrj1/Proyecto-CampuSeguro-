@@ -1,0 +1,141 @@
+{#
+  inasistencia.html — Gestion de inasistencias del personal operativo
+  Renderizado por: views.gestor_inasistencias()
+  Acceso: solo rol 'gestor', desde /gestor/inasistencias/
+  Muestra: inasistencias pendientes de revision + historial reciente
+  Acciones: aprobar o rechazar cada inasistencia
+  Nombre anterior: inacistencia.html (typo corregido en Sprint 2)
+#}
+{% extends 'app/base.html' %} {% block title %}Inasistencias{% endblock %} {%block content%}
+<div class="topbar">
+  <div>
+    <div class="page-title">Inasistencias</div>
+    <div class="page-subtitle">Revisión y aprobación de ausencias</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">⏳ Pendientes ({{ pendientes.count }})</div>
+  {% if pendientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Trabajador</th>
+          <th>Rol</th>
+          <th>Desde</th>
+          <th>Hasta</th>
+          <th>Motivo</th>
+          <th>Detalle</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in pendientes %}
+        <tr>
+          <td><strong>{{ i.usuario.get_full_name }}</strong></td>
+          <td>
+            {% if i.usuario.rol == 'guardia' %}<span class="badge badge-yellow"
+              >Guardia</span
+            >
+            {% else %}<span class="badge badge-green">Mantención</span>{%endif%}
+          </td>
+          <td><span class="id-mono">{{ i.fecha_desde|date:"d/m/Y" }}</span></td>
+          <td><span class="id-mono">{{ i.fecha_hasta|date:"d/m/Y" }}</span></td>
+          <td>{{ i.get_motivo_display }}</td>
+          <td
+            style="
+              font-size: 12px;
+              color: var(--text-secondary);
+              max-width: 200px;
+            "
+          >
+            {{ i.detalle|default:"—"|truncatechars:60 }}
+          </td>
+          <td style="display: flex; gap: 4px">
+            <form
+              method="post"
+              action="{% url 'app:revisar_inasistencia' i.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %}
+              <button
+                name="accion"
+                value="aprobar"
+                class="btn btn-success btn-sm"
+              >
+                ✓
+              </button>
+            </form>
+            <form
+              method="post"
+              action="{% url 'app:revisar_inasistencia' i.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %}
+              <button
+                name="accion"
+                value="rechazar"
+                class="btn btn-danger btn-sm"
+              >
+                ✗
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">✓</div>
+    <div class="label">Sin inasistencias pendientes</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">📋 Historial reciente</div>
+  {% if recientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Trabajador</th>
+          <th>Periodo</th>
+          <th>Motivo</th>
+          <th>Estado</th>
+          <th>Revisor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in recientes %}
+        <tr>
+          <td>{{ i.usuario.get_full_name }}</td>
+          <td>
+            <span class="id-mono"
+              >{{ i.fecha_desde|date:"d/m" }} → {{i.fecha_hasta|date:"d/m/Y"}}</span
+            >
+          </td>
+          <td>{{ i.get_motivo_display }}</td>
+          <td>
+            {% if i.estado.codigo == 'aprobada' %}<span
+              class="badge badge-green"
+              >Aprobada</span
+            >
+            {% else %}<span class="badge badge-red">Rechazada</span>{% endif %}
+          </td>
+          <td>{{ i.revisado_por.get_full_name|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 24px">
+    <div class="sub">Sin historial</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

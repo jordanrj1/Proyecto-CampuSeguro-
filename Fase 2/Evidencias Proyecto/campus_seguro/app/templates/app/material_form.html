@@ -1,0 +1,55 @@
+{% extends 'app/base.html' %}
+{% block title %}{% if material %}Editar{% else %}Nuevo{% endif %} Material{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">{% if material %}Editar material{% else %}Nuevo material{% endif %}</div>
+    <div class="page-subtitle">Catálogo de inventario</div>
+  </div>
+  <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">← Cancelar</a>
+</div>
+
+<form method="post" style="max-width:640px;">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom:18px;">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Código *</label>
+        {{ form.codigo }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoría *</label>
+        {{ form.categoria }}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre *</label>
+      {{ form.nombre }}
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label class="form-label">Unidad *</label>
+        {{ form.unidad }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock actual *</label>
+        {{ form.stock_actual }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock mínimo *</label>
+        {{ form.stock_minimo }}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      {{ form.descripcion }}
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;">
+    <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">💾 Guardar</button>
+  </div>
+</form>
+{% endblock %}

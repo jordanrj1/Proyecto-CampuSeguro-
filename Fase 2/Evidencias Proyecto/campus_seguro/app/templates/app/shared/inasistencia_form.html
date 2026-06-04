@@ -1,0 +1,23 @@
+{% extends 'app/base.html' %}
+{% block title %}Registrar inasistencia{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Registrar inasistencia</div>
+    <div class="page-subtitle">Envía una solicitud de ausencia para su aprobación</div>
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <div style="display:flex;gap:12px;margin-top:18px;">
+      <button type="submit" class="btn btn-primary">Enviar solicitud</button>
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

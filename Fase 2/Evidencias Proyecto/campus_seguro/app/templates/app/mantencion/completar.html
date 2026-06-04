@@ -1,0 +1,489 @@
+{% extends 'app/base.html' %} {% block title %}Registrar Reparación · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Registrar reparación</div>
+    <div class="page-subtitle">
+      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
+    </div>
+  </div>
+  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<!-- Info del ticket -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="form-section-title">📋 Información del incidente</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+      {{ ticket.creado_por.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+      {{ ticket.ubicacion }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+      <span class="urgencia-{{ ticket.urgencia }}"
+        >{{ ticket.get_urgencia_display }}</span
+      >
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+      {{ ticket.get_categoria_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        INICIO DEL TRABAJO
+      </div>
+      {% if ticket.inicio_trabajo_at %}<span style="color: var(--accent-green)"
+        >{{ ticket.inicio_trabajo_at|date:"d/m/Y H:i" }}</span
+      >
+      {% else %}<span style="color: var(--text-muted)">No registrado</span>{%endif%}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">RIESGOS</div>
+      {% if ticket.riesgo_electrico %}⚡ Eléctrico &nbsp;{% endif %} {%if ticket.riesgo_estructural%}🏗️ Estructural &nbsp;{% endif %} {%if ticket.afecta_clase%}📚 Afecta clases{% endif %} {%if not ticket.riesgo_electrico and not ticket.riesgo_estructural and not ticket.afecta_clase%}—{% endif %}
+    </div>
+  </div>
+  {% if ticket.descripcion %}
+  <div
+    style="
+      background: var(--bg-700);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    "
+  >
+    <strong style="color: var(--text-primary)">Descripción del problema:</strong
+    ><br />{{ ticket.descripcion }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Timeline de acciones -->
+{% if logs %}
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">🕐 Historial del ticket</div>
+  <div style="position: relative; padding-left: 22px">
+    <div
+      style="
+        position: absolute;
+        left: 8px;
+        top: 4px;
+        bottom: 4px;
+        width: 2px;
+        background: var(--border);
+      "
+    ></div>
+    {% for log in logs %}
+    <div style="position: relative; margin-bottom: 12px">
+      <div
+        style="
+          position: absolute;
+          left: -18px;
+          top: 5px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--accent-blue);
+          border: 2px solid var(--bg-850);
+        "
+      ></div>
+      <div style="font-size: 11px; color: var(--text-muted)">
+        {{ log.created_at|date:"d/m/Y H:i" }} · {{log.usuario.get_full_name|default:'Sistema'}}
+      </div>
+      <div style="font-size: 13px; font-weight: 500">{{ log.accion }}</div>
+      {% if log.detalle %}
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        {{ log.detalle|truncatechars:100 }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Formulario de reparación -->
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %} {% if form.non_field_errors %}
+  <div
+    style="
+      background: rgba(245, 54, 92, 0.1);
+      border: 1px solid var(--accent-red);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: var(--accent-red);
+    "
+  >
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">🔧 Detalle de la reparación</div>
+    <div style="margin-bottom: 14px">
+      <label class="form-label">Descripción del trabajo realizado *</label>
+      <textarea
+        name="descripcion_trabajo"
+        class="form-control"
+        rows="4"
+        placeholder="Describe paso a paso lo que realizaste: qué revisaste, qué encontraste, cómo lo solucionaste…"
+      >
+{{ form.descripcion_trabajo.value|default:'' }}</textarea
+      >
+    </div>
+    <div style="margin-bottom: 14px">
+      <label class="form-label">Causa raíz identificada</label>
+      <textarea
+        name="causa_raiz"
+        class="form-control"
+        rows="3"
+        placeholder="¿Cuál fue el origen del problema? Sirve para prevención futura."
+      >
+{{ form.causa_raiz.value|default:'' }}</textarea
+      >
+    </div>
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 14px;
+      "
+    >
+      <div>
+        <label class="form-label">Horas hombre consumidas</label>
+        <input
+          type="number"
+          name="horas_hombre"
+          class="form-control"
+          step="0.5"
+          min="0"
+          placeholder="Ej: 2.5"
+          value="{{ form.horas_hombre.value|default:'' }}"
+        />
+        {% if ticket.inicio_trabajo_at %}
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+          Inicio registrado: {{ ticket.inicio_trabajo_at|date:"H:i" }}
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="form-label">Herramientas utilizadas</label>
+        <textarea
+          name="herramientas_utilizadas"
+          class="form-control"
+          rows="2"
+          placeholder="Taladro, llave pase, multímetro…"
+        >
+{{ form.herramientas_utilizadas.value|default:'' }}</textarea
+        >
+      </div>
+    </div>
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      "
+    >
+      <label
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          background: var(--bg-700);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 12px;
+        "
+      >
+        <input
+          type="checkbox"
+          name="personal_adicional_requerido"
+          {%if form.personal_adicional_requerido.value%}checked{%endif%}
+          style="width: 16px; height: 16px; accent-color: var(--accent-yellow)"
+          value="on"
+        />
+        <div>
+          <div style="font-size: 13px; font-weight: 600">
+            Requirió personal adicional
+          </div>
+          <div style="font-size: 11px; color: var(--text-secondary)">
+            Se necesitó más de un trabajador.
+          </div>
+        </div>
+      </label>
+      <label
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          background: var(--bg-700);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 12px;
+        "
+      >
+        <input
+          type="checkbox"
+          name="requiere_nivel_mayor"
+          {%if form.requiere_nivel_mayor.value%}checked{%endif%}
+          style="width: 16px; height: 16px; accent-color: var(--accent-red)"
+          value="on"
+        />
+        <div>
+          <div style="font-size: 13px; font-weight: 600">
+            Requiere nivel mayor
+          </div>
+          <div style="font-size: 11px; color: var(--text-secondary)">
+            Especialista externo o intervención mayor.
+          </div>
+        </div>
+      </label>
+    </div>
+    <div>
+      <label class="form-label">Observaciones para el gestor</label>
+      <textarea
+        name="observaciones"
+        class="form-control"
+        rows="2"
+        placeholder="Notas, advertencias, seguimiento recomendado…"
+      >
+{{ form.observaciones.value|default:'' }}</textarea
+      >
+    </div>
+  </div>
+
+  <!-- Foto del trabajo terminado -->
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📷 Foto del trabajo terminado</div>
+    <div
+      style="
+        border: 2px dashed var(--border-strong);
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        position: relative;
+        cursor: pointer;
+      "
+      onmouseover="this.style.borderColor = 'var(--accent-green)'"
+      onmouseout="this.style.borderColor = 'var(--border-strong)'"
+    >
+      <input
+        type="file"
+        name="foto_final"
+        accept="image/*"
+        style="
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          cursor: pointer;
+          width: 100%;
+          height: 100%;
+        "
+        onchange="previewFinal(this)"
+      />
+      <div id="previewFinalBox" style="display: none; margin-bottom: 12px">
+        <img
+          id="previewFinalImg"
+          style="max-height: 180px; border-radius: 8px; max-width: 100%"
+        />
+      </div>
+      <div id="fotoFinalHint">
+        <div style="font-size: 28px; margin-bottom: 6px">📸</div>
+        <div style="font-size: 13px; font-weight: 600">
+          Foto del área reparada
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">
+          Evidencia visual del trabajo completado.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Materiales utilizados -->
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📦 Materiales utilizados</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+      Registra cada material consumido. Si no usaste materiales, deja los campos
+      vacíos.
+    </div>
+    {{ formset.management_form }}
+    <div id="formset-container">
+      {% for mat_form in formset %}
+      <div
+        class="material-row"
+        style="
+          display: grid;
+          grid-template-columns: 2fr 1fr 2fr auto;
+          gap: 10px;
+          align-items: end;
+          margin-bottom: 10px;
+          background: var(--bg-700);
+          border-radius: 8px;
+          padding: 12px;
+        "
+      >
+        <div>
+          {% if forloop.first %}<label
+            class="form-label"
+            style="margin-bottom: 4px"
+            >Material</label
+          >{% endif %} {{ mat_form.material }}
+        </div>
+        <div>
+          {% if forloop.first %}<label
+            class="form-label"
+            style="margin-bottom: 4px"
+            >Cantidad</label
+          >{% endif %}
+          <input
+            type="number"
+            name="{{ mat_form.cantidad.html_name }}"
+            class="form-control"
+            step="1"
+            min="1"
+            placeholder="1"
+            value="{{ mat_form.cantidad.value|default:'' }}"
+          />
+        </div>
+        <div>
+          {% if forloop.first %}<label
+            class="form-label"
+            style="margin-bottom: 4px"
+            >Observación</label
+          >{% endif %} {{ mat_form.observacion }}
+        </div>
+        <div
+          style="padding-top:{% if forloop.first %}22{% else %}0{% endif %}px;"
+        >
+          <button
+            type="button"
+            onclick="quitarFila(this)"
+            class="btn btn-ghost btn-sm btn-icon"
+            style="color: var(--accent-red); border-color: var(--accent-red)"
+            title="Quitar"
+          >
+            ✕
+          </button>
+          {% if mat_form.DELETE %}{{ mat_form.DELETE }}{% endif %} {{mat_form.id}}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button
+      type="button"
+      id="btn-agregar-material"
+      class="btn btn-ghost btn-sm"
+      style="
+        margin-top: 6px;
+        color: var(--accent-teal);
+        border-color: var(--accent-teal);
+      "
+    >
+      + Agregar material
+    </button>
+  </div>
+
+  <div
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <a
+      href="{% url 'app:no_reparable' ticket.pk %}"
+      class="btn btn-ghost"
+      style="border-color: var(--accent-red); color: var(--accent-red)"
+      >✗ No pude repararlo</a
+    >
+    <div style="display: flex; gap: 10px">
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
+      <button type="submit" class="btn btn-primary">
+        ✓ Reparación completada →
+      </button>
+    </div>
+  </div>
+</form>
+
+<script>
+  function previewFinal(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById("previewFinalImg").src = e.target.result;
+        document.getElementById("previewFinalBox").style.display = "block";
+        document.getElementById("fotoFinalHint").style.display = "none";
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  function quitarFila(btn) {
+    const fila = btn.closest(".material-row");
+    const deleteInput = fila.querySelector(
+      'input[type="checkbox"][name$="-DELETE"]',
+    );
+    if (deleteInput) {
+      deleteInput.checked = true;
+      fila.style.opacity = "0.3";
+      fila.style.pointerEvents = "none";
+    } else {
+      fila.remove();
+    }
+  }
+
+  document
+    .getElementById("btn-agregar-material")
+    .addEventListener("click", function () {
+      const container = document.getElementById("formset-container");
+      const totalInput = document.querySelector("#id_form-TOTAL_FORMS");
+      const totalForms = parseInt(totalInput.value);
+
+      // Clone the first row as template
+      const template = container.querySelector(".material-row");
+      if (!template) return;
+
+      const newRow = template.cloneNode(true);
+      const idx = totalForms;
+
+      // Update all name/id attributes
+      newRow.querySelectorAll("input, select, textarea").forEach((el) => {
+        ["name", "id"].forEach((attr) => {
+          const val = el.getAttribute(attr);
+          if (val)
+            el.setAttribute(attr, val.replace(/form-\d+-/, `form-${idx}-`));
+        });
+        if (el.type !== "checkbox") el.value = "";
+        if (el.type === "checkbox") el.checked = false;
+      });
+
+      // Remove first-row labels if duplicated
+      newRow.querySelectorAll("label.form-label").forEach((l) => l.remove());
+
+      // Fix padding on last column
+      const lastCol = newRow.querySelector('div[style*="padding-top"]');
+      if (lastCol) lastCol.style.paddingTop = "0px";
+
+      // Remove DELETE hidden input visibility artifact
+      newRow.style.opacity = "1";
+      newRow.style.pointerEvents = "";
+
+      container.appendChild(newRow);
+      totalInput.value = idx + 1;
+    });
+</script>
+{% endblock %}

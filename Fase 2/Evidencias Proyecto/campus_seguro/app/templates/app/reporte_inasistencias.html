@@ -1,0 +1,145 @@
+{% extends 'app/base.html' %} {% block title %}Reporte de Inasistencias{%endblock%} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">📅 Reporte de Inasistencias</div>
+    <div class="page-subtitle">Ausentismo de empleados operativos</div>
+  </div>
+  <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
+    >Gestionar inasistencias</a
+  >
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="kpi-label">Total registros</div>
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Pendientes</div>
+    <div class="kpi-value">{{ pendientes }}</div>
+    <div class="kpi-sub">por revisar</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Aprobadas</div>
+    <div class="kpi-value">{{ aprobadas }}</div>
+    <div class="kpi-sub">históricas</div>
+  </div>
+</div>
+
+<!-- Por empleado -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">👷 Ausentismo por empleado</div>
+  {% if por_empleado %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Empleado</th>
+          <th>Rol</th>
+          <th style="text-align: center">Total</th>
+          <th style="text-align: center">Aprobadas</th>
+          <th style="text-align: center">Rechazadas</th>
+          <th style="text-align: center">Pendientes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in por_empleado %}
+        <tr>
+          <td style="font-size: 13px; font-weight: 500">
+            {{ e.usuario__first_name }} {{ e.usuario__last_name }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ e.usuario__rol|capfirst }}
+          </td>
+          <td style="text-align: center; font-size: 13px; font-weight: 700">
+            {{ e.total }}
+          </td>
+          <td
+            style="
+              text-align: center;
+              font-size: 13px;
+              color: var(--accent-green);
+            "
+          >
+            {{ e.aprobadas }}
+          </td>
+          <td
+            style="
+              text-align: center;
+              font-size: 13px;
+              color: var(--accent-red);
+            "
+          >
+            {{ e.rechazadas }}
+          </td>
+          <td
+            style="
+              text-align: center;
+              font-size: 13px;
+              color: var(--accent-yellow);
+            "
+          >
+            {{ e.pendientes }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 32px; color: var(--text-muted)">
+    Sin registros de inasistencias.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Listado reciente -->
+<div class="card">
+  <div class="card-title">📋 Registros recientes</div>
+  {% if inasistencias %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Empleado</th>
+          <th>Motivo</th>
+          <th>Desde</th>
+          <th>Hasta</th>
+          <th>Estado</th>
+          <th>Revisado por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in inasistencias %}
+        <tr>
+          <td style="font-size: 13px">{{ i.usuario.get_full_name }}</td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ i.get_motivo_display }}
+          </td>
+          <td style="font-size: 13px">{{ i.fecha_desde|date:"d/m/Y" }}</td>
+          <td style="font-size: 13px">{{ i.fecha_hasta|date:"d/m/Y" }}</td>
+          <td>
+            <span
+              style="font-size:11px;padding:3px 8px;border-radius:6px;
+              background:{% if i.estado.codigo == 'aprobada' %}rgba(45,206,137,0.15){% elif i.estado.codigo == 'rechazada' %}rgba(245,54,92,0.15){% else %}rgba(244,197,66,0.15){% endif %};
+              color:{% if i.estado.codigo == 'aprobada' %}var(--accent-green){% elif i.estado.codigo == 'rechazada' %}var(--accent-red){% else %}var(--accent-yellow){% endif %};"
+            >
+              {{ i.get_estado_display }}
+            </span>
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ i.revisado_por.get_full_name|default:'—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 32px; color: var(--text-muted)">
+    Sin registros.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,268 @@
+{% extends 'app/base.html' %} {% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Trazabilidad del ticket</div>
+    <div class="page-subtitle">
+      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
+    </div>
+  </div>
+  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+</div>
+
+<!-- Resumen del ticket -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="form-section-title">📋 Información general</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+      {{ ticket.creado_por.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ESTADO</div>
+      {{ ticket.get_estado_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+      <span class="urgencia-{{ ticket.urgencia }}"
+        >{{ ticket.get_urgencia_display }}</span
+      >
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+      {{ ticket.get_categoria_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+      {{ ticket.ubicacion }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ACTIVO SAP</div>
+      {{ ticket.id_activo_sap|default:'—' }}
+    </div>
+  </div>
+</div>
+
+<!-- Validación guardia -->
+{% if validacion %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
+>
+  <div class="card-title">🛡️ Validación de Guardia</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">GUARDIA</div>
+      {{ validacion.guardia.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">RESULTADO</div>
+      <span
+        style="color:{% if validacion.resultado == 'valido' %}var(--accent-green){% else %}var(--accent-red){% endif %};"
+      >
+        {{ validacion.get_resultado_display }}
+      </span>
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">FECHA</div>
+      {{ validacion.created_at|date:"d/m/Y H:i" }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">COMENTARIO</div>
+      {{ validacion.comentario|truncatechars:80 }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Registro mantención -->
+{% if mantencion %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)"
+>
+  <div class="card-title">🔧 Registro de Mantención</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+      {{ mantencion.tecnico.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">HORAS HOMBRE</div>
+      {{ mantencion.horas_hombre|default:'—' }} hrs
+    </div>
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">
+        DESCRIPCIÓN DEL TRABAJO
+      </div>
+      {{ mantencion.descripcion_trabajo }}
+    </div>
+    {% if mantencion.causa_raiz %}
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">CAUSA RAÍZ</div>
+      {{ mantencion.causa_raiz }}
+    </div>
+    {% endif %}
+  </div>
+  {% if materiales %}
+  <div class="form-section-title" style="margin-top: 10px">
+    Materiales utilizados
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th>Categoría</th>
+          <th>Cantidad</th>
+          <th>Observación</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in materiales %}
+        <tr>
+          <td style="font-size: 13px">{{ m.material.nombre }}</td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.material.get_categoria_display }}
+          </td>
+          <td style="font-size: 13px">
+            {{ m.cantidad }} {{ m.material.get_unidad_display }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.observacion|default:'—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- No reparable -->
+{% if no_reparable %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
+>
+  <div class="card-title">⚠️ Diagnóstico: No Reparable</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+      {{ no_reparable.tecnico.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CRITICIDAD</div>
+      {{ no_reparable.get_criticidad_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        REQUIERE EXTERNALIZACIÓN
+      </div>
+      {{ no_reparable.requiere_externalizacion|yesno:"Sí,No" }}
+    </div>
+    {% if no_reparable.costo_estimado_externo %}
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        COSTO ESTIMADO
+      </div>
+      ${{ no_reparable.costo_estimado_externo }}
+    </div>
+    {% endif %}
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">
+        MOTIVO TÉCNICO
+      </div>
+      {{ no_reparable.motivo_tecnico }}
+    </div>
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">
+        MATERIAL REQUERIDO
+      </div>
+      {{ no_reparable.material_requerido }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Timeline de logs -->
+<div class="card">
+  <div class="card-title">🕐 Línea de tiempo</div>
+  {% if logs %}
+  <div style="position: relative; padding-left: 24px">
+    <div
+      style="
+        position: absolute;
+        left: 8px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border);
+      "
+    ></div>
+    {% for log in logs %}
+    <div style="position: relative; margin-bottom: 16px">
+      <div
+        style="
+          position: absolute;
+          left: -20px;
+          top: 4px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--accent-blue);
+          border: 2px solid var(--bg-850);
+        "
+      ></div>
+      <div
+        style="font-size: 11px; color: var(--text-muted); margin-bottom: 2px"
+      >
+        {{ log.created_at|date:"d/m/Y H:i" }} · {{log.usuario.get_full_name|default:'Sistema'}}
+      </div>
+      <div style="font-size: 13px; font-weight: 500">{{ log.accion }}</div>
+      {% if log.detalle %}
+      <div
+        style="font-size: 12px; color: var(--text-secondary); margin-top: 2px"
+      >
+        {{ log.detalle|truncatechars:100 }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 32px; color: var(--text-muted)">
+    Sin registros de trazabilidad.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

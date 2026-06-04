@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Campus Seguro · ERP{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-900: #0a0c12;
+  --bg-850: #0f121a;
+  --bg-800: #141720;
+  --bg-700: #1c2030;
+  --bg-600: #252a3a;
+  --bg-500: #2e3447;
+  --border: #2a2f42;
+  --border-strong: #3a4159;
+  --text-primary: #e8eaf0;
+  --text-secondary: #8b91a8;
+  --text-muted: #555c75;
+  --accent-blue: #4a8fff;
+  --accent-green: #2dce89;
+  --accent-yellow: #f4c542;
+  --accent-red: #f5365c;
+  --accent-gray: #7a8299;
+  --accent-teal: #11cdef;
+  --accent-purple: #a78bfa;
+  --font-main: 'Sora', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 20px 48px rgba(0,0,0,0.5);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: var(--font-main); background: var(--bg-900); color: var(--text-primary); min-height: 100vh; }
+a { color: inherit; text-decoration: none; }
+
+/* ── LAYOUT ── */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 270px; background: var(--bg-850); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100;
+}
+.main { margin-left: 270px; flex: 1; padding: 32px 36px; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sb-brand {
+  padding: 24px 22px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.sb-brand .logo {
+  width: 42px; height: 42px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(74,143,255,0.25);
+}
+.sb-brand .name { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+.sb-brand .sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+
+.sb-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.sb-nav::-webkit-scrollbar { width: 4px; }
+.sb-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+.nav-section { margin-bottom: 24px; }
+.nav-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--text-muted); text-transform: uppercase;
+  padding: 0 10px; margin-bottom: 8px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 11px; padding: 10px 12px;
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  font-size: 13.5px; font-weight: 500; transition: all 0.15s; margin-bottom: 2px;
+  position: relative;
+}
+.nav-item:hover { background: var(--bg-700); color: var(--text-primary); }
+.nav-item.active {
+  background: rgba(74,143,255,0.12); color: var(--accent-blue);
+}
+.nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  background: var(--accent-blue); border-radius: 0 2px 2px 0;
+}
+.nav-item .icon { width: 18px; text-align: center; font-size: 15px; }
+.nav-item .badge-mini {
+  margin-left: auto; background: var(--accent-red); color: #fff;
+  font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 700;
+}
+
+.sb-user {
+  padding: 14px 18px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.avatar.role-usuario { background: rgba(74,143,255,0.2); color: var(--accent-blue); }
+.avatar.role-gestor { background: rgba(17,205,239,0.2); color: var(--accent-teal); }
+.avatar.role-guardia { background: rgba(244,197,66,0.2); color: var(--accent-yellow); }
+.avatar.role-mantencion { background: rgba(45,206,137,0.2); color: var(--accent-green); }
+.user-info { flex: 1; min-width: 0; }
+.user-info .uname { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-info .urole { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-logout { color: var(--text-muted); font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
+.btn-logout:hover { color: var(--accent-red); background: rgba(245,54,92,0.1); }
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px; gap: 16px;
+}
+.page-title { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.page-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--bg-800); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px;
+}
+.card-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.card-sm { padding: 16px; }
+
+/* ── KPIs ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.kpi {
+  background: var(--bg-800); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; position: relative; overflow: hidden;
+}
+.kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent-blue); }
+.kpi.blue::before { background: var(--accent-blue); }
+.kpi.green::before { background: var(--accent-green); }
+.kpi.yellow::before { background: var(--accent-yellow); }
+.kpi.red::before { background: var(--accent-red); }
+.kpi.teal::before { background: var(--accent-teal); }
+.kpi.purple::before { background: var(--accent-purple); }
+.kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
+.kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; font-family: var(--font-mono); }
+.kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+/* ── TABLAS ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+thead th {
+  padding: 12px 14px; text-align: left;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
+  color: var(--text-muted); text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+tbody tr:hover { background: var(--bg-700); }
+tbody td { padding: 13px 14px; color: var(--text-primary); vertical-align: middle; }
+.id-mono { font-family: var(--font-mono); color: var(--text-muted); font-size: 12px; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+}
+.badge-green { background: rgba(45,206,137,0.15); color: var(--accent-green); }
+.badge-red { background: rgba(245,54,92,0.15); color: var(--accent-red); }
+.badge-yellow { background: rgba(244,197,66,0.15); color: var(--accent-yellow); }
+.badge-blue { background: rgba(74,143,255,0.15); color: var(--accent-blue); }
+.badge-gray { background: rgba(122,130,153,0.15); color: var(--accent-gray); }
+.badge-teal { background: rgba(17,205,239,0.15); color: var(--accent-teal); }
+.badge-purple { background: rgba(167,139,250,0.15); color: var(--accent-purple); }
+
+/* ── BOTONES ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  border: none; cursor: pointer; transition: all 0.15s; font-family: var(--font-main);
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent-blue); color: #fff; }
+.btn-primary:hover { background: #3a7fee; transform: translateY(-1px); }
+.btn-success { background: var(--accent-green); color: #fff; }
+.btn-success:hover { background: #25b87a; }
+.btn-danger { background: var(--accent-red); color: #fff; }
+.btn-danger:hover { background: #e02a50; }
+.btn-warning { background: var(--accent-yellow); color: #1a1a1a; }
+.btn-ghost { background: var(--bg-700); color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg-600); color: var(--text-primary); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-icon { padding: 7px 9px; }
+.btn-full { width: 100%; }
+
+/* ── FORMS ── */
+.form-group { margin-bottom: 18px; }
+.form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-control, input[type="text"]:not(.exclude), input[type="email"]:not(.exclude),
+input[type="password"]:not(.exclude), input[type="number"]:not(.exclude), input[type="date"]:not(.exclude),
+input[type="tel"]:not(.exclude), select:not(.exclude), textarea:not(.exclude) {
+  width: 100%; padding: 10px 14px; background: var(--bg-700); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-main);
+  font-size: 14px; transition: border-color 0.2s, background 0.2s; outline: none;
+}
+.form-control:focus, input:focus, select:focus, textarea:focus { border-color: var(--accent-blue); background: var(--bg-600); }
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+textarea { resize: vertical; min-height: 90px; }
+select { cursor: pointer; }
+.form-check { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.form-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent-blue); cursor: pointer; }
+.form-check label { font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.form-section-title {
+  font-size: 11px; font-weight: 800; color: var(--accent-teal);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.form-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.errorlist { list-style: none; }
+.errorlist li { color: var(--accent-red); font-size: 12px; margin-top: 4px; }
+
+/* ── ALERTS ── */
+.alert { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; border-left: 3px solid; }
+.alert-success { background: rgba(45,206,137,0.08); border-color: var(--accent-green); color: var(--accent-green); }
+.alert-error { background: rgba(245,54,92,0.08); border-color: var(--accent-red); color: var(--accent-red); }
+.alert-warning { background: rgba(244,197,66,0.08); border-color: var(--accent-yellow); color: var(--accent-yellow); }
+.alert-info { background: rgba(74,143,255,0.08); border-color: var(--accent-blue); color: var(--accent-blue); }
+
+/* ── TIMELINE ── */
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 18px; padding-bottom: 4px; }
+.timeline-item::before {
+  content: ''; position: absolute; left: -24px; top: 5px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent-blue); border: 2px solid var(--bg-800);
+}
+.timeline-time { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 3px; }
+.timeline-action { font-size: 13px; font-weight: 500; }
+.timeline-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ── URGENCIA ── */
+.urgencia-critica { color: var(--accent-red); font-weight: 700; }
+.urgencia-alta { color: var(--accent-yellow); font-weight: 600; }
+.urgencia-media { color: var(--accent-blue); }
+.urgencia-baja { color: var(--text-secondary); }
+
+/* ── PROGRESS BAR ── */
+.progress { height: 6px; background: var(--bg-600); border-radius: 3px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--accent-teal); border-radius: 3px; transition: width 0.5s; }
+.progress-bar.green { background: var(--accent-green); }
+.progress-bar.yellow { background: var(--accent-yellow); }
+.progress-bar.red { background: var(--accent-red); }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.6; }
+.empty-state .label { font-weight: 600; margin-bottom: 6px; color: var(--text-secondary); }
+.empty-state .sub { font-size: 13px; }
+
+/* ── FILTERS BAR ── */
+.filters-bar {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
+  background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px;
+}
+.filter-input {
+  padding: 8px 12px; background: var(--bg-700); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 13px;
+  font-family: var(--font-main); outline: none;
+}
+
+/* ── STATUS DOT ── */
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.green { background: var(--accent-green); }
+.status-dot.yellow { background: var(--accent-yellow); }
+.status-dot.red { background: var(--accent-red); }
+.status-dot.blue { background: var(--accent-blue); }
+.status-dot.gray { background: var(--accent-gray); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .sidebar { width: 80px; }
+  .sidebar .name, .sidebar .sub, .sidebar .nav-label, .sidebar .user-info { display: none; }
+  .sidebar .nav-item { justify-content: center; }
+  .main { margin-left: 80px; padding: 20px; }
+}
+</style>
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="logo">🛡️</div>
+      <div>
+        <div class="name">Campus Seguro</div>
+        <div class="sub">ERP · v2.0</div>
+      </div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+          <span class="icon">📊</span> Dashboard
+        </a>
+        <a href="{% url 'app:notificaciones' %}" class="nav-item {% if request.resolver_match.url_name == 'notificaciones' %}active{% endif %}">
+          <span class="icon">🔔</span> Notificaciones
+          {% if notif_no_leidas_count %}<span class="badge-mini">{{ notif_no_leidas_count }}</span>{% endif %}
+        </a>
+      </div>
+
+      {% if user.rol == 'usuario' %}
+      <div class="nav-section">
+        <div class="nav-label">Mis Tickets</div>
+        <a href="{% url 'app:mis_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'mis_tickets' %}active{% endif %}">
+          <span class="icon">🎫</span> Ver mis tickets
+        </a>
+        <a href="{% url 'app:crear_ticket' %}" class="nav-item {% if request.resolver_match.url_name == 'crear_ticket' %}active{% endif %}">
+          <span class="icon">➕</span> Crear ticket
+        </a>
+      </div>
+      {% endif %}
+
+      {% if user.rol == 'gestor' or user.is_superuser %}
+      <div class="nav-section">
+        <div class="nav-label">Gestión Operativa</div>
+        <a href="{% url 'app:gestor_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_tickets' %}active{% endif %}">
+          <span class="icon">📋</span> Todos los Tickets
+        </a>
+        <a href="{% url 'app:gestor_operativo' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_operativo' %}active{% endif %}">
+          <span class="icon">👥</span> Rendimiento Trabajadores
+        </a>
+        <a href="{% url 'app:gestor_bi' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_bi' %}active{% endif %}">
+          <span class="icon">📈</span> Business Intelligence
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Administración</div>
+        <a href="{% url 'app:gestor_solicitudes_cuenta' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_solicitudes_cuenta' %}active{% endif %}">
+          <span class="icon">📝</span> Solicitudes de Cuenta
+        </a>
+        <a href="{% url 'app:gestor_usuarios' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_usuarios' %}active{% endif %}">
+          <span class="icon">👤</span> Usuarios
+        </a>
+        <a href="{% url 'app:gestor_inasistencias' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_inasistencias' %}active{% endif %}">
+          <span class="icon">📅</span> Inasistencias
+        </a>
+        <a href="{% url 'app:materiales_listado' %}" class="nav-item {% if request.resolver_match.url_name == 'materiales_listado' %}active{% endif %}">
+          <span class="icon">📦</span> Materiales
+        </a>
+      </div>
+      {% endif %}
+
+      {% if user.rol == 'guardia' %}
+      <div class="nav-section">
+        <div class="nav-label">Guardia</div>
+        <a href="{% url 'app:dashboard' %}" class="nav-item">
+          <span class="icon">🛡️</span> Validaciones Pendientes
+        </a>
+        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item">
+          <span class="icon">📅</span> Registrar Inasistencia
+        </a>
+      </div>
+      {% endif %}
+
+      {% if user.rol == 'mantencion' %}
+      <div class="nav-section">
+        <div class="nav-label">Mantención</div>
+        <a href="{% url 'app:dashboard' %}" class="nav-item">
+          <span class="icon">🔧</span> Mis Trabajos
+        </a>
+        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item">
+          <span class="icon">📅</span> Registrar Inasistencia
+        </a>
+      </div>
+      {% endif %}
+
+      <div class="nav-section">
+        <div class="nav-label">Cuenta</div>
+        <a href="{% url 'app:mi_perfil' %}" class="nav-item">
+          <span class="icon">⚙️</span> Mi Perfil
+        </a>
+      </div>
+    </nav>
+
+    <div class="sb-user">
+      <div class="avatar role-{{ user.rol }}">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
+      <div class="user-info">
+        <div class="uname">{{ user.get_full_name|default:user.username }}</div>
+        <div class="urole">{{ user.get_rol_display }}</div>
+      </div>
+      <button onclick="document.getElementById('modal-logout').style.display='flex'" class="btn-logout" title="Cerrar sesión" style="background:none;border:none;cursor:pointer;">⏏</button>
+    </div>
+  </aside>
+
+  <!-- Modal confirmación de logout -->
+  <div id="modal-logout" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-800);border:1px solid var(--border-strong);border-radius:16px;padding:32px 36px;max-width:380px;width:90%;text-align:center;box-shadow:var(--shadow-lg);">
+      <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px;">¿Cerrar sesión?</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;">Tu sesión se cerrará y deberás iniciar sesión nuevamente.</div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button onclick="document.getElementById('modal-logout').style.display='none'" class="btn btn-ghost" style="min-width:100px;">Cancelar</button>
+        <a href="{% url 'app:logout' %}" class="btn btn-danger" style="min-width:100px;">Cerrar sesión</a>
+      </div>
+    </div>
+  </div>
+
+  <main class="main">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>
