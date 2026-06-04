@@ -80,6 +80,14 @@ urlpatterns = [
     path('mantencion/<int:pk>/trazabilidad/', views.trazabilidad_ticket, name='trazabilidad_ticket'),
     path('mantencion/<int:pk>/registrar-material-faltante/', views.registrar_material_faltante, name='registrar_material_faltante'),
 
+    # ── AUTH0 WEBHOOK ─────────────────────────────────────
+    # Recibe eventos de Auth0 Log Streaming (cambios de contrasena, bloqueos, eliminaciones).
+    # No requiere login. Valida la request con AUTH0_WEBHOOK_SECRET del .env.
+    # Los eventos se guardan en LogAuditoria (modulo='cuenta', es_interno=True).
+    # Configuracion en Auth0: Monitoring -> Log Streams -> Custom Webhook -> esta URL.
+    # Implementacion: views.auth0_webhook() en views.py.
+    path('auth0/webhook/', views.auth0_webhook, name='auth0_webhook'),
+
     # ── GESTOR: DASHBOARD BI v2 ───────────────────────
     path('gestor/dashboard-bi/', views.dashboard_gestor_bi_v2, name='dashboard_gestor_bi_v2'),
     path('gestor/reporte-materiales/', views.reporte_materiales, name='reporte_materiales'),

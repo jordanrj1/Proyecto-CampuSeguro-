@@ -1,5 +1,10 @@
 # Guía de Configuración Auth0 – Campus Seguro
 
+> **Historial de versiones**
+> - **v1 – Sprint 1:** Configuración inicial Auth0 para desarrollo local (localhost).
+> - **v2 – Sprint 2 (Junio 2026):** Se agrega soporte para ngrok. El Paso 3 y el Paso 8 tienen secciones versionadas.
+
+
 ## ¿Qué es Auth0 y por qué lo usamos?
 
 Auth0 es un servicio de autenticación externo (Identity Provider). Lo usamos porque:
@@ -30,6 +35,8 @@ Auth0 es un servicio de autenticación externo (Identity Provider). Lo usamos po
 
 ### Paso 3 – Configurar URLs de la Aplicación
 
+#### v1 – Solo desarrollo local
+
 En la pantalla de Settings de la aplicación:
 
 | Campo | Valor para desarrollo local |
@@ -37,6 +44,23 @@ En la pantalla de Settings de la aplicación:
 | Allowed Callback URLs | `http://localhost:8000/dashboard/` |
 | Allowed Logout URLs | `http://localhost:8000/login/` |
 | Allowed Web Origins | `http://localhost:8000` |
+
+Haz clic en **Save Changes**.
+
+#### v2 – Con ngrok activo (Sprint 2, pruebas en equipo)
+
+Cuando Jordan activa ngrok para compartir el servidor, el campo `Allowed Logout URLs`
+debe incluir **también** la URL de ngrok. No se reemplaza; se agrega separada por coma.
+
+| Campo | Valor |
+|-------|-------|
+| Allowed Callback URLs | `http://localhost:8000/dashboard/` (sin cambios) |
+| Allowed Logout URLs | `http://localhost:8000/login/, https://TU-URL.ngrok-free.app/login/` |
+| Allowed Web Origins | `http://localhost:8000` (sin cambios) |
+
+> La URL de ngrok cambia cada sesión (plan gratuito). Actualizar este campo
+> cada vez que ngrok entregue una nueva URL antes de iniciar las pruebas.
+> Cuando se terminen las pruebas, se puede dejar la entrada de ngrok o removerla.
 
 Haz clic en **Save Changes**.
 
@@ -137,7 +161,7 @@ exports.onExecutePostLogin = async (event, api) => {
 
 ### Paso 8 – Llenar el archivo `.env`
 
-Abre el archivo `.env` en la raíz del proyecto y completa:
+#### v1 – Solo desarrollo local
 
 ```env
 DJANGO_SECRET_KEY=tu-clave-secreta-generada
@@ -153,7 +177,25 @@ AUTH0_CLAIMS_NAMESPACE=https://campus-seguro.app
 AUTH0_MGMT_CLIENT_ID=tu_m2m_client_id
 AUTH0_MGMT_CLIENT_SECRET=tu_m2m_client_secret
 AUTH0_CONNECTION=Username-Password-Authentication
+AUTH0_LOGOUT_RETURN_URL=http://localhost:8000/login/
 ```
+
+#### v2 – Con ngrok activo (Sprint 2)
+
+Se agregan cuatro variables al `.env` cuando Jordan activa ngrok.
+Las variables anteriores no cambian. Solo se comenta la línea de localhost
+y se descomenta el bloque ngrok (ver sección NGROK en `.env.example`):
+
+```env
+# AUTH0_LOGOUT_RETURN_URL=http://localhost:8000/login/   ← comentar esta
+
+CSRF_TRUSTED_ORIGINS=https://TU-URL.ngrok-free.app
+USE_X_FORWARDED_HOST=True
+SECURE_PROXY_SSL_HEADER=True
+AUTH0_LOGOUT_RETURN_URL=https://TU-URL.ngrok-free.app/login/
+```
+
+Al terminar las pruebas: volver a descomentar la línea de localhost y comentar el bloque ngrok.
 
 ---
 

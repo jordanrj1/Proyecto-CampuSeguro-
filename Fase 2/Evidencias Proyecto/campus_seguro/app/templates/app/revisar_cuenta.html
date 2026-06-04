@@ -98,7 +98,15 @@
 
       <div>
         <div style="color:var(--text-muted);font-size:11px;">RUT</div>
-        <span class="id-mono">{{ cuenta.rut }}</span>
+        {# RUT con prefijo SYNC- indica usuario importado por sincronizar_auth0 (Auth0 no tiene RUT). #}
+        {# El campo editable aparece mas abajo en el panel de decision para corregirlo al aprobar. #}
+        {% if 'SYNC-' in cuenta.rut %}
+          <span class="badge" style="background:rgba(255,193,7,0.15);color:#ffc107;font-size:10px;">
+            RUT temporal (importado desde Auth0)
+          </span>
+        {% else %}
+          <span class="id-mono">{{ cuenta.rut }}</span>
+        {% endif %}
       </div>
       <div>
         <div style="color:var(--text-muted);font-size:11px;">TELÉFONO</div>
@@ -207,6 +215,27 @@
 
           </div>
         </div>
+
+        {# ── RUT corregible si fue importado desde Auth0 ── #}
+        {% if 'SYNC-' in cuenta.rut %}
+        <div class="form-group" style="margin-top:14px;padding:12px;background:rgba(255,193,7,0.07);border-radius:8px;border:1px solid rgba(255,193,7,0.3);">
+          <label class="form-label" style="font-size:12px;color:#ffc107;font-weight:700;">
+            ⚠ RUT pendiente de corrección
+          </label>
+          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px;">
+            Este usuario fue importado desde Auth0. Su RUT es un valor temporal
+            (<code>{{ cuenta.rut }}</code>). Puedes corregirlo ahora o dejarlo
+            y actualizarlo más tarde desde administración.
+          </p>
+          <input
+            type="text"
+            name="rut_nuevo"
+            class="form-control"
+            placeholder="Ej: 12.345.678-9"
+            style="font-size:13px;"
+          >
+        </div>
+        {% endif %}
 
         {# ── Botones de acción ── #}
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">

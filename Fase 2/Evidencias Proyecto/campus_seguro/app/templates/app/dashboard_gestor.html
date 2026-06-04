@@ -1,3 +1,11 @@
+{#
+  dashboard_gestor.html — Panel operativo del gestor
+  Renderizado por: views.dashboard_gestor()
+  Acceso: dashboard() redirige aqui cuando user.rol == 'gestor' o is_superuser
+  Muestra: tickets activos/criticos, personal ausente, solicitudes de cuenta pendientes
+  Acciones: ver todos los tickets, ir al panel BI, revisar solicitudes
+  Nombre anterior: dashboarddd.html (renombrado en Sprint 2 para claridad)
+#}
 {% extends 'app/base.html' %} {% block title %}Dashboard Gestor · Campus
 Seguro{% endblock %} {% block content %}
 <div class="topbar">

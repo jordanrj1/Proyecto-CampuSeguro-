@@ -91,6 +91,39 @@ DATABASES = {
     }
 }
 
+# ═══════════════════════════════════════════════════════════════
+# SOPORTE PARA PROXY INVERSO / NGROK (desarrollo en equipo)
+# ─────────────────────────────────────────────────────────────
+# Cuando Django corre detrás de un proxy que termina SSL (ngrok,
+# nginx, Heroku, etc.), necesita saber que las peticiones son HTTPS
+# y confiar en los headers que envía el proxy.
+#
+# VARIABLES DE ENTORNO (agregar en .env de Jordan cuando use ngrok):
+#   CSRF_TRUSTED_ORIGINS=https://abc123.ngrok-free.app
+#   USE_X_FORWARDED_HOST=True
+#   SECURE_PROXY_SSL_HEADER=True
+#   AUTH0_LOGOUT_RETURN_URL=https://abc123.ngrok-free.app/login/
+#
+# Los compañeros NO necesitan configurar nada. Solo abrir la URL ngrok.
+# Ver: docs/NGROK_EQUIPO.md para guía paso a paso.
+# ═══════════════════════════════════════════════════════════════
+
+# Lista de orígenes HTTPS confiables para validación CSRF.
+# Requerido cuando los POST llegan desde un dominio HTTPS externo (ngrok).
+# Django 4.0+ bloquea requests POST de orígenes no listados aquí.
+# Formato: CSRF_TRUSTED_ORIGINS=https://abc123.ngrok-free.app,https://otro.app
+_csrf_origins_raw = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins_raw.split(',') if o.strip()]
+
+# Cuando Django está detrás de un proxy, confiar en el header X-Forwarded-Host
+# para construir URLs absolutas correctas (usadas en logout y redirects).
+USE_X_FORWARDED_HOST = os.getenv('USE_X_FORWARDED_HOST', 'False').lower() in ('true', '1', 'yes')
+
+# Indica a Django que detecte HTTPS leyendo el header X-Forwarded-Proto.
+# ngrok y nginx envían este header cuando la conexión externa es HTTPS.
+if os.getenv('SECURE_PROXY_SSL_HEADER', 'False').lower() in ('true', '1', 'yes'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # ── Modelo de usuario personalizado ─────────────────────────
 # Extiende AbstractUser con campos institucionales (rut, rol, sede, etc.)
 # y el campo auth0_sub para vincular con Auth0.
@@ -103,7 +136,9 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 # ── Archivos estáticos ───────────────────────────────────────
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+# Los archivos CSS/JS del proyecto están en app/static/ (cargados automáticamente
+# por Django via AppDirectoriesFinder). No se usa un directorio raíz adicional.
+STATICFILES_DIRS = []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # ── Archivos de medios (imágenes subidas por usuarios) ───────
@@ -173,3 +208,8 @@ AUTH0_LOGOUT_RETURN_URL = os.getenv('AUTH0_LOGOUT_RETURN_URL', 'http://localhost
 # Flag derivado: True si Auth0 está configurado y disponible para usar.
 # Cuando es False, el sistema usa autenticación Django local (fallback).
 AUTH0_ENABLED = bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
+
+# Secret para validar requests entrantes del Auth0 Log Streaming webhook.
+# Configurar en Auth0: Monitoring → Log Streams → Custom Webhook → Authorization.
+# Si está vacío, el endpoint acepta cualquier request (solo para desarrollo).
+AUTH0_WEBHOOK_SECRET = os.getenv('AUTH0_WEBHOOK_SECRET', '')
