@@ -1,7 +1,7 @@
 {% extends 'app/base.html' %}
 {% block title %}Solicitar Cuenta – Campus Seguro{% endblock %}
 
-{# ═══════════════════════════════════════════════════════════════
+{% comment %}
    TEMPLATE: app/registro.html
    ─────────────────────────────────────────────────────────────
    CONTROLADOR (views.py):
@@ -60,7 +60,7 @@
      - Formulario:    app/forms.py → RegistroUsuarioForm
      - Auth0 service: app/auth0_service.py → crear_usuario_auth0()
      - Flujo siguiente: gestor en app/templates/app/revisar_cuenta.html
-   ═══════════════════════════════════════════════════════════════ #}
+{% endcomment %}
 
 {% block auth_content %}
 <style>

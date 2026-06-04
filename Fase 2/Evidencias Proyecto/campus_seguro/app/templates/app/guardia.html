@@ -1,7 +1,7 @@
 {% extends 'app/base.html' %}
 {% block title %}Panel Guardia{% endblock %}
 
-{# ═══════════════════════════════════════════════════════════════
+{% comment %}
    TEMPLATE: app/guardia.html
    ─────────────────────────────────────────────────────────────
    CONTROLADOR (views.py):
@@ -60,7 +60,7 @@
      - Modelo Inasistencia:      app/models.py → class Inasistencia
      - Vista que alimenta:       app/views.py → dashboard_guardia()
      - CSS urgencia-{valor}:     static/css/main.css → .urgencia-critica, .urgencia-alta, etc.
-   ═══════════════════════════════════════════════════════════════ #}
+{% endcomment %}
 
 {%block content%}
 <div class="topbar">
