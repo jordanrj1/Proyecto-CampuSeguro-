@@ -1,3 +1,4 @@
+import re
 from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
@@ -10,8 +11,32 @@ from .models import (
 
 # ═══════════════════════════════════════════════════════════════
 # AUTENTICACIÓN
+# ─────────────────────────────────────────────────────────────
+# Formularios relacionados con el flujo de autenticación:
+# login, registro, recuperación de contraseña.
+#
+# CAMBIO vs. versión anterior:
+#   - RegistroUsuarioForm ya NO tiene campo 'rol' (siempre = 'usuario').
+#     El gestor asigna el rol al aprobar la cuenta desde su panel.
+#   - RegistroUsuarioForm usa set_unusable_password() cuando Auth0
+#     está habilitado (la contraseña real se guarda en Auth0, no aquí).
+#   - Se agrega AsignarRolForm: formulario que usa el gestor en la
+#     vista aprobar_cuenta() para asignar rol al momento de activar cuenta.
 # ═══════════════════════════════════════════════════════════════
 class LoginForm(forms.Form):
+    """
+    Formulario de inicio de sesión.
+
+    Campos:
+        username: Acepta username O correo institucional.
+                  views.py resuelve cuál es antes de autenticar.
+        password: Contraseña. Se envía a Auth0 si está configurado,
+                  o a Django authenticate() en modo local/fallback.
+        recordar: "Mantener sesión". Si es False, la sesión expira
+                  al cerrar el navegador (session.set_expiry(0)).
+
+    Conexión: Usado en views.login_view().
+    """
     username = forms.CharField(
         label='Usuario o Correo Institucional',
         max_length=150,
@@ -28,14 +53,54 @@ class LoginForm(forms.Form):
 
 
 class RegistroUsuarioForm(forms.ModelForm):
+    """
+    Formulario de solicitud de cuenta nueva.
+
+    FLUJO POST-REGISTRO:
+        1. Usuario completa este formulario.
+        2. Si Auth0 está habilitado:
+           - save() llama a auth0_service.crear_usuario_auth0() para
+             registrar al usuario en Auth0 con su contraseña.
+           - set_unusable_password() en el modelo local → contraseña
+             NO se guarda en la BD de Campus Seguro.
+           - Se guarda auth0_sub (ID de Auth0) en el modelo local.
+        3. Si Auth0 NO está habilitado (modo desarrollo/fallback):
+           - set_password() guarda la contraseña hasheada localmente.
+           - auth0_sub queda en None.
+        4. En ambos casos: rol='usuario', estado='pendiente'.
+        5. El gestor revisa y aprueba (o rechaza) desde su panel.
+
+    CAMBIO CLAVE:
+        El campo 'rol' fue ELIMINADO del formulario. Todos los registros
+        automáticamente tienen rol='usuario'. El gestor asigna el rol
+        real al aprobar la cuenta (ver AsignarRolForm).
+
+    Campos:
+        first_name, last_name: Nombre completo del solicitante.
+        rut: RUT chileno (validado como único en el sistema).
+        correo_institucional: Correo @duoc.cl (único, usado como username).
+        telefono: Opcional.
+        vinculo: Alumno / Docente / Administrativo / Funcionario.
+        carrera, jornada, sede: Datos académicos del usuario base.
+        password1, password2: Contraseña (validada, enviada a Auth0 si aplica).
+        acepta_terminos: Checkbox obligatorio de políticas de uso.
+
+    Conexión: Usado en views.registro_view().
+    """
     password1 = forms.CharField(
         label='Contraseña',
-        widget=forms.PasswordInput(attrs={'placeholder': 'Mínimo 8 caracteres'}),
+        widget=forms.PasswordInput(attrs={
+            'placeholder': 'Ej: Campus2024!',
+            'id': 'id_password1',
+        }),
         min_length=8,
     )
     password2 = forms.CharField(
         label='Confirmar Contraseña',
-        widget=forms.PasswordInput(attrs={'placeholder': 'Repite la contraseña'}),
+        widget=forms.PasswordInput(attrs={
+            'placeholder': 'Repite la contraseña',
+            'id': 'id_password2',
+        }),
     )
     acepta_terminos = forms.BooleanField(
         label='Acepto las políticas de uso institucional',
@@ -46,9 +111,8 @@ class RegistroUsuarioForm(forms.ModelForm):
         model = Usuario
         fields = [
             'first_name', 'last_name', 'rut', 'correo_institucional',
-            'telefono', 'rol',
-            'vinculo', 'carrera', 'jornada', 'sede', 'departamento',
-            'especialidad', 'turno',
+            'telefono',
+            'vinculo', 'carrera', 'jornada', 'sede',
         ]
         widgets = {
             'first_name': forms.TextInput(attrs={'placeholder': 'Juan'}),
@@ -58,10 +122,30 @@ class RegistroUsuarioForm(forms.ModelForm):
             'telefono': forms.TextInput(attrs={'placeholder': '+56 9 1234 5678'}),
             'sede': forms.TextInput(attrs={'placeholder': 'Ej: Sede Concepción'}),
             'carrera': forms.TextInput(attrs={'placeholder': 'Ej: Ingeniería en Informática'}),
-            'departamento': forms.TextInput(attrs={'placeholder': 'Ej: Operaciones'}),
-            'especialidad': forms.TextInput(attrs={'placeholder': 'Ej: Electricidad'}),
-            'turno': forms.TextInput(attrs={'placeholder': 'Ej: Mañana / Tarde / Noche'}),
         }
+
+    def clean_password1(self):
+        """
+        Valida que la contraseña cumpla la política de Auth0 (política 'Good'):
+        mínimo 8 caracteres con al menos 3 de los 4 grupos: minúsculas,
+        mayúsculas, números y caracteres especiales.
+        Esto evita que Auth0 rechace la contraseña con PasswordStrengthError
+        antes de mostrarle el error al usuario.
+        """
+        password = self.cleaned_data.get('password1', '')
+        grupos = [
+            bool(re.search(r'[a-z]', password)),
+            bool(re.search(r'[A-Z]', password)),
+            bool(re.search(r'\d', password)),
+            bool(re.search(r'[^a-zA-Z0-9]', password)),
+        ]
+        if sum(grupos) < 3:
+            raise ValidationError(
+                'La contraseña debe incluir al menos 3 de estos 4 grupos: '
+                'minúsculas, MAYÚSCULAS, números (123) y especiales (!@#$). '
+                'Ejemplo válido: Campus2024!'
+            )
+        return password
 
     def clean(self):
         cleaned = super().clean()
@@ -81,16 +165,73 @@ class RegistroUsuarioForm(forms.ModelForm):
             raise ValidationError('Este RUT ya está registrado.')
         return rut
 
-    def save(self, commit=True):
+    def save(self, commit=True, auth0_sub=None, usar_auth0=False):
+        """
+        Guarda el usuario en la BD local.
+
+        Parámetros:
+            commit (bool): Si True, ejecuta .save() en la BD.
+            auth0_sub (str|None): ID de Auth0 si el usuario ya fue creado
+                                  allá. Se almacena en Usuario.auth0_sub.
+            usar_auth0 (bool): Si True, aplica set_unusable_password()
+                               (la contraseña real está en Auth0, no aquí).
+
+        Rol siempre 'usuario': El rol real lo asigna el gestor al aprobar.
+        Estado siempre 'pendiente': Requiere aprobación del gestor.
+        is_active=False: El usuario no puede hacer login hasta que el
+                         gestor lo apruebe y cambie is_active=True.
+        """
         user = super().save(commit=False)
         user.username = self.cleaned_data['correo_institucional']
         user.email = self.cleaned_data['correo_institucional']
-        user.set_password(self.cleaned_data['password1'])
-        user.estado_cuenta = EstadoCatalogo.para('cuenta', 'activa')
-        user.is_active = True
+        user.rol = 'usuario'  # Siempre usuario al registrarse; gestor asigna rol real
+        user.estado_cuenta = EstadoCatalogo.para('cuenta', 'pendiente')
+        user.is_active = False  # Inactivo hasta aprobación del gestor
+
+        if usar_auth0 and auth0_sub:
+            # Auth0 guarda la contraseña → no la guardamos localmente
+            user.set_unusable_password()
+            user.auth0_sub = auth0_sub
+        else:
+            # Modo fallback (desarrollo sin Auth0): guardar localmente
+            user.set_password(self.cleaned_data['password1'])
+
         if commit:
             user.save()
         return user
+
+
+class AsignarRolForm(forms.Form):
+    """
+    Formulario para que el gestor asigne un rol al aprobar una cuenta.
+
+    Aparece en la vista aprobar_cuenta() → template revisar_cuenta.html.
+    El gestor selecciona el rol que tendrá el usuario y luego hace clic
+    en "Aprobar". El rol se guarda en Usuario.rol y se sincroniza con
+    Auth0 via auth0_service.actualizar_rol_auth0().
+
+    Roles disponibles para asignar (excluye 'usuario' porque es el default
+    de registro; el gestor solo necesita promover a roles operativos):
+        - usuario: Sin cambio de rol (alumno, docente, etc.)
+        - gestor: Supervisor del sistema
+        - guardia: Validación en terreno
+        - mantencion: Reparaciones y mantención
+
+    Conexión: Usado en views.aprobar_cuenta().
+    """
+    ROL_CHOICES = [
+        ('usuario', 'Usuario Base (alumno, docente, administrativo)'),
+        ('gestor', 'Gestor – Supervisión y control'),
+        ('guardia', 'Guardia – Validación en terreno'),
+        ('mantencion', 'Mantención – Reparaciones'),
+    ]
+
+    rol = forms.ChoiceField(
+        choices=ROL_CHOICES,
+        label='Rol a asignar',
+        initial='usuario',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
 
 
 class OlvideContrasenaForm(forms.Form):

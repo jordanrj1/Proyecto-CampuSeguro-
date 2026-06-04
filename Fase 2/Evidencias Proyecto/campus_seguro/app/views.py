@@ -1,3 +1,31 @@
+# ═══════════════════════════════════════════════════════════════
+# CAMPUS SEGURO – Vistas principales
+# ─────────────────────────────────────────────────────────────
+# Archivo: app/views.py
+#
+# PROPÓSITO:
+#   Contiene todas las vistas (controllers) del sistema Campus Seguro.
+#   Maneja la lógica de autenticación, gestión de tickets, panel del
+#   gestor, guardia, mantención, y recuperación de contraseña.
+#
+# AUTENTICACIÓN (flujo Auth0):
+#   - login_view(): Autentica vía Auth0 ROPC si AUTH0_ENABLED=True,
+#     o via Django authenticate() como fallback de desarrollo.
+#   - logout_view(): Limpia sesión local + redirige a Auth0 logout.
+#   - registro_view(): Crea usuario en Auth0 (si habilitado) y en BD local.
+#   - aprobar_cuenta(): Gestor aprueba + asigna rol + sincroniza con Auth0.
+#
+# MÓDULOS RELACIONADOS:
+#   - app/auth0_service.py: Toda la lógica de comunicación con Auth0.
+#   - app/forms.py: Formularios (LoginForm, RegistroUsuarioForm, AsignarRolForm).
+#   - app/models.py: Modelos de datos (Usuario, Ticket, etc.).
+#
+# DECORADORES:
+#   - @login_required: Requiere usuario autenticado (Django built-in).
+#   - @rol_requerido(*roles): Verifica que el usuario tenga el rol correcto.
+# ═══════════════════════════════════════════════════════════════
+import logging
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -8,6 +36,7 @@ from django.db.models import Count, Sum, Q, Avg, F
 from django.urls import reverse
 from datetime import timedelta
 from functools import wraps
+from django.conf import settings
 
 from .models import (
     Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
@@ -20,8 +49,16 @@ from .forms import (
     TicketForm, ValidacionForm, MantencionForm, MaterialUtilizadoFormSet,
     NoReparableForm, PausaForm, ReactivacionForm, DerivarMantencionForm,
     ReasignarForm, InasistenciaForm, MaterialForm,
-    VincularActivoForm, MaterialFaltanteForm
+    VincularActivoForm, MaterialFaltanteForm, AsignarRolForm
 )
+
+# Importación condicional del servicio Auth0.
+# Si Auth0 no está configurado (AUTH0_ENABLED=False), las funciones de
+# auth0_service igual están disponibles pero no se llaman desde el código.
+from . import auth0_service
+from .auth0_service import Auth0Error
+
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -74,69 +111,219 @@ def notificar_gestores(tipo, titulo, mensaje, ticket=None, prioridad='media', ur
 
 # ═══════════════════════════════════════════════════════════════
 # AUTH: LOGIN / LOGOUT / REGISTRO / RECUPERACIÓN
+# ─────────────────────────────────────────────────────────────
+# Documentación de flujo completo: docs/FLUJO_AUTENTICACION.md
 # ═══════════════════════════════════════════════════════════════
+
 def login_view(request):
+    """
+    Vista de inicio de sesión con soporte Auth0 + fallback Django local.
+
+    FLUJO PRINCIPAL (Auth0 habilitado):
+        1. Usuario ingresa email + contraseña en el formulario.
+        2. Se llama a auth0_service.autenticar_usuario(email, password).
+        3. Auth0 valida las credenciales contra su base de usuarios.
+        4. Si válidas: Auth0 retorna access_token + id_token (JWT).
+        5. Se decodifica id_token para extraer email y auth0_sub.
+        6. Se busca al usuario local por correo_institucional.
+        7. Se verifica estado_cuenta (pendiente/suspendida/rechazada/activa).
+        8. Si puede ingresar: login() + registro en LogAuditoria + redirect.
+
+    FLUJO FALLBACK (Auth0 no configurado / AUTH0_ENABLED=False):
+        Usa Django's authenticate() con la contraseña local.
+        Permite desarrollar y testear sin credenciales de Auth0.
+        También cubre el caso del superusuario administrador.
+
+    VALIDACIÓN DE ESTADO DE CUENTA:
+        La cuenta en Auth0 puede estar activa, pero el estado local
+        (estado_cuenta.codigo) puede ser 'pendiente', 'suspendida', etc.
+        El estado local es la fuente de verdad para el acceso al sistema.
+
+    Template: app/login.html
+    Redirect exitoso: app:dashboard (router por rol)
+    Redirect si ya autenticado: app:dashboard
+    """
     if request.user.is_authenticated:
         return redirect('app:dashboard')
 
     form = LoginForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        username = form.cleaned_data['username']
+        username_input = form.cleaned_data['username']
         password = form.cleaned_data['password']
+        user = None
 
-        # Permite login con correo o username
-        user = authenticate(request, username=username, password=password)
-        if not user:
+        # ── RAMA AUTH0 ──────────────────────────────────────
+        if settings.AUTH0_ENABLED:
             try:
-                u = Usuario.objects.get(correo_institucional__iexact=username)
-                user = authenticate(request, username=u.username, password=password)
-            except Usuario.DoesNotExist:
-                pass
+                # Normalizar: Auth0 usa email, el campo puede ser username o correo
+                email_para_auth0 = username_input
+                try:
+                    u_local = Usuario.objects.get(correo_institucional__iexact=username_input)
+                    email_para_auth0 = u_local.correo_institucional
+                except Usuario.DoesNotExist:
+                    pass
 
+                # Enviar credenciales a Auth0 (ROPC flow)
+                token_data = auth0_service.autenticar_usuario(email_para_auth0, password)
+                id_token = token_data.get('id_token')
+
+                if id_token:
+                    # Decodificar JWT para obtener email del usuario
+                    claims = auth0_service.decodificar_token(id_token)
+                    email_auth0 = claims.get('email', '').lower()
+                    auth0_sub = claims.get('sub', '')
+
+                    # Buscar usuario local por correo institucional
+                    try:
+                        user = Usuario.objects.get(correo_institucional__iexact=email_auth0)
+                        # Actualizar auth0_sub si no lo tenía (primera vez)
+                        if not user.auth0_sub and auth0_sub:
+                            user.auth0_sub = auth0_sub
+                            user.save(update_fields=['auth0_sub'])
+                    except Usuario.DoesNotExist:
+                        logger.warning(
+                            f"Auth0 autenticó a {email_auth0} pero no existe en BD local."
+                        )
+                        messages.error(
+                            request,
+                            'Tu cuenta no está registrada en Campus Seguro. '
+                            'Solicita registro institucional.'
+                        )
+                        return render(request, 'app/login.html', {'form': form})
+
+            except Auth0Error as e:
+                if e.code in ('invalid_grant', 'invalid_user_password', 'access_denied'):
+                    messages.error(request, 'Correo o contraseña incorrectos.')
+                elif e.code == 'connection_error':
+                    messages.error(request, 'No se pudo conectar con el servicio de autenticación. Intenta más tarde.')
+                else:
+                    messages.error(request, f'Error de autenticación: {e.message}')
+                return render(request, 'app/login.html', {'form': form})
+
+        # ── RAMA FALLBACK DJANGO LOCAL ───────────────────────
+        # Activa cuando Auth0 no está configurado O cuando el usuario
+        # es superusuario/admin (que usa autenticación Django estándar).
+        else:
+            user = authenticate(request, username=username_input, password=password)
+            if not user:
+                try:
+                    u = Usuario.objects.get(correo_institucional__iexact=username_input)
+                    user = authenticate(request, username=u.username, password=password)
+                except Usuario.DoesNotExist:
+                    pass
+
+        # ── VALIDACIÓN DE ESTADO Y LOGIN ─────────────────────
         if user:
-            if user.estado_cuenta.codigo == 'pendiente':
+            estado = user.estado_cuenta.codigo
+            if estado == 'pendiente':
                 messages.warning(request, 'Tu cuenta está pendiente de aprobación por un gestor.')
-            elif user.estado_cuenta.codigo == 'suspendida':
+            elif estado == 'suspendida':
                 messages.error(request, 'Tu cuenta está suspendida. Contacta al administrador.')
-            elif user.estado_cuenta.codigo == 'rechazada':
+            elif estado == 'rechazada':
                 messages.error(request, 'Tu solicitud de cuenta fue rechazada.')
             elif user.puede_ingresar:
                 login(request, user)
                 if not form.cleaned_data.get('recordar'):
                     request.session.set_expiry(0)
                 LogAuditoria.objects.create(
-                    usuario=user, accion='Inicio de sesión',
-                    ip_address=get_client_ip(request), modulo='cuenta'
+                    usuario=user,
+                    accion='Inicio de sesión' + (' (Auth0)' if settings.AUTH0_ENABLED else ' (local)'),
+                    ip_address=get_client_ip(request),
+                    modulo='cuenta',
                 )
                 return redirect('app:dashboard')
         else:
-            messages.error(request, 'Credenciales incorrectas.')
+            messages.error(request, 'Correo o contraseña incorrectos.')
 
     return render(request, 'app/login.html', {'form': form})
 
 
 def registro_view(request):
+    """
+    Vista de solicitud de cuenta nueva.
+
+    FLUJO CON AUTH0 HABILITADO:
+        1. Usuario completa el formulario (email, contraseña, datos personales).
+        2. Se llama a auth0_service.crear_usuario_auth0() para crear el usuario
+           en Auth0 con la contraseña ingresada.
+        3. Auth0 devuelve el auth0_sub (ID único del usuario en Auth0).
+        4. Se crea el usuario local con set_unusable_password() → contraseña
+           NO se guarda en la BD de Campus Seguro.
+        5. Se guarda auth0_sub en el campo Usuario.auth0_sub.
+        6. Estado: 'pendiente'. Rol: 'usuario'. is_active=False.
+        7. Se notifica a los gestores sobre la nueva solicitud.
+        8. Gestor revisa y aprueba (asignando el rol que corresponda).
+
+    FLUJO SIN AUTH0 (fallback desarrollo):
+        - La contraseña se guarda localmente (set_password).
+        - auth0_sub queda en None.
+        - El resto del flujo es igual.
+
+    CAMBIO VS. VERSIÓN ANTERIOR:
+        - El selector de roles (usuario/gestor/guardia/mantención) fue
+          ELIMINADO del formulario. Todos los registros son 'usuario'.
+        - El gestor asigna el rol real al aprobar la cuenta.
+        - is_active se establece en False (antes era True con estado='activa').
+
+    Template: app/registro.html
+    """
     if request.user.is_authenticated:
         return redirect('app:dashboard')
 
     form = RegistroUsuarioForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        user = form.save()
+        auth0_sub = None
+        usar_auth0 = settings.AUTH0_ENABLED
+
+        # ── Crear usuario en Auth0 (si está habilitado) ───────
+        if usar_auth0:
+            try:
+                resultado_auth0 = auth0_service.crear_usuario_auth0(
+                    email=form.cleaned_data['correo_institucional'],
+                    password=form.cleaned_data['password1'],
+                    nombre=form.cleaned_data['first_name'],
+                    apellido=form.cleaned_data['last_name'],
+                )
+                auth0_sub = resultado_auth0.get('user_id')
+                logger.info(f"Usuario creado en Auth0: {auth0_sub}")
+            except Auth0Error as e:
+                msg_lower = e.message.lower()
+                if 'already exists' in msg_lower or e.code == 'user_exists':
+                    messages.error(request, 'Este correo ya tiene una cuenta en el sistema.')
+                elif 'password' in msg_lower and ('weak' in msg_lower or 'strength' in msg_lower):
+                    messages.error(
+                        request,
+                        'La contraseña es muy débil. Debe tener mínimo 8 caracteres e incluir '
+                        'mayúsculas, minúsculas, números y un carácter especial. '
+                        'Ejemplo: Campus2024!'
+                    )
+                else:
+                    messages.error(request, f'Error al crear cuenta: {e.message}')
+                return render(request, 'app/registro.html', {'form': form})
+
+        # ── Crear usuario local en BD Campus Seguro ───────────
+        user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
+
         LogAuditoria.objects.create(
             usuario=user,
-            accion=f'Solicitud de cuenta creada (rol: {user.get_rol_display()})',
+            accion='Solicitud de cuenta creada' + (' (Auth0)' if usar_auth0 else ' (local)'),
             ip_address=get_client_ip(request),
             modulo='cuenta',
         )
-        # Notificar a gestores
+
+        # Notificar a todos los gestores activos
         notificar_gestores(
             'cuenta_solicitud',
             f'Nueva solicitud de cuenta: {user.get_full_name()}',
-            f'{user.get_full_name()} ({user.correo_institucional}) solicita cuenta como {user.get_rol_display()}.',
+            f'{user.get_full_name()} ({user.correo_institucional}) solicita acceso al sistema.',
             prioridad='alta',
             url_accion=reverse('app:gestor_solicitudes_cuenta'),
         )
-        messages.success(request, '✓ Solicitud enviada. Un gestor revisará tu cuenta y recibirás un correo cuando esté aprobada.')
+        messages.success(
+            request,
+            '✓ Solicitud enviada correctamente. Un gestor revisará tu cuenta y '
+            'recibirás una notificación cuando esté aprobada.'
+        )
         return redirect('app:login')
 
     return render(request, 'app/registro.html', {'form': form})
@@ -201,12 +388,54 @@ def restablecer_contrasena_view(request, token):
 
 
 def logout_view(request):
+    """
+    Vista de cierre de sesión completo (local + Auth0).
+
+    CRITERIO DE ACEPTACIÓN del proyecto:
+        "Botón cerrar sesión limpia toda sesión (Auth0 + local)"
+
+    FLUJO:
+        1. Registrar en LogAuditoria el cierre de sesión.
+        2. Guardar auth0_sub del usuario (antes de limpiar sesión Django).
+        3. Limpiar sesión Django local (logout() + session.flush()).
+        4. Si Auth0 habilitado:
+           a. Intentar revocar sesiones activas en Auth0 via Management API.
+           b. Redirigir al endpoint de logout de Auth0.
+           c. Auth0 invalida su cookie de sesión y redirige a /login/.
+        5. Si Auth0 no habilitado: redirigir directamente a /login/.
+
+    NOTA SOBRE ALLOWED LOGOUT URLs:
+        La URL de retorno de Auth0 (http://localhost:8000/login/) debe estar
+        registrada en Auth0 Dashboard → Application → Allowed Logout URLs.
+        Ver docs/AUTH0_CONFIGURACION.md paso 5.
+    """
+    auth0_sub = None
     if request.user.is_authenticated:
+        auth0_sub = getattr(request.user, 'auth0_sub', None)
         LogAuditoria.objects.create(
-            usuario=request.user, accion='Cierre de sesión',
-            ip_address=get_client_ip(request), modulo='cuenta'
+            usuario=request.user,
+            accion='Cierre de sesión' + (' (Auth0)' if settings.AUTH0_ENABLED else ' (local)'),
+            ip_address=get_client_ip(request),
+            modulo='cuenta',
         )
+
+    # Limpiar sesión Django (invalida cookie de sesión del servidor)
     logout(request)
+
+    # ── Logout en Auth0 (si está habilitado) ─────────────────
+    if settings.AUTH0_ENABLED:
+        # Intentar revocar sesiones via Management API (no bloquear si falla)
+        if auth0_sub:
+            auth0_service.revocar_sesion_auth0(auth0_sub)
+
+        # URL fija de retorno leída desde .env → AUTH0_LOGOUT_RETURN_URL.
+        # Usar URL fija (no request.build_absolute_uri) evita la discrepancia
+        # entre http://127.0.0.1:8000 y http://localhost:8000 que Auth0
+        # trata como URLs distintas en su validación de Allowed Logout URLs.
+        return_to = settings.AUTH0_LOGOUT_RETURN_URL
+        auth0_logout_url = auth0_service.construir_url_logout(return_to)
+        return redirect(auth0_logout_url)
+
     return redirect('app:login')
 
 
@@ -614,34 +843,126 @@ def gestor_solicitudes_cuenta(request):
 @login_required
 @rol_requerido('gestor')
 def aprobar_cuenta(request, pk):
+    """
+    Vista para que el gestor revise y apruebe (o rechace) una solicitud de cuenta.
+
+    CAMBIO VS. VERSIÓN ANTERIOR:
+        Ahora el gestor debe seleccionar el ROL que tendrá el usuario
+        al momento de aprobar. Esto reemplaza el sistema anterior donde
+        el usuario elegía su propio rol al registrarse.
+
+    FLUJO DE APROBACIÓN:
+        1. Gestor accede a la solicitud desde /gestor/solicitudes/.
+        2. Ve los datos del solicitante (nombre, correo, vínculo, etc.).
+        3. Selecciona el rol adecuado (usuario / gestor / guardia / mantención).
+        4. Hace clic en "Aprobar".
+        5. El sistema:
+           a. Asigna el rol seleccionado al Usuario local.
+           b. Cambia estado_cuenta → 'activa' e is_active → True.
+           c. Si Auth0 habilitado: llama a auth0_service.actualizar_rol_auth0()
+              para sincronizar el rol en los metadatos de Auth0.
+           d. Registra en LogAuditoria.
+           e. Notifica al usuario que su cuenta fue aprobada.
+        6. El usuario ahora puede iniciar sesión y accede a su panel por rol.
+
+    FLUJO DE RECHAZO:
+        - Estado → 'rechazada'. is_active permanece False.
+        - El usuario recibe una notificación de rechazo.
+
+    Template: app/revisar_cuenta.html
+    Parámetros URL:
+        pk (int): ID del Usuario con estado_cuenta='pendiente'.
+    """
     user = get_object_or_404(Usuario, pk=pk, estado_cuenta__codigo='pendiente')
+    form_rol = AsignarRolForm(request.POST or None)
+
     if request.method == 'POST':
         accion = request.POST.get('accion')
+
         if accion == 'aprobar':
+            if not form_rol.is_valid():
+                messages.error(request, 'Selecciona un rol válido para aprobar la cuenta.')
+                return render(request, 'app/revisar_cuenta.html', {
+                    'cuenta': user,
+                    'form_rol': form_rol,
+                })
+
+            rol_asignado = form_rol.cleaned_data['rol']
+
+            # Actualizar datos locales del usuario
+            user.rol = rol_asignado
             user.estado_cuenta = EstadoCatalogo.para('cuenta', 'activa')
             user.is_active = True
             user.fecha_aprobacion = timezone.now()
             user.aprobado_por = request.user
             user.save()
+
+            # Sincronizar rol con Auth0 si está configurado
+            if settings.AUTH0_ENABLED and user.auth0_sub:
+                try:
+                    auth0_service.actualizar_rol_auth0(
+                        auth0_sub=user.auth0_sub,
+                        rol=rol_asignado,
+                        estado='activa',
+                    )
+                    logger.info(
+                        f"Rol '{rol_asignado}' sincronizado en Auth0 para {user.auth0_sub}"
+                    )
+                except Auth0Error as e:
+                    # No bloquear la aprobación si Auth0 falla.
+                    # El rol quedó actualizado localmente; la sincronización
+                    # se puede reintentar manualmente.
+                    logger.warning(
+                        f"No se pudo sincronizar rol en Auth0 para {user.auth0_sub}: {e.message}"
+                    )
+                    messages.warning(
+                        request,
+                        f'Cuenta aprobada localmente, pero no se pudo sincronizar el rol '
+                        f'en Auth0 ({e.message}). El usuario puede necesitar re-ingresar.'
+                    )
+
             LogAuditoria.objects.create(
-                usuario=request.user, accion=f'Cuenta aprobada: {user.username}',
-                ip_address=get_client_ip(request), modulo='cuenta',
-                detalle=f'Aprobada para rol {user.get_rol_display()}'
+                usuario=request.user,
+                accion=f'Cuenta aprobada: {user.username}',
+                ip_address=get_client_ip(request),
+                modulo='cuenta',
+                detalle=f'Aprobada con rol: {user.get_rol_display()}',
             )
-            notificar(user, 'cuenta_aprobada', '✓ Tu cuenta fue aprobada',
-                      f'Bienvenido a Campus Seguro. Ya puedes iniciar sesión.')
-            messages.success(request, f'✓ Cuenta de {user.get_full_name()} aprobada.')
+            notificar(
+                user,
+                'cuenta_aprobada',
+                '✓ Tu cuenta fue aprobada',
+                f'Bienvenido a Campus Seguro. Ya puedes iniciar sesión. '
+                f'Tu rol asignado es: {user.get_rol_display()}.',
+            )
+            messages.success(
+                request,
+                f'✓ Cuenta de {user.get_full_name()} aprobada como {user.get_rol_display()}.'
+            )
+
         elif accion == 'rechazar':
             user.estado_cuenta = EstadoCatalogo.para('cuenta', 'rechazada')
             user.save()
             LogAuditoria.objects.create(
-                usuario=request.user, accion=f'Cuenta rechazada: {user.username}',
-                ip_address=get_client_ip(request), modulo='cuenta'
+                usuario=request.user,
+                accion=f'Cuenta rechazada: {user.username}',
+                ip_address=get_client_ip(request),
+                modulo='cuenta',
+            )
+            notificar(
+                user,
+                'cuenta_rechazada',
+                '✗ Tu solicitud de cuenta fue rechazada',
+                'Contacta al administrador para más información.',
             )
             messages.info(request, f'Cuenta de {user.get_full_name()} rechazada.')
+
         return redirect('app:gestor_solicitudes_cuenta')
 
-    return render(request, 'app/revisar_cuenta.html', {'cuenta': user})
+    return render(request, 'app/revisar_cuenta.html', {
+        'cuenta': user,
+        'form_rol': form_rol,
+    })
 
 
 @login_required

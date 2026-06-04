@@ -1,5 +1,75 @@
 {% extends 'app/base.html' %}
-{% block title %}Revisar Solicitud{% endblock %}
+{% block title %}Revisar Solicitud – Campus Seguro{% endblock %}
+
+{# ═══════════════════════════════════════════════════════════════
+   TEMPLATE: app/revisar_cuenta.html
+   ─────────────────────────────────────────────────────────────
+   CONTROLADOR (views.py):
+     Función: aprobar_cuenta(request, pk)
+     URL:     /gestor/solicitudes/<pk>/revisar/
+     Acceso:  Solo usuarios con rol 'gestor'.
+
+   PROPÓSITO:
+     Panel del gestor para revisar una solicitud de cuenta pendiente.
+     Permite ver los datos del solicitante, seleccionar el rol a asignar,
+     y aprobar o rechazar la cuenta.
+
+   CAMBIO VS. VERSIÓN ANTERIOR:
+     - Agregado el selector de rol (radio buttons) en el panel de decisión.
+     - El gestor selecciona el rol ANTES de aprobar (antes no existía este paso).
+     - Al aprobar: el sistema actualiza rol en BD local Y sincroniza con Auth0.
+     - Agregado aviso informativo sobre la sincronización con Auth0.
+     - Ya no aparece "ROL SOLICITADO" porque siempre es 'usuario base'.
+
+   VARIABLES DE CONTEXTO (enviadas desde aprobar_cuenta):
+     cuenta (Usuario)
+       → El usuario con estado_cuenta='pendiente' que se está revisando.
+       → Se usa para mostrar: cuenta.get_full_name, cuenta.rut,
+         cuenta.correo_institucional, cuenta.get_vinculo_display,
+         cuenta.get_jornada_display, cuenta.carrera, cuenta.sede,
+         cuenta.fecha_registro, cuenta.telefono, cuenta.auth0_sub.
+       → cuenta.auth0_sub: si está presente (no nulo), el usuario se registró
+         vía Auth0 y su rol se sincronizará allá al aprobar.
+         Si es nulo, solo se actualiza en BD local (usuario creado antes de Auth0).
+
+     form_rol (AsignarRolForm)
+       → Formulario Django (app/forms.py) con un ChoiceField de rol.
+       → En este template NO se renderiza con {{ form_rol }} estándar.
+         Los radio buttons son HTML manual para mejor estilo visual.
+         El valor del radio seleccionado (name="rol") se envía en el POST
+         y views.aprobar_cuenta() lo lee via AsignarRolForm(request.POST).
+
+   FLUJO POST-SUBMIT (botón Aprobar):
+     1. POST → aprobar_cuenta() con name="accion" value="aprobar".
+     2. AsignarRolForm(request.POST).cleaned_data['rol'] → rol seleccionado.
+     3. user.rol = rol_seleccionado (ej: 'guardia').
+     4. user.estado_cuenta = EstadoCatalogo.para('cuenta', 'activa').
+     5. user.is_active = True.
+     6. user.aprobado_por = gestor actual.
+     7. Si user.auth0_sub existe:
+        → auth0_service.actualizar_rol_auth0(auth0_sub, rol) actualiza
+          app_metadata.campus_rol en Auth0.
+     8. Notificación al usuario: "Tu cuenta fue aprobada. Rol: Guardia."
+     9. Redirect a /gestor/solicitudes/.
+
+   FLUJO POST-SUBMIT (botón Rechazar):
+     1. POST → aprobar_cuenta() con name="accion" value="rechazar".
+     2. user.estado_cuenta = EstadoCatalogo.para('cuenta', 'rechazada').
+     3. Notificación al usuario: "Tu solicitud fue rechazada."
+     4. Redirect a /gestor/solicitudes/.
+
+   NOTA SOBRE EL CAMPO rol:
+     Los radio buttons (name="rol", values: usuario/gestor/guardia/mantencion)
+     son HTML manual (no {{ form_rol.rol }}). El valor seleccionado se pasa
+     en el POST como form data normal. AsignarRolForm en views.py lo valida.
+
+   CONEXIONES:
+     - Controlador:   app/views.py → aprobar_cuenta()
+     - Formulario:    app/forms.py → AsignarRolForm
+     - Auth0 service: app/auth0_service.py → actualizar_rol_auth0()
+     - Modelo:        app/models.py → Usuario, EstadoCatalogo
+     - URL anterior:  app/templates/app/gestor_solicitudes.html (lista de pendientes)
+   ═══════════════════════════════════════════════════════════════ #}
 
 {% block content %}
 <div class="topbar">
@@ -11,20 +81,21 @@
 </div>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;">
+
+  {# ── Panel izquierdo: datos del solicitante ── #}
   <div class="card">
     <div class="form-section-title">👤 Datos del solicitante</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13.5px;">
+
       <div>
         <div style="color:var(--text-muted);font-size:11px;letter-spacing:0.5px;">NOMBRE COMPLETO</div>
         <strong>{{ cuenta.get_full_name }}</strong>
       </div>
       <div>
-        <div style="color:var(--text-muted);font-size:11px;letter-spacing:0.5px;">ROL SOLICITADO</div>
-        {% if cuenta.rol == 'usuario' %}<span class="badge badge-blue">{{ cuenta.get_rol_display }}</span>
-        {% elif cuenta.rol == 'gestor' %}<span class="badge badge-teal">{{ cuenta.get_rol_display }}</span>
-        {% elif cuenta.rol == 'guardia' %}<span class="badge badge-yellow">{{ cuenta.get_rol_display }}</span>
-        {% elif cuenta.rol == 'mantencion' %}<span class="badge badge-green">{{ cuenta.get_rol_display }}</span>{% endif %}
+        <div style="color:var(--text-muted);font-size:11px;letter-spacing:0.5px;">ESTADO SOLICITUD</div>
+        <span class="badge badge-yellow">Pendiente de aprobación</span>
       </div>
+
       <div>
         <div style="color:var(--text-muted);font-size:11px;">RUT</div>
         <span class="id-mono">{{ cuenta.rut }}</span>
@@ -33,42 +104,163 @@
         <div style="color:var(--text-muted);font-size:11px;">TELÉFONO</div>
         <span class="id-mono">{{ cuenta.telefono|default:"—" }}</span>
       </div>
+
       <div style="grid-column:1/-1;">
         <div style="color:var(--text-muted);font-size:11px;">CORREO INSTITUCIONAL</div>
         <span class="id-mono">{{ cuenta.correo_institucional }}</span>
       </div>
 
-      {% if cuenta.rol == 'usuario' %}
-      <div><div style="color:var(--text-muted);font-size:11px;">VÍNCULO</div>{{ cuenta.get_vinculo_display|default:"—" }}</div>
-      <div><div style="color:var(--text-muted);font-size:11px;">JORNADA</div>{{ cuenta.get_jornada_display|default:"—" }}</div>
-      <div><div style="color:var(--text-muted);font-size:11px;">CARRERA / DPTO.</div>{{ cuenta.carrera|default:"—" }}</div>
-      <div><div style="color:var(--text-muted);font-size:11px;">SEDE</div>{{ cuenta.sede|default:"—" }}</div>
-      {% endif %}
+      {# Datos académicos (siempre visibles, el solicitante es siempre usuario base) #}
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">VÍNCULO</div>
+        {{ cuenta.get_vinculo_display|default:"—" }}
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">JORNADA</div>
+        {{ cuenta.get_jornada_display|default:"—" }}
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">CARRERA / DEPARTAMENTO</div>
+        {{ cuenta.carrera|default:"—" }}
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">SEDE</div>
+        {{ cuenta.sede|default:"—" }}
+      </div>
 
-      {% if cuenta.rol == 'mantencion' %}
-      <div><div style="color:var(--text-muted);font-size:11px;">ESPECIALIDAD</div>{{ cuenta.especialidad|default:"—" }}</div>
-      <div><div style="color:var(--text-muted);font-size:11px;">TURNO</div>{{ cuenta.turno|default:"—" }}</div>
-      {% endif %}
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">FECHA SOLICITUD</div>
+        <span class="id-mono">{{ cuenta.fecha_registro|date:"d/m/Y H:i" }}</span>
+      </div>
 
-      {% if cuenta.rol == 'guardia' %}
-      <div><div style="color:var(--text-muted);font-size:11px;">TURNO</div>{{ cuenta.turno|default:"—" }}</div>
-      <div><div style="color:var(--text-muted);font-size:11px;">SEDE</div>{{ cuenta.sede|default:"—" }}</div>
+      {% if cuenta.auth0_sub %}
+      <div>
+        <div style="color:var(--text-muted);font-size:11px;">AUTH0 ID</div>
+        <span class="id-mono" style="font-size:10px;">{{ cuenta.auth0_sub }}</span>
+      </div>
       {% endif %}
-
-      <div><div style="color:var(--text-muted);font-size:11px;">FECHA SOLICITUD</div><span class="id-mono">{{ cuenta.fecha_registro|date:"d/m/Y H:i" }}</span></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">⚙️ Decisión</div>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;line-height:1.5;">
-      Aprobar permitirá al usuario iniciar sesión inmediatamente. Rechazar bloqueará la cuenta.
-    </p>
-    <form method="post" style="display:flex;flex-direction:column;gap:10px;">
-      {% csrf_token %}
-      <button type="submit" name="accion" value="aprobar" class="btn btn-success btn-full">✓ Aprobar cuenta</button>
-      <button type="submit" name="accion" value="rechazar" class="btn btn-danger btn-full">✗ Rechazar</button>
-    </form>
+  {# ── Panel derecho: decisión del gestor ── #}
+  <div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title">⚙️ Decisión del Gestor</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:18px;line-height:1.5;">
+        Selecciona el rol que corresponde a este usuario según sus funciones
+        institucionales, luego aprueba o rechaza la solicitud.
+      </p>
+
+      <form method="post" id="formDecision">
+        {% csrf_token %}
+
+        {# ── Selector de rol (requerido para aprobar) ── #}
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" style="font-weight:700;font-size:13px;">
+            Rol a asignar <span style="color:var(--accent-red)">*</span>
+          </label>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+
+            <label class="rol-option" data-rol="usuario">
+              <input type="radio" name="rol" value="usuario" checked>
+              <div class="rol-option-content">
+                <div class="rol-icon" style="background:rgba(74,143,255,0.2)">👤</div>
+                <div>
+                  <div style="font-weight:700;font-size:13px;">Usuario Base</div>
+                  <div style="font-size:11px;color:var(--text-muted);">Alumno · Docente · Administrativo</div>
+                </div>
+              </div>
+            </label>
+
+            <label class="rol-option" data-rol="gestor">
+              <input type="radio" name="rol" value="gestor">
+              <div class="rol-option-content">
+                <div class="rol-icon" style="background:rgba(17,205,239,0.2)">🧠</div>
+                <div>
+                  <div style="font-weight:700;font-size:13px;">Gestor</div>
+                  <div style="font-size:11px;color:var(--text-muted);">Supervisión y control</div>
+                </div>
+              </div>
+            </label>
+
+            <label class="rol-option" data-rol="guardia">
+              <input type="radio" name="rol" value="guardia">
+              <div class="rol-option-content">
+                <div class="rol-icon" style="background:rgba(244,197,66,0.2)">🛡️</div>
+                <div>
+                  <div style="font-weight:700;font-size:13px;">Guardia</div>
+                  <div style="font-size:11px;color:var(--text-muted);">Validación en terreno</div>
+                </div>
+              </div>
+            </label>
+
+            <label class="rol-option" data-rol="mantencion">
+              <input type="radio" name="rol" value="mantencion">
+              <div class="rol-option-content">
+                <div class="rol-icon" style="background:rgba(45,206,137,0.2)">🔧</div>
+                <div>
+                  <div style="font-weight:700;font-size:13px;">Mantención</div>
+                  <div style="font-size:11px;color:var(--text-muted);">Reparaciones y mantención</div>
+                </div>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        {# ── Botones de acción ── #}
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+          <button type="submit" name="accion" value="aprobar" class="btn btn-success btn-full">
+            ✓ Aprobar y asignar rol
+          </button>
+          <button type="submit" name="accion" value="rechazar" class="btn btn-danger btn-full"
+                  onclick="return confirm('¿Confirmas el rechazo de esta solicitud?')">
+            ✗ Rechazar solicitud
+          </button>
+        </div>
+      </form>
+    </div>
+
+    {# ── Aviso sobre Auth0 ── #}
+    <div class="card" style="background:rgba(74,143,255,0.05);border-color:rgba(74,143,255,0.2);">
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <strong style="color:var(--accent-blue);">🔐 Auth0</strong><br>
+        Al aprobar, el rol será sincronizado con Auth0 si la integración está activa.
+        El usuario recibirá una notificación y podrá iniciar sesión.
+      </div>
+    </div>
   </div>
 </div>
+
+<style>
+.rol-option {
+  display: flex; align-items: center; gap: 0; cursor: pointer;
+}
+.rol-option input[type="radio"] { display: none; }
+.rol-option-content {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 8px; border: 2px solid var(--border);
+  width: 100%; transition: all 0.15s; background: var(--bg-700);
+}
+.rol-option:hover .rol-option-content { border-color: var(--border-strong); }
+.rol-option input:checked + .rol-option-content {
+  border-color: var(--accent-blue); background: rgba(74,143,255,0.08);
+}
+.rol-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
+}
+</style>
+
+<script>
+// Resaltar la opción de rol seleccionada visualmente
+document.querySelectorAll('.rol-option input[type="radio"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.rol-option-content').forEach(c => {
+      c.style.borderColor = '';
+      c.style.background = '';
+    });
+  });
+});
+</script>
 {% endblock %}
