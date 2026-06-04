@@ -54,7 +54,7 @@
         {% for k, v in estados %}
         <option
           value="{{ k }}"
-          {%if filtros.estado="" ="k"%}selected{%endif%}
+          {%if filtros.estado == k %}selected{%endif%}
         >
           {{ v }}
         </option>
@@ -76,7 +76,7 @@
         {% for k, v in urgencias %}
         <option
           value="{{ k }}"
-          {%if filtros.urgencia="" ="k"%}selected{%endif%}
+          {%if filtros.urgencia == k %}selected{%endif%}
         >
           {{ v }}
         </option>
@@ -98,7 +98,7 @@
         {% for k, v in categorias %}
         <option
           value="{{ k }}"
-          {%if filtros.categoria="" ="k"%}selected{%endif%}
+          {%if filtros.categoria == k %}selected{%endif%}
         >
           {{ v }}
         </option>
@@ -157,12 +157,13 @@
       <thead>
         <tr>
           <th>ID</th>
+          <th>Ubicación</th>
           <th>Título</th>
           <th>Solicitante</th>
           <th>Categoría</th>
           <th>Urgencia</th>
           <th>Estado</th>
-          <th>Asignado</th>
+          
           <th>Fecha</th>
           <th>Acciones</th>
         </tr>
@@ -171,12 +172,8 @@
         {% for t in tickets %}
         <tr>
           <td><span class="id-mono">#{{ t.pk }}</span></td>
-          <td>
-            <strong>{{ t.titulo|truncatechars:32 }}</strong><br />
-            <span style="font-size: 11px; color: var(--text-muted)"
-              >{{ t.ubicacion }}</span
-            >
-          </td>
+          <td style="font-size: 13px">{{ t.ubicacion }}</td>
+          <td><strong>{{ t.titulo|truncatechars:32 }}</strong></td>
           <td style="font-size: 13px">{{ t.creado_por.get_full_name }}</td>
           <td style="font-size: 12px">{{ t.get_categoria_display }}</td>
           <td>
@@ -256,9 +253,6 @@
               >{{ t.get_estado_display }}</span
             >
             {% endif %}
-          </td>
-          <td style="font-size: 12px">
-            {% if t.asignado_a %}{{t.asignado_a.get_full_name|truncatechars:20}}{% else %}<span style="color: var(--text-muted)">—</span>{%endif%}
           </td>
           <td>
             <span class="id-mono" style="font-size: 11px"

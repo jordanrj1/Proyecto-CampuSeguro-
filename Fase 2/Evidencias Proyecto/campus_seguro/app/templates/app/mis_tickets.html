@@ -13,7 +13,7 @@
   <select name="estado" class="filter-input" onchange="this.form.submit()">
     <option value="">Todos los estados</option>
     {% for k, v in estados %}
-    <option value="{{ k }}" {% if estado_filtro="" ="k" %}selected{% endif %}>
+    <option value="{{ k }}" {% if estado_filtro == k %}selected{% endif %}>
       {{ v }}
     </option>
     {% endfor %}
