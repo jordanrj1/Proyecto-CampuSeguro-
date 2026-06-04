@@ -11,6 +11,8 @@
 # AUTENTICACIÓN (flujo Auth0):
 #   - login_view(): Autentica vía Auth0 ROPC si AUTH0_ENABLED=True,
 #     o via Django authenticate() como fallback de desarrollo.
+#     INCLUYE SINCRONIZACIÓN AUTOMÁTICA: Si el usuario existe en Auth0
+#     pero no en BD local, se crea automáticamente.
 #   - logout_view(): Limpia sesión local + redirige a Auth0 logout.
 #   - registro_view(): Crea usuario en Auth0 (si habilitado) y en BD local.
 #   - aprobar_cuenta(): Gestor aprueba + asigna rol + sincroniza con Auth0.
@@ -125,7 +127,9 @@ def login_view(request):
         3. Auth0 valida las credenciales contra su base de usuarios.
         4. Si válidas: Auth0 retorna access_token + id_token (JWT).
         5. Se decodifica id_token para extraer email y auth0_sub.
-        6. Se busca al usuario local por correo_institucional.
+        6. ★ NUEVO: Se llama a auth0_service.sincronizar_usuario_local()
+           que crea automáticamente el usuario en BD local si no existe.
+           Esto resuelve el problema de "Auth0 autenticó a X pero no existe en BD local".
         7. Se verifica estado_cuenta (pendiente/suspendida/rechazada/activa).
         8. Si puede ingresar: login() + registro en LogAuditoria + redirect.
 
@@ -138,6 +142,14 @@ def login_view(request):
         La cuenta en Auth0 puede estar activa, pero el estado local
         (estado_cuenta.codigo) puede ser 'pendiente', 'suspendida', etc.
         El estado local es la fuente de verdad para el acceso al sistema.
+
+    SINCRONIZACIÓN AUTOMÁTICA:
+        Si el usuario existe en Auth0 pero NO en la BD local, el sistema
+        lo crea automáticamente con:
+        - rol detectado según el email (gestor, guardia, mantencion, usuario)
+        - estado='activa' si es gestor, 'pendiente' para otros
+        - is_staff=True si es gestor
+        - auth0_sub vinculado para futuras autenticaciones
 
     Template: app/login.html
     Redirect exitoso: app:dashboard (router por rol)
@@ -173,21 +185,24 @@ def login_view(request):
                     email_auth0 = claims.get('email', '').lower()
                     auth0_sub = claims.get('sub', '')
 
-                    # Buscar usuario local por correo institucional
+                    # ★ NUEVO: Sincronizar usuario en BD local
+                    # Esta función crea automáticamente el usuario si no existe
+                    # o actualiza sus datos si ya existe
                     try:
-                        user = Usuario.objects.get(correo_institucional__iexact=email_auth0)
-                        # Actualizar auth0_sub si no lo tenía (primera vez)
-                        if not user.auth0_sub and auth0_sub:
-                            user.auth0_sub = auth0_sub
-                            user.save(update_fields=['auth0_sub'])
-                    except Usuario.DoesNotExist:
-                        logger.warning(
-                            f"Auth0 autenticó a {email_auth0} pero no existe en BD local."
-                        )
+                        user = auth0_service.sincronizar_usuario_local({
+                            'email': email_auth0,
+                            'sub': auth0_sub,
+                            'given_name': claims.get('given_name', ''),
+                            'family_name': claims.get('family_name', ''),
+                            'name': claims.get('name', ''),
+                        })
+                        logger.info(f"✅ Usuario sincronizado: {email_auth0} (rol: {user.rol})")
+                    except Exception as e:
+                        logger.error(f"Error al sincronizar usuario {email_auth0}: {e}")
                         messages.error(
                             request,
-                            'Tu cuenta no está registrada en Campus Seguro. '
-                            'Solicita registro institucional.'
+                            'Error al sincronizar tu cuenta con el sistema. '
+                            'Contacta al administrador.'
                         )
                         return render(request, 'app/login.html', {'form': form})
 

@@ -34,7 +34,7 @@
      messages (built-in Django)
        → Mensajes flash del sistema. Se usan para mostrar errores o éxito.
        → Ejemplo: "Solicitud enviada correctamente." después de registrarse.
-       → Se accede con {% for message in messages %}.
+       → Se accede con: {% if messages %}{% for message in messages %}...{% endfor %}{% endif %}
 
    FLUJO POST-SUBMIT:
      1. POST → registro_view() valida RegistroUsuarioForm.
@@ -152,10 +152,12 @@ body::before {
       </div>
     </div>
 
-    {# ── Mensajes del sistema ── #}
-    {% for message in messages %}
-    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
-    {% endfor %}
+    {# ── Mensajes del sistema (CORREGIDO: for/endfor correctamente cerrado) ── #}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
 
     {# ── Errores de validación del formulario ── #}
     {% if form.errors %}
@@ -280,7 +282,7 @@ body::before {
         </label>
       </div>
 
-      <button type="submit" class="btn-submit" id="btnSubmit">
+      <button type="submit" class="btn-submit" id="btnSubmit" disabled>
         Enviar Solicitud →
       </button>
     </form>
