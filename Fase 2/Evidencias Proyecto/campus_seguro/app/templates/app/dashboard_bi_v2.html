@@ -1,0 +1,236 @@
+{% extends 'app/base.html' %} {% block title %}Dashboard BI v2{% endblock %} {%block content%}
+<div class="topbar">
+  <div>
+    <div class="page-title">📊 Dashboard BI</div>
+    <div class="page-subtitle">Análisis operativo avanzado · Campus Seguro</div>
+  </div>
+  <a href="{% url 'app:gestor_bi' %}" class="btn btn-ghost">Ver BI completo</a>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="kpi-label">Total tickets</div>
+    <div class="kpi-value">{{ total_tickets }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Cerrados esta semana</div>
+    <div class="kpi-value">{{ cerrados_semana }}</div>
+    <div class="kpi-sub">últimos 7 días</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Cerrados este mes</div>
+    <div class="kpi-value">{{ cerrados_mes }}</div>
+    <div class="kpi-sub">últimos 30 días</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Críticos activos</div>
+    <div class="kpi-value">{{ criticos_activos }}</div>
+    <div class="kpi-sub">requieren atención</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">HH consumidas</div>
+    <div class="kpi-value">{{ hh_total|floatformat:0 }}</div>
+    <div class="kpi-sub">horas hombre totales</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">No reparados</div>
+    <div class="kpi-value">{{ no_reparados }}</div>
+    <div class="kpi-sub">requieren rectificación</div>
+  </div>
+</div>
+
+<div
+  style="
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  "
+>
+  <!-- Por categoría -->
+  <div class="card">
+    <div class="card-title">Por categoría</div>
+    {% for c in por_categoria %}
+    <div
+      style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px"
+    >
+      <div style="flex: 1; font-size: 13px">{{ c.categoria|capfirst }}</div>
+      <div
+        style="
+          width: 120px;
+          background: var(--bg-600);
+          border-radius: 4px;
+          overflow: hidden;
+          height: 8px;
+        "
+      >
+        <div
+          style="height:8px;background:var(--accent-blue);width:{% widthratio c.total total_tickets 100 %}%;"
+        ></div>
+      </div>
+      <div
+        style="
+          font-size: 13px;
+          font-weight: 600;
+          min-width: 28px;
+          text-align: right;
+        "
+      >
+        {{ c.total }}
+      </div>
+    </div>
+    {% empty %}
+    <div style="color: var(--text-muted); text-align: center; padding: 20px">
+      Sin datos
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Por urgencia -->
+  <div class="card">
+    <div class="card-title">Por urgencia</div>
+    {% for u in por_urgencia %}
+    <div
+      style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px"
+    >
+      <div style="flex: 1; font-size: 13px">
+        <span class="urgencia-{{ u.urgencia }}">{{ u.urgencia|capfirst }}</span>
+      </div>
+      <div
+        style="
+          width: 120px;
+          background: var(--bg-600);
+          border-radius: 4px;
+          overflow: hidden;
+          height: 8px;
+        "
+      >
+        <div
+          style="height:8px;background:var(--accent-yellow);width:{% widthratio u.total total_tickets 100 %}%;"
+        ></div>
+      </div>
+      <div
+        style="
+          font-size: 13px;
+          font-weight: 600;
+          min-width: 28px;
+          text-align: right;
+        "
+      >
+        {{ u.total }}
+      </div>
+    </div>
+    {% empty %}
+    <div style="color: var(--text-muted); text-align: center; padding: 20px">
+      Sin datos
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Por estado -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">Distribución por estado</div>
+  <div style="display: flex; flex-wrap: wrap; gap: 10px">
+    {% for e in por_estado %}
+    <div
+      style="
+        background: var(--bg-700);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 18px;
+        text-align: center;
+        min-width: 120px;
+      "
+    >
+      <div style="font-size: 22px; font-weight: 700">{{ e.total }}</div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px">
+        {{ e.estado|capfirst }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Top edificios -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
+  <div class="card">
+    <div class="card-title">Top ubicaciones</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Edificio</th>
+            <th style="text-align: center">Tickets</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in por_edificio %}
+          <tr>
+            <td style="font-size: 13px">{{ e.edificio }}</td>
+            <td style="text-align: center; font-weight: 600">{{ e.total }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td
+              colspan="2"
+              style="text-align: center; color: var(--text-muted)"
+            >
+              Sin datos
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Stock crítico -->
+  <div class="card">
+    <div class="card-title">
+      ⚠️ Stock crítico
+      <span style="font-size: 11px; font-weight: 400; color: var(--accent-red)"
+        >{{ total_bajo_stock|default:stock_bajo.count }} materiales</span
+      >
+    </div>
+    {% if stock_bajo %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Material</th>
+            <th>Stock</th>
+            <th>Mínimo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in stock_bajo %}
+          <tr>
+            <td style="font-size: 13px">{{ m.nombre }}</td>
+            <td
+              style="
+                font-size: 13px;
+                color: var(--accent-red);
+                font-weight: 600;
+              "
+            >
+              {{ m.stock_actual }}
+            </td>
+            <td style="font-size: 12px; color: var(--text-secondary)">
+              {{ m.stock_minimo }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 24px; color: var(--accent-green)">
+      ✓ Todo el stock sobre el mínimo
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

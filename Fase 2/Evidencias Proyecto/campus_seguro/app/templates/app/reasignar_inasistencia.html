@@ -1,0 +1,146 @@
+{% extends 'app/base.html' %} {% block title %}Reasignar por Inasistencia{%endblock%} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Reasignar por inasistencia</div>
+    <div class="page-subtitle">
+      {{ inasistencia.usuario.get_full_name }} · {{inasistencia.get_motivo_display}}
+    </div>
+  </div>
+  <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
+    >← Cancelar</a
+  >
+</div>
+
+<!-- Info inasistencia -->
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
+>
+  <div class="form-section-title">📅 Detalles de la inasistencia</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">EMPLEADO</div>
+      {{ inasistencia.usuario.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ROL</div>
+      {{ inasistencia.usuario.get_rol_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">MOTIVO</div>
+      {{ inasistencia.get_motivo_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">DESDE</div>
+      {{ inasistencia.fecha_desde|date:"d/m/Y" }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">HASTA</div>
+      {{ inasistencia.fecha_hasta|date:"d/m/Y" }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ESTADO</div>
+      {{ inasistencia.get_estado_display }}
+    </div>
+  </div>
+</div>
+
+<!-- Tickets afectados -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">🎫 Tickets activos del empleado ausente</div>
+  {% if tickets %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Título</th>
+          <th>Estado</th>
+          <th>Urgencia</th>
+          <th>Ubicación</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td style="font-family: var(--font-mono); font-size: 12px">
+            #{{ t.pk }}
+          </td>
+          <td style="font-size: 13px">{{ t.titulo|truncatechars:50 }}</td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ t.get_estado_display }}
+          </td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ t.ubicacion }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 24px; color: var(--text-muted)">
+    Este empleado no tiene tickets activos asignados. No es necesario reasignar.
+  </div>
+  {% endif %}
+</div>
+
+{% if tickets %}
+<form method="post">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">👷 Seleccionar nuevo responsable</div>
+    <div style="margin-bottom: 14px">
+      <label class="form-label">Nuevo responsable *</label>
+      <select name="nuevo_responsable" class="form-control" required>
+        <option value="">Seleccionar técnico o guardia...</option>
+        {% for t in tecnicos %}
+        <option value="{{ t.pk }}">
+          {{ t.get_full_name }} – {{ t.get_rol_display }}{% if t.especialidad %}
+          ({{ t.especialidad }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+        Se reasignarán los {{ tickets.count }} ticket(s) activos al empleado
+        seleccionado.
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: flex-end; gap: 10px">
+    <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
+      >Cancelar</a
+    >
+    <button
+      type="submit"
+      class="btn btn-primary"
+      onclick="
+        return confirm(
+          '¿Reasignar todos los tickets activos al nuevo responsable?',
+        );
+      "
+    >
+      Reasignar {{ tickets.count }} ticket(s) →
+    </button>
+  </div>
+</form>
+{% else %}
+<div style="display: flex; justify-content: flex-end">
+  <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
+    >Volver</a
+  >
+</div>
+{% endif %} {% endblock %}

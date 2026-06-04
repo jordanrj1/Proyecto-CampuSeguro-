@@ -61,7 +61,7 @@ media/
 *.mo
 
 # ----- Entorno / secretos -----
-.env
+# .env  ← descomentado intencionalmente: repo privado, se sube para compartir config con el equipo
 .env.*
 .envrc
 *.pem
@@ -96,3 +96,4 @@ build/
 __pycache__/
 *.py[cod]
 *$py.class
+.claude/

@@ -1,0 +1,348 @@
+{% extends 'app/base.html' %} {% block title %}Tickets – Gestión{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Todos los tickets</div>
+    <div class="page-subtitle">Gestión, derivación y supervisión</div>
+  </div>
+</div>
+
+<form method="get">
+  <div
+    style="
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      background: var(--bg-850);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    "
+  >
+    <div style="flex: 1; min-width: 180px">
+      <label
+        style="
+          font-size: 11px;
+          color: var(--text-muted);
+          display: block;
+          margin-bottom: 4px;
+        "
+        >BUSCAR</label
+      >
+      <input
+        type="search"
+        name="q"
+        placeholder="Título, descripción, edificio…"
+        class="form-control"
+        value="{{ filtros.q|default:'' }}"
+      />
+    </div>
+    <div style="min-width: 160px">
+      <label
+        style="
+          font-size: 11px;
+          color: var(--text-muted);
+          display: block;
+          margin-bottom: 4px;
+        "
+        >ESTADO</label
+      >
+      <select name="estado" class="form-control">
+        <option value="">Todos los estados</option>
+        {% for k, v in estados %}
+        <option
+          value="{{ k }}"
+          {%if filtros.estado="" ="k"%}selected{%endif%}
+        >
+          {{ v }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width: 140px">
+      <label
+        style="
+          font-size: 11px;
+          color: var(--text-muted);
+          display: block;
+          margin-bottom: 4px;
+        "
+        >URGENCIA</label
+      >
+      <select name="urgencia" class="form-control">
+        <option value="">Toda urgencia</option>
+        {% for k, v in urgencias %}
+        <option
+          value="{{ k }}"
+          {%if filtros.urgencia="" ="k"%}selected{%endif%}
+        >
+          {{ v }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width: 150px">
+      <label
+        style="
+          font-size: 11px;
+          color: var(--text-muted);
+          display: block;
+          margin-bottom: 4px;
+        "
+        >CATEGORÍA</label
+      >
+      <select name="categoria" class="form-control">
+        <option value="">Toda categoría</option>
+        {% for k, v in categorias %}
+        <option
+          value="{{ k }}"
+          {%if filtros.categoria="" ="k"%}selected{%endif%}
+        >
+          {{ v }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: flex-end">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        style="height: 38px; padding: 0 18px"
+      >
+        Aplicar
+      </button>
+      <a
+        href="{% url 'app:gestor_tickets' %}"
+        class="btn btn-ghost"
+        style="height: 38px; padding: 0 14px"
+        >✕</a
+      >
+    </div>
+  </div>
+</form>
+
+{% if filtros.estado or filtros.urgencia or filtros.categoria or filtros.q %}
+<div
+  style="
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  "
+>
+  Filtrando por: {% if filtros.q %}<span
+    style="background: var(--bg-700); padding: 2px 10px; border-radius: 6px"
+    >Búsqueda: "{{ filtros.q }}"</span
+  >{% endif %} {% if filtros.estado %}<span
+    style="background: var(--bg-700); padding: 2px 10px; border-radius: 6px"
+    >Estado: {{ filtros.estado }}</span
+  >{% endif %} {% if filtros.urgencia %}<span
+    style="background: var(--bg-700); padding: 2px 10px; border-radius: 6px"
+    >Urgencia: {{ filtros.urgencia }}</span
+  >{% endif %} {% if filtros.categoria %}<span
+    style="background: var(--bg-700); padding: 2px 10px; border-radius: 6px"
+    >Cat: {{ filtros.categoria }}</span
+  >{% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  {% if tickets %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Solicitante</th>
+          <th>Categoría</th>
+          <th>Urgencia</th>
+          <th>Estado</th>
+          <th>Asignado</th>
+          <th>Fecha</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td><span class="id-mono">#{{ t.pk }}</span></td>
+          <td>
+            <strong>{{ t.titulo|truncatechars:32 }}</strong><br />
+            <span style="font-size: 11px; color: var(--text-muted)"
+              >{{ t.ubicacion }}</span
+            >
+          </td>
+          <td style="font-size: 13px">{{ t.creado_por.get_full_name }}</td>
+          <td style="font-size: 12px">{{ t.get_categoria_display }}</td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td>
+            {% if t.estado.codigo == 'cerrado' %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(45, 206, 137, 0.15);
+                color: var(--accent-green);
+              "
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'reparado' %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(45, 206, 137, 0.25);
+                color: var(--accent-green);
+                font-weight: 600;
+              "
+              >✓ {{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'pausado' %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(244, 197, 66, 0.15);
+                color: var(--accent-yellow);
+              "
+              >{{ t.get_estado_display }}{% if t.estado_pausa %}<br /><span
+                style="font-size: 10px"
+                >{{ t.get_estado_pausa_display }}</span
+              >{% endif %}</span
+            >
+            {% elif t.estado.codigo == 'no_reparado' %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(245, 54, 92, 0.15);
+                color: var(--accent-red);
+              "
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'enviado' %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(74, 143, 255, 0.15);
+                color: var(--accent-blue);
+              "
+              >{{ t.get_estado_display }}</span
+            >
+            {% else %}
+            <span
+              style="
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 6px;
+                background: rgba(32, 178, 170, 0.15);
+                color: var(--accent-teal, #20b2aa);
+              "
+              >{{ t.get_estado_display }}</span
+            >
+            {% endif %}
+          </td>
+          <td style="font-size: 12px">
+            {% if t.asignado_a %}{{t.asignado_a.get_full_name|truncatechars:20}}{% else %}<span style="color: var(--text-muted)">—</span>{%endif%}
+          </td>
+          <td>
+            <span class="id-mono" style="font-size: 11px"
+              >{{ t.created_at|date:"d/m H:i" }}</span
+            >
+          </td>
+          <td style="white-space: nowrap">
+            <a
+              href="{% url 'app:detalle_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              title="Ver detalle"
+              >👁</a
+            >
+            {% if t.estado.codigo == 'reparado' %}
+            <a
+              href="{% url 'app:cerrar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              style="
+                border-color: var(--accent-green);
+                color: var(--accent-green);
+              "
+              title="Confirmar cierre"
+              >✓</a
+            >
+            <a
+              href="{% url 'app:pausar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              title="Escalar/Pausar"
+              >⏸</a
+            >
+            {% elif t.estado.codigo == 'no_reparado' %}
+            <a
+              href="{% url 'app:pausar_ticket' t.pk %}"
+              class="btn btn-primary btn-sm"
+              title="Escalar con motivo"
+              >⏸ Escalar</a
+            >
+            <a
+              href="{% url 'app:derivar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              title="Re-derivar"
+              >→</a
+            >
+            {%elif t.estado.codigo == 'enviado' or t.estado.codigo == 'en_proceso'%}
+            <a
+              href="{% url 'app:derivar_ticket' t.pk %}"
+              class="btn btn-primary btn-sm"
+              title="Derivar"
+              >→</a
+            >
+            {%elif t.estado.codigo == 'en_mantencion' or t.estado.codigo == 'en_validacion'%}
+            <a
+              href="{% url 'app:reasignar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              title="Reasignar"
+              >⇄</a
+            >
+            {% endif %} {% if t.estado.codigo == 'pausado' %}
+            <a
+              href="{% url 'app:reactivar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              style="color: var(--accent-blue)"
+              title="Reactivar"
+              >▶</a
+            >
+            {% endif %} {%if t.estado.codigo not in 'cerrado eliminado' and t.estado.codigo != 'pausado' and t.estado.codigo != 'reparado'%}
+            <a
+              href="{% url 'app:pausar_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              title="Pausar"
+              >⏸</a
+            >
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">📭</div>
+    <div class="label">Sin tickets que mostrar</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

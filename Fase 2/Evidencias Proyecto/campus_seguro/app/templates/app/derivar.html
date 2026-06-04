@@ -1,0 +1,165 @@
+{% extends 'app/base.html' %} {% block title %}Derivar Ticket #{{ ticket.id }}{%endblock%} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Derivar ticket #{{ ticket.id }}</div>
+    <div class="page-subtitle">{{ ticket.titulo }}</div>
+  </div>
+  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📋 Información del ticket</div>
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        font-size: 13px;
+      "
+    >
+      <div>
+        <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+        {{ ticket.creado_por.get_full_name }}
+      </div>
+      <div>
+        <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+        {{ ticket.ubicacion }}
+      </div>
+      <div>
+        <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+        {{ ticket.get_categoria_display }}
+      </div>
+      <div>
+        <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+        <span class="urgencia-{{ ticket.urgencia }}"
+          >{{ ticket.get_urgencia_display }}</span
+        >
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📤 Destino de derivación</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
+      <label
+        style="
+          cursor: pointer;
+          padding: 18px;
+          background: var(--bg-700);
+          border: 2px solid var(--border);
+          border-radius: 10px;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        "
+        onclick="
+          document.getElementById('rg').checked = true;
+          toggleDestino('guardia');
+        "
+      >
+        <input
+          type="radio"
+          name="destino"
+          value="guardia"
+          id="rg"
+          required
+          style="margin-top: 3px"
+        />
+        <div>
+          <div
+            style="
+              font-weight: 700;
+              font-size: 14px;
+              color: var(--accent-yellow);
+            "
+          >
+            🛡️ Validación Guardia
+          </div>
+          <div
+            style="
+              font-size: 12px;
+              color: var(--text-secondary);
+              margin-top: 4px;
+            "
+          >
+            Verificación en terreno antes de derivar a mantención. Se notifica a
+            todos los guardias activos.
+          </div>
+        </div>
+      </label>
+      <label
+        style="
+          cursor: pointer;
+          padding: 18px;
+          background: var(--bg-700);
+          border: 2px solid var(--border);
+          border-radius: 10px;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        "
+        onclick="
+          document.getElementById('rm').checked = true;
+          toggleDestino('mantencion');
+        "
+      >
+        <input
+          type="radio"
+          name="destino"
+          value="mantencion"
+          id="rm"
+          required
+          style="margin-top: 3px"
+        />
+        <div>
+          <div
+            style="
+              font-weight: 700;
+              font-size: 14px;
+              color: var(--accent-green);
+            "
+          >
+            🔧 Mantención directa
+          </div>
+          <div
+            style="
+              font-size: 12px;
+              color: var(--text-secondary);
+              margin-top: 4px;
+            "
+          >
+            Asignar trabajo directamente a un técnico. Para incidencias ya
+            verificadas.
+          </div>
+        </div>
+      </label>
+    </div>
+
+    <div id="tecnicoBox" style="display: none; margin-top: 16px">
+      <label class="form-label">Técnico asignado *</label>
+      <select name="tecnico" class="form-control">
+        <option value="">Seleccionar técnico...</option>
+        {% for t in tecnicos %}
+        <option value="{{ t.id }}">
+          {{ t.get_full_name }}{% if t.especialidad %} – {{ t.especialidad }}{%endif%}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: flex-end; gap: 10px">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Derivar →</button>
+  </div>
+</form>
+
+<script>
+  function toggleDestino(d) {
+    document.getElementById("tecnicoBox").style.display =
+      d === "mantencion" ? "block" : "none";
+  }
+</script>
+{% endblock %}

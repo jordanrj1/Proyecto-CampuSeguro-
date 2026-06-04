@@ -1,0 +1,335 @@
+{% extends 'app/base.html' %}
+{% block title %}Solicitar Cuenta – Campus Seguro{% endblock %}
+
+{% comment %}
+   TEMPLATE: app/registro.html
+   ─────────────────────────────────────────────────────────────
+   CONTROLADOR (views.py):
+     Función: registro_view(request)
+     URL:     /registro/
+     Acceso:  Público (no requiere login).
+
+   PROPÓSITO:
+     Formulario de solicitud de cuenta institucional. El usuario
+     ingresa sus datos personales y académicos. NO elige su rol
+     (fue eliminado en esta sesión). El gestor asigna el rol al aprobar.
+
+   CAMBIO VS. VERSIÓN ANTERIOR:
+     - Eliminados los role-cards (usuario/gestor/guardia/mantención).
+     - El campo oculto 'rol' siempre envía 'usuario' (línea ~138).
+     - Eliminadas las secciones de campos específicos por rol.
+     - Simplificado a: datos personales + datos académicos + seguridad.
+     - Agregado banner informativo sobre el proceso de aprobación.
+     - Agregada validación visual de contraseña en tiempo real (JS al final).
+
+   VARIABLES DE CONTEXTO (enviadas desde registro_view):
+     form (RegistroUsuarioForm)
+       → Instancia del formulario. Se usa para:
+           form.errors         → Errores de validación del servidor.
+           form.first_name.value  → Repoblar campos tras error.
+           form.rut.value, form.correo_institucional.value, etc.
+       → El formulario tiene 'rol' ELIMINADO de sus campos. El campo oculto
+         <input type="hidden" name="rol" value="usuario"> lo envía directamente.
+
+     messages (built-in Django)
+       → Mensajes flash del sistema. Se usan para mostrar errores o éxito.
+       → Ejemplo: "Solicitud enviada correctamente." después de registrarse.
+       → Se accede con {% for message in messages %}.
+
+   FLUJO POST-SUBMIT:
+     1. POST → registro_view() valida RegistroUsuarioForm.
+     2. Si Auth0 habilitado: llama auth0_service.crear_usuario_auth0()
+        → La contraseña se envía a Auth0, NO se guarda en BD local.
+        → Auth0 retorna auth0_sub (ej: 'auth0|66a1b2...').
+     3. form.save(auth0_sub=..., usar_auth0=True) crea Usuario en BD:
+        → rol='usuario', estado='pendiente', is_active=False
+        → set_unusable_password() → campo password = '!' en BD
+     4. Redirect a /login/ con mensaje de éxito.
+     5. El gestor revisa en /gestor/solicitudes/ y asigna rol.
+
+   VALIDACIÓN DE CONTRASEÑA (JavaScript, líneas ~257-295):
+     El JS valida la contraseña en tiempo real según la política de Auth0:
+       - Mínimo 8 caracteres.
+       - Al menos 3 de estos 4 grupos: minúsculas, MAYÚSCULAS, números, especiales.
+     Indicadores visuales: 🔴 (falta) / ✅ (cumple) por cada grupo.
+     El botón "Enviar Solicitud" se deshabilita hasta que se cumplan los requisitos.
+     Esta validación es CLIENTE (JS). El servidor también valida en clean_password1().
+
+   CONEXIONES:
+     - Controlador:   app/views.py → registro_view()
+     - Formulario:    app/forms.py → RegistroUsuarioForm
+     - Auth0 service: app/auth0_service.py → crear_usuario_auth0()
+     - Flujo siguiente: gestor en app/templates/app/revisar_cuenta.html
+{% endcomment %}
+
+{% block auth_content %}
+<style>
+body { display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; min-height: 100vh; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 30% 20%, rgba(74,143,255,0.08) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(45,206,137,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.reg-wrapper {
+  max-width: 680px; width: 100%;
+  background: var(--bg-800); border: 1px solid var(--border); border-radius: 20px;
+  box-shadow: var(--shadow-lg); z-index: 1; position: relative; overflow: hidden;
+}
+.reg-header {
+  padding: 30px 40px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-800), var(--bg-850));
+  display: flex; align-items: center; justify-content: space-between;
+}
+.reg-header .brand { display: flex; align-items: center; gap: 14px; }
+.reg-header .logo {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.reg-header h1 { font-size: 18px; font-weight: 800; }
+.reg-header .sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+.reg-back { color: var(--text-secondary); font-size: 13px; text-decoration: none; }
+.reg-back:hover { color: var(--accent-blue); }
+
+.reg-body { padding: 36px 40px; }
+.reg-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
+.reg-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6; }
+
+.info-banner {
+  background: rgba(74,143,255,0.1); border: 1px solid rgba(74,143,255,0.25);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 24px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.info-banner .info-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.info-banner .info-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.info-banner strong { color: var(--accent-blue); }
+
+.section-title {
+  font-size: 11px; font-weight: 800; color: var(--accent-teal);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.btn-submit {
+  width: 100%; padding: 14px; background: var(--accent-blue); color: #fff;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; margin-top: 20px; transition: all 0.2s;
+}
+.btn-submit:hover { background: #3a7fee; transform: translateY(-1px); }
+
+@media (max-width: 600px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .reg-body, .reg-header { padding: 20px; }
+}
+</style>
+
+<div class="reg-wrapper">
+  <div class="reg-header">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div>
+        <h1>Campus Seguro</h1>
+        <div class="sub">Registro Institucional</div>
+      </div>
+    </div>
+    <a href="{% url 'app:login' %}" class="reg-back">← Volver al login</a>
+  </div>
+
+  <div class="reg-body">
+    <h2 class="reg-title">Solicitar Acceso</h2>
+    <p class="reg-desc">Completa el formulario para solicitar una cuenta institucional. Un gestor revisará tu solicitud y te asignará el acceso correspondiente.</p>
+
+    {# ── Banner informativo sobre el proceso de aprobación ── #}
+    <div class="info-banner">
+      <div class="info-icon">ℹ️</div>
+      <div class="info-text">
+        Tu cuenta quedará en estado <strong>pendiente</strong> hasta que un gestor la revise.
+        El gestor te asignará el rol correspondiente (alumno, guardia, técnico, etc.)
+        según tus funciones institucionales. Recibirás una notificación cuando tu cuenta esté activa.
+      </div>
+    </div>
+
+    {# ── Mensajes del sistema ── #}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+
+    {# ── Errores de validación del formulario ── #}
+    {% if form.errors %}
+    <div class="alert alert-error">
+      <strong>Revisa los siguientes campos:</strong>
+      <ul style="margin-top:6px;margin-left:18px;">
+        {% for field, errors in form.errors.items %}
+          {% for error in errors %}<li>{{ field|title }}: {{ error }}</li>{% endfor %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" id="regForm">
+      {% csrf_token %}
+
+      {# Campo oculto: siempre 'usuario'. El gestor asigna el rol real al aprobar. #}
+      <input type="hidden" name="rol" value="usuario">
+
+      {# ── Sección: Datos Personales ── #}
+      <div class="section-title">Datos Personales</div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Nombres <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="first_name" placeholder="Juan" required
+                 value="{{ form.first_name.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apellidos <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="last_name" placeholder="Pérez González" required
+                 value="{{ form.last_name.value|default:'' }}">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">RUT <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="rut" placeholder="12345678-9" required
+                 value="{{ form.rut.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="tel" name="telefono" placeholder="+56 9 1234 5678"
+                 value="{{ form.telefono.value|default:'' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correo Institucional <span style="color:var(--accent-red)">*</span></label>
+        <input type="email" name="correo_institucional" placeholder="tu.correo@duoc.cl" required
+               value="{{ form.correo_institucional.value|default:'' }}">
+      </div>
+
+      {# ── Sección: Datos Académicos ── #}
+      <div class="section-title">Datos Académicos</div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Vínculo con la institución</label>
+          <select name="vinculo">
+            <option value="">Seleccionar...</option>
+            <option value="alumno" {% if form.vinculo.value == 'alumno' %}selected{% endif %}>Alumno</option>
+            <option value="docente" {% if form.vinculo.value == 'docente' %}selected{% endif %}>Docente</option>
+            <option value="administrativo" {% if form.vinculo.value == 'administrativo' %}selected{% endif %}>Administrativo</option>
+            <option value="funcionario" {% if form.vinculo.value == 'funcionario' %}selected{% endif %}>Funcionario</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jornada</label>
+          <select name="jornada">
+            <option value="">Seleccionar...</option>
+            <option value="diurna" {% if form.jornada.value == 'diurna' %}selected{% endif %}>Diurna</option>
+            <option value="vespertina" {% if form.jornada.value == 'vespertina' %}selected{% endif %}>Vespertina</option>
+            <option value="mixta" {% if form.jornada.value == 'mixta' %}selected{% endif %}>Mixta</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Carrera o Departamento</label>
+          <input type="text" name="carrera" placeholder="Ej: Ingeniería en Informática"
+                 value="{{ form.carrera.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sede</label>
+          <input type="text" name="sede" placeholder="Ej: Sede Concepción"
+                 value="{{ form.sede.value|default:'' }}">
+        </div>
+      </div>
+
+      {# ── Sección: Seguridad (contraseña) ── #}
+      <div class="section-title">Seguridad</div>
+
+      {# Requisitos de contraseña — alineados con la política de Auth0 #}
+      <div style="background:rgba(45,206,137,0.07);border:1px solid rgba(45,206,137,0.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);">
+        <strong style="color:var(--accent-teal);">Requisitos de contraseña:</strong>
+        <span style="margin-left:6px;">Mínimo 8 caracteres con al menos 3 de estos 4 grupos:</span>
+        <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;">
+          <span id="req-lower" class="req-item">🔴 minúsculas (abc)</span>
+          <span id="req-upper" class="req-item">🔴 MAYÚSCULAS (ABC)</span>
+          <span id="req-num"   class="req-item">🔴 números (123)</span>
+          <span id="req-spec"  class="req-item">🔴 especiales (!@#$)</span>
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Contraseña <span style="color:var(--accent-red)">*</span></label>
+          <input type="password" name="password1" placeholder="Ej: Campus2024!" required id="pw1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirmar Contraseña <span style="color:var(--accent-red)">*</span></label>
+          <input type="password" name="password2" placeholder="Repite la contraseña" required id="pw2">
+        </div>
+      </div>
+      <div id="pw-match-msg" style="font-size:12px;margin-top:-6px;display:none;color:var(--accent-red);">
+        Las contraseñas no coinciden
+      </div>
+
+      {# ── Términos y condiciones ── #}
+      <div class="form-check" style="margin-top:16px;">
+        <input type="checkbox" name="acepta_terminos" id="terminos" required>
+        <label for="terminos">
+          Acepto las <strong>políticas de uso institucional</strong> y tratamiento de datos personales
+        </label>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnSubmit">
+        Enviar Solicitud →
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+.req-item { padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+.req-ok   { color: var(--accent-teal) !important; }
+</style>
+<script>
+const pw1 = document.getElementById('pw1');
+const pw2 = document.getElementById('pw2');
+const msg = document.getElementById('pw-match-msg');
+const btn = document.getElementById('btnSubmit');
+
+// Indicadores de requisito de contraseña (alineados con política Auth0)
+const reqs = {
+  lower: { el: document.getElementById('req-lower'), re: /[a-z]/, label: '✅ minúsculas (abc)' },
+  upper: { el: document.getElementById('req-upper'), re: /[A-Z]/, label: '✅ MAYÚSCULAS (ABC)' },
+  num:   { el: document.getElementById('req-num'),   re: /\d/,    label: '✅ números (123)' },
+  spec:  { el: document.getElementById('req-spec'),  re: /[^a-zA-Z0-9]/, label: '✅ especiales (!@#$)' },
+};
+
+function checkStrength(val) {
+  let ok = 0;
+  for (const [key, req] of Object.entries(reqs)) {
+    const passes = req.re.test(val);
+    if (passes) { req.el.textContent = req.label; req.el.classList.add('req-ok'); ok++; }
+    else { req.el.textContent = req.label.replace('✅','🔴'); req.el.classList.remove('req-ok'); }
+  }
+  return ok >= 3 && val.length >= 8;
+}
+
+function checkPasswords() {
+  const strong = checkStrength(pw1.value);
+  const match  = !pw2.value || pw1.value === pw2.value;
+
+  if (pw2.value && !match) {
+    msg.style.display = 'block';
+  } else {
+    msg.style.display = 'none';
+  }
+
+  btn.disabled = !(strong && match);
+  btn.style.opacity = btn.disabled ? '0.6' : '1';
+}
+
+pw1.addEventListener('input', checkPasswords);
+pw2.addEventListener('input', checkPasswords);
+</script>
+{% endblock %}

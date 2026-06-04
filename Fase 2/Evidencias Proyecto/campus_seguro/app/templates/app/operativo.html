@@ -1,0 +1,113 @@
+{% extends 'app/base.html' %}
+{% block title %}Rendimiento Operativo{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Rendimiento Operativo</div>
+    <div class="page-subtitle">Gestión y evaluación del desempeño de los trabajadores</div>
+  </div>
+  <a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">📈 Ver Business Intelligence</a>
+</div>
+
+<!-- Mantención -->
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">🔧 Equipo de Mantención</div>
+  {% if rendimiento_mantencion %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Técnico</th><th>Especialidad</th>
+          <th style="text-align:center;">Total trabajos</th>
+          <th style="text-align:center;">Completados</th>
+          <th style="text-align:center;">En curso</th>
+          <th style="text-align:center;">No reparados</th>
+          <th style="text-align:center;">HH totales</th>
+          <th>Performance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in rendimiento_mantencion %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="avatar role-mantencion" style="width:34px;height:34px;font-size:12px;">{{ t.first_name|first|upper }}{{ t.last_name|first|upper }}</div>
+              <div>
+                <strong>{{ t.get_full_name }}</strong><br>
+                <span style="font-size:11px;color:var(--text-muted);">{{ t.turno|default:"—" }}</span>
+              </div>
+            </div>
+          </td>
+          <td>{{ t.especialidad|default:"General" }}</td>
+          <td style="text-align:center;"><span class="id-mono" style="font-size:14px;font-weight:700;">{{ t.total_trabajos }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-green">{{ t.trabajos_completados }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-teal">{{ t.en_curso }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-red">{{ t.no_reparados }}</span></td>
+          <td style="text-align:center;"><span class="id-mono" style="font-size:14px;">{{ t.hh_totales|default:0|floatformat:1 }}h</span></td>
+          <td style="min-width:140px;">
+            {% if t.total_trabajos %}
+              {% widthratio t.trabajos_completados t.total_trabajos 100 as porc %}
+              <div class="progress"><div class="progress-bar green" style="width:{{ porc }}%;"></div></div>
+              <span style="font-size:11px;color:var(--text-muted);">{{ porc }}% efectividad</span>
+            {% else %}
+              <span style="font-size:12px;color:var(--text-muted);">Sin datos</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="icon">🔧</div><div class="label">Sin técnicos registrados</div></div>
+  {% endif %}
+</div>
+
+<!-- Guardias -->
+<div class="card">
+  <div class="card-title">🛡️ Equipo de Guardia</div>
+  {% if rendimiento_guardia %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Guardia</th><th>Turno</th>
+          <th style="text-align:center;">Validaciones</th>
+          <th style="text-align:center;">Válidas</th>
+          <th style="text-align:center;">Inválidas</th>
+          <th>Performance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in rendimiento_guardia %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="avatar role-guardia" style="width:34px;height:34px;font-size:12px;">{{ g.first_name|first|upper }}{{ g.last_name|first|upper }}</div>
+              <strong>{{ g.get_full_name }}</strong>
+            </div>
+          </td>
+          <td>{{ g.turno|default:"—" }}</td>
+          <td style="text-align:center;"><span class="id-mono" style="font-size:14px;font-weight:700;">{{ g.total_validaciones }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-green">{{ g.validos }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-red">{{ g.invalidos }}</span></td>
+          <td style="min-width:140px;">
+            {% if g.total_validaciones %}
+              {% widthratio g.validos g.total_validaciones 100 as porc %}
+              <div class="progress"><div class="progress-bar green" style="width:{{ porc }}%;"></div></div>
+              <span style="font-size:11px;color:var(--text-muted);">{{ porc }}% válidas</span>
+            {% else %}
+              <span style="font-size:12px;color:var(--text-muted);">Sin datos</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="icon">🛡️</div><div class="label">Sin guardias registrados</div></div>
+  {% endif %}
+</div>
+{% endblock %}

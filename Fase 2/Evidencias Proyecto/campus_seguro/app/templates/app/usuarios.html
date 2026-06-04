@@ -1,0 +1,157 @@
+{% extends 'app/base.html' %} {% block title %}Usuarios – Gestión{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Gestión de Usuarios</div>
+    <div class="page-subtitle">
+      Administra, suspende y restablece contraseñas
+    </div>
+  </div>
+</div>
+
+<form method="get" class="filters-bar">
+  <select name="rol" class="filter-input">
+    <option value="">Todos los roles</option>
+    {% for k, v in roles %}
+    <option value="{{ k }}" {% if filtros.rol="" ="k" %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  <select name="estado" class="filter-input">
+    <option value="">Todos los estados</option>
+    {% for k, v in estados %}
+    <option value="{{ k }}" {% if filtros.estado="" ="k" %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary btn-sm">Filtrar</button>
+  <a href="{% url 'app:gestor_usuarios' %}" class="btn btn-ghost btn-sm"
+    >✕ Limpiar</a
+  >
+</form>
+
+<div class="card">
+  {% if usuarios %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Correo</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Vínculo</th>
+          <th>Registro</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px">
+              <div
+                class="avatar role-{{ u.rol }}"
+                style="width: 32px; height: 32px; font-size: 12px"
+              >
+                {{ u.first_name|first|upper }}{{ u.last_name|first|upper }}
+              </div>
+              <div>
+                <strong>{{ u.get_full_name }}</strong><br />
+                <span style="font-size: 11px; color: var(--text-muted)"
+                  >{{ u.rut }}</span
+                >
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="id-mono" style="font-size: 12px"
+              >{{ u.correo_institucional }}</span
+            >
+          </td>
+          <td>
+            {% if u.rol == 'usuario' %}<span class="badge badge-blue"
+              >Usuario</span
+            >
+            {% elif u.rol == 'gestor' %}<span class="badge badge-teal"
+              >Gestor</span
+            >
+            {% elif u.rol == 'guardia' %}<span class="badge badge-yellow"
+              >Guardia</span
+            >
+            {% elif u.rol == 'mantencion' %}<span class="badge badge-green"
+              >Mantención</span
+            >{% endif %}
+          </td>
+          <td>
+            {% if u.estado_cuenta.codigo == 'activa' %}<span
+              class="badge badge-green"
+              >Activa</span
+            >
+            {% elif u.estado_cuenta.codigo == 'pendiente' %}<span
+              class="badge badge-yellow"
+              >Pendiente</span
+            >
+            {% elif u.estado_cuenta.codigo == 'suspendida' %}<span
+              class="badge badge-red"
+              >Suspendida</span
+            >
+            {% elif u.estado_cuenta.codigo == 'rechazada' %}<span
+              class="badge badge-gray"
+              >Rechazada</span
+            >{% endif %}
+          </td>
+          <td>
+            {{ u.get_vinculo_display|default:u.especialidad|default:"—" }}
+          </td>
+          <td>
+            <span class="id-mono">{{ u.fecha_registro|date:"d/m/Y" }}</span>
+          </td>
+          <td style="display: flex; gap: 4px">
+            {%if u.estado_cuenta.codigo == 'activa' or u.estado_cuenta.codigo == 'suspendida'%}
+            <form
+              method="post"
+              action="{% url 'app:suspender_usuario' u.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %} {% if u.estado_cuenta.codigo == 'suspendida' %}
+              <button class="btn btn-success btn-sm" title="Reactivar">
+                ▶
+              </button>
+              {% else %}
+              <button class="btn btn-warning btn-sm" title="Suspender">
+                ⏸
+              </button>
+              {% endif %}
+            </form>
+            <form
+              method="post"
+              action="{% url 'app:reset_usuario_gestor' u.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %}
+              <button
+                class="btn btn-ghost btn-sm"
+                title="Generar enlace de reset"
+                onclick="return confirm('¿Generar enlace de recuperación para {{ u.get_full_name }}?')"
+              >
+                🔑
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">👥</div>
+    <div class="label">Sin usuarios</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

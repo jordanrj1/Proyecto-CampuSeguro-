@@ -1,0 +1,45 @@
+{% extends 'app/base.html' %}
+{% block title %}Notificaciones{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Notificaciones</div>
+    <div class="page-subtitle">Revisa tus alertas y mensajes recientes</div>
+  </div>
+  <div class="topbar-actions">
+    <a href="{% url 'app:marcar_todas_leidas' %}" class="btn btn-primary">Marcar todo leído</a>
+  </div>
+</div>
+
+<div class="filters-bar" style="margin-bottom:18px; display:flex; gap:10px; flex-wrap:wrap;">
+  <a href="?filtro=todas" class="btn btn-ghost {% if filtro == 'todas' %}active{% endif %}">Todas</a>
+  <a href="?filtro=no_leidas" class="btn btn-ghost {% if filtro == 'no_leidas' %}active{% endif %}">No leídas</a>
+  <a href="?filtro=archivadas" class="btn btn-ghost {% if filtro == 'archivadas' %}active{% endif %}">Archivadas</a>
+</div>
+
+<div class="card">
+  {% if notificaciones %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Evento</th><th>Mensaje</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for n in notificaciones %}
+        <tr style="{% if not n.leida %}font-weight:700;{% endif %}">
+          <td><span class="id-mono">{{ n.created_at|date:"d/m H:i" }}</span></td>
+          <td>{{ n.titulo }}</td>
+          <td>{{ n.mensaje|truncatechars:70 }}</td>
+          <td style="white-space:nowrap;display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{% url 'app:notif_accion' n.id 'leer' %}" class="btn btn-ghost btn-sm">Leer</a>
+            <a href="{% url 'app:notif_accion' n.id 'archivar' %}" class="btn btn-ghost btn-sm">Archivar</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="icon">🔔</div><div class="label">No hay notificaciones</div></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,867 @@
+{#
+  dashboard_gestor.html — Panel operativo del gestor
+  Renderizado por: views.dashboard_gestor()
+  Acceso: dashboard() redirige aqui cuando user.rol == 'gestor' o is_superuser
+  Muestra: tickets activos/criticos, personal ausente, solicitudes de cuenta pendientes
+  Acciones: ver todos los tickets, ir al panel BI, revisar solicitudes
+  Nombre anterior: dashboarddd.html (renombrado en Sprint 2 para claridad)
+#}
+{% extends 'app/base.html' %} {% block title %}Dashboard Gestor · Campus
+Seguro{% endblock %} {% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">Panel de Gestión</div>
+    <div class="page-subtitle">
+      Vista operativa en tiempo real · Campus Seguro
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost"
+      >Ver todos los tickets</a
+    >
+    <a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">BI →</a>
+  </div>
+</div>
+
+{% if tickets_con_ausentes %}
+<div
+  style="
+    background: rgba(244, 197, 66, 0.12);
+    border: 1px solid var(--accent-yellow);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  "
+>
+  <span style="font-size: 20px">⚠️</span>
+  <div>
+    <div style="font-weight: 700; color: var(--accent-yellow); font-size: 14px">
+      Trabajadores con inasistencia activa tienen tickets asignados
+    </div>
+    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 6px">
+      {% for t in tickets_con_ausentes %}
+      <span
+        style="display: inline-block; margin-right: 16px; margin-bottom: 4px"
+      >
+        Ticket #{{ t.pk }} →
+        <strong>{{ t.asignado_a.get_full_name }}</strong> (ausente)
+        <a
+          href="{% url 'app:reasignar_ticket' t.pk %}"
+          style="color: var(--accent-blue); font-size: 12px; margin-left: 6px"
+          >Reasignar →</a
+        >
+      </span>
+      {% endfor %}
+    </div>
+    <a
+      href="{% url 'app:gestor_inasistencias' %}"
+      style="
+        font-size: 12px;
+        color: var(--accent-blue);
+        margin-top: 6px;
+        display: inline-block;
+      "
+      >Ver todas las inasistencias →</a
+    >
+  </div>
+</div>
+{% endif %} {% if reparados_pendientes_count > 0 %}
+<div
+  style="
+    background: rgba(45, 206, 137, 0.1);
+    border: 1px solid var(--accent-green);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  "
+>
+  <span style="font-size: 20px">✅</span>
+  <div>
+    <div style="font-weight: 700; color: var(--accent-green); font-size: 14px">
+      {{ reparados_pendientes_count }} ticket{{reparados_pendientes_count|pluralize}} reparado{{reparados_pendientes_count|pluralize}} – Pendiente{{reparados_pendientes_count|pluralize}} tu aprobación
+    </div>
+    <div style="font-size: 13px; color: var(--text-secondary)">
+      Revisa el trabajo y cierra el ticket, o escálalo si necesita intervención
+      adicional.
+    </div>
+  </div>
+</div>
+{% endif %} {% if validados_count > 0 %}
+<div
+  style="
+    background: rgba(244, 197, 66, 0.1);
+    border: 1px solid var(--accent-yellow);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  "
+>
+  <span style="font-size: 20px">🛡️</span>
+  <div>
+    <div style="font-weight: 700; color: var(--accent-yellow); font-size: 14px">
+      {{ validados_count }} ticket{{ validados_count|pluralize }} validado{{validados_count|pluralize}} por guardia – Pendiente{{validados_count|pluralize}} asignación a mantención
+    </div>
+    <div style="font-size: 13px; color: var(--text-secondary)">
+      El guardia confirmó el incidente. Asigna el técnico de mantención para
+      iniciar la reparación.
+    </div>
+  </div>
+</div>
+{% endif %} {% if no_reparados > 0 %}
+<div
+  style="
+    background: rgba(245, 54, 92, 0.08);
+    border: 1px solid var(--accent-red);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  "
+>
+  <span style="font-size: 20px">🚫</span>
+  <div>
+    <div style="font-weight: 700; color: var(--accent-red); font-size: 14px">
+      {{ no_reparados }} ticket{{ no_reparados|pluralize }} no reparado{{no_reparados|pluralize}} – Requieren escalación
+    </div>
+    <div style="font-size: 13px; color: var(--text-secondary)">
+      Revisa los motivos (materiales / personal / peritaje) y define la acción
+      de pausa.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- KPIs -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr)">
+  <div class="kpi blue">
+    <div class="kpi-label">Total tickets</div>
+    <div class="kpi-value">{{ total_tickets }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi {% if sin_asignar > 0 %}yellow{% else %}green{% endif %}">
+    <div class="kpi-label">Sin asignar</div>
+    <div class="kpi-value">{{ sin_asignar }}</div>
+    <div class="kpi-sub">requieren derivación</div>
+  </div>
+  <div class="kpi {% if criticos > 0 %}red{% else %}green{% endif %}">
+    <div class="kpi-label">Críticos activos</div>
+    <div class="kpi-value">{{ criticos }}</div>
+    <div class="kpi-sub">urgencia crítica</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">Cerrados esta semana</div>
+    <div class="kpi-value">{{ cerrados_semana }}</div>
+    <div class="kpi-sub">últimos 7 días</div>
+  </div>
+  <div class="kpi {% if validados_count > 0 %}yellow{% else %}green{% endif %}">
+    <div class="kpi-label">Validados (guardia)</div>
+    <div class="kpi-value">{{ validados_count }}</div>
+    <div class="kpi-sub">pendiente asignación</div>
+  </div>
+  <div
+    class="kpi {% if reparados_pendientes_count > 0 %}green{% else %}blue{% endif %}"
+  >
+    <div class="kpi-label">Reparados</div>
+    <div class="kpi-value">{{ reparados_pendientes_count }}</div>
+    <div class="kpi-sub">pendiente cierre</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Pausados</div>
+    <div class="kpi-value">{{ pausados }}</div>
+    <div class="kpi-sub">en espera</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">No reparados</div>
+    <div class="kpi-value">{{ no_reparados }}</div>
+    <div class="kpi-sub">requieren escalación</div>
+  </div>
+  <div
+    class="kpi {% if solicitudes_cuenta > 0 %}yellow{% else %}green{% endif %}"
+  >
+    <div class="kpi-label">Cuentas pendientes</div>
+    <div class="kpi-value">{{ solicitudes_cuenta }}</div>
+    <div class="kpi-sub">
+      <a href="{% url 'app:gestor_solicitudes_cuenta' %}" style="color: inherit"
+        >Revisar →</a
+      >
+    </div>
+  </div>
+</div>
+
+<!-- Reparados pendientes de cierre -->
+{% if reparados_pendientes %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)"
+>
+  <div class="card-title" style="color: var(--accent-green)">
+    ✅ Reparaciones completadas – Pendiente tu revisión
+  </div>
+  <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+    El técnico finalizó. Confirma el cierre o escala si requiere intervención
+    adicional.
+  </div>
+  {% for t in reparados_pendientes %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    "
+  >
+    <div style="flex: 1">
+      <div
+        style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px"
+      >
+        <span
+          style="
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-muted);
+          "
+          >#{{ t.pk }}</span
+        >
+        <span class="urgencia-{{ t.urgencia }}"
+          >{{ t.get_urgencia_display }}</span
+        >
+      </div>
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px">
+        {{ t.titulo }}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        📍 {{ t.ubicacion }} &nbsp;·&nbsp; Técnico:
+        <strong>{{ t.asignado_a.get_full_name|default:'—' }}</strong>
+      </div>
+      {% if t.mantencion %}
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">
+        HH: {{ t.mantencion.horas_hombre|default:'N/A' }} {%if t.mantencion.tiempo_total_minutos%} · Tiempo: {{t.mantencion.tiempo_total_minutos}} min{% endif %} {%if t.mantencion.requiere_nivel_mayor%}<span
+          style="color: var(--accent-yellow); margin-left: 8px"
+          >⚠ Requiere nivel mayor</span
+        >{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div
+      style="display: flex; flex-direction: column; gap: 8px; min-width: 155px"
+    >
+      <a
+        href="{% url 'app:detalle_ticket' t.pk %}"
+        class="btn btn-ghost btn-sm"
+        style="text-align: center"
+        >Ver detalles</a
+      >
+      <a
+        href="{% url 'app:cerrar_ticket' t.pk %}"
+        class="btn btn-primary btn-sm"
+        style="
+          text-align: center;
+          background: var(--accent-green);
+          border-color: var(--accent-green);
+        "
+        >✓ Cerrar ticket</a
+      >
+      <a
+        href="{% url 'app:pausar_ticket' t.pk %}"
+        class="btn btn-ghost btn-sm"
+        style="
+          text-align: center;
+          border-color: var(--accent-yellow);
+          color: var(--accent-yellow);
+        "
+        >⏸ Escalar</a
+      >
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Tickets validados por guardia – pendiente asignación gestor -->
+{% if validados_pendientes %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
+>
+  <div class="card-title" style="color: var(--accent-yellow)">
+    🛡️ Validados por guardia – Pendiente asignación a mantención
+  </div>
+  <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+    El guardia confirmó la existencia del incidente. Deriva a un técnico de
+    mantención para iniciar la reparación.
+  </div>
+  {% for t in validados_pendientes %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    "
+  >
+    <div style="flex: 1">
+      <div
+        style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px"
+      >
+        <span
+          style="
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-muted);
+          "
+          >#{{ t.pk }}</span
+        >
+        <span class="urgencia-{{ t.urgencia }}"
+          >{{ t.get_urgencia_display }}</span
+        >
+        {% if t.afecta_clase %}<span
+          style="
+            font-size: 11px;
+            background: rgba(74, 143, 255, 0.15);
+            color: var(--accent-blue);
+            padding: 2px 8px;
+            border-radius: 4px;
+          "
+          >📚 Afecta clases</span
+        >{% endif %}
+      </div>
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px">
+        {{ t.titulo }}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        📍 {{ t.ubicacion }}
+      </div>
+      {% if t.validado_por %}
+      <div
+        style="font-size: 12px; color: var(--accent-yellow); margin-top: 4px"
+      >
+        🛡️ Validado por <strong>{{ t.validado_por.get_full_name }}</strong>
+      </div>
+      {% endif %}
+    </div>
+    <div
+      style="display: flex; flex-direction: column; gap: 8px; min-width: 155px"
+    >
+      <a
+        href="{% url 'app:detalle_ticket' t.pk %}"
+        class="btn btn-ghost btn-sm"
+        style="text-align: center"
+        >Ver detalles</a
+      >
+      <a
+        href="{% url 'app:derivar_ticket' t.pk %}"
+        class="btn btn-primary btn-sm"
+        style="text-align: center"
+        >Asignar técnico →</a
+      >
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- No reparados con causa del técnico -->
+{% if no_reparados_escalados %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
+>
+  <div class="card-title" style="color: var(--accent-red)">
+    🚫 No reparados – Definir pausa de escalación
+  </div>
+  <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+    Según el motivo del técnico, pausar con:
+    <span
+      style="
+        background: rgba(244, 197, 66, 0.15);
+        color: var(--accent-yellow);
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin: 0 4px;
+      "
+      >Materiales → Aprobación de materiales</span
+    >
+    <span
+      style="
+        background: rgba(74, 143, 255, 0.15);
+        color: var(--accent-blue);
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin: 0 4px;
+      "
+      >Personal → Personal técnico</span
+    >
+    <span
+      style="
+        background: rgba(245, 54, 92, 0.12);
+        color: var(--accent-red);
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin: 0 4px;
+      "
+      >Gravedad → Peritaje</span
+    >
+  </div>
+  {% for t in no_reparados_escalados %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      "
+    >
+      <div style="flex: 1">
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+          "
+        >
+          <span
+            style="
+              font-family: var(--font-mono);
+              font-size: 12px;
+              color: var(--text-muted);
+            "
+            >#{{ t.pk }}</span
+          >
+          <span class="urgencia-{{ t.urgencia }}"
+            >{{ t.get_urgencia_display }}</span
+          >
+        </div>
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px">
+          {{ t.titulo }}
+        </div>
+        <div
+          style="
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+          "
+        >
+          📍 {{ t.ubicacion }} &nbsp;·&nbsp; Técnico:
+          <strong>{{ t.asignado_a.get_full_name|default:'—' }}</strong>
+        </div>
+        {% if t.no_reparable %}
+        <div
+          style="
+            background: var(--bg-600);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 12px;
+          "
+        >
+          <div
+            style="
+              color: var(--text-muted);
+              font-size: 10px;
+              margin-bottom: 4px;
+            "
+          >
+            MOTIVO DEL TÉCNICO:
+          </div>
+          <div style="color: var(--text-secondary); margin-bottom: 8px">
+            {{ t.no_reparable.motivo_tecnico|truncatechars:200 }}
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            {% if t.no_reparable.material_requerido %}<span
+              style="
+                font-size: 11px;
+                background: rgba(244, 197, 66, 0.15);
+                color: var(--accent-yellow);
+                padding: 2px 8px;
+                border-radius: 4px;
+              "
+              >📦 {{ t.no_reparable.material_requerido|truncatechars:40 }}</span
+            >{% endif %} {%if t.no_reparable.personal_especializado_requerido%}<span
+              style="
+                font-size: 11px;
+                background: rgba(74, 143, 255, 0.15);
+                color: var(--accent-blue);
+                padding: 2px 8px;
+                border-radius: 4px;
+              "
+              >👥 {{t.no_reparable.personal_especializado_requerido|truncatechars:40}}</span
+            >{% endif %} {% if t.no_reparable.criticidad %}<span
+              style="
+                font-size: 11px;
+                background: rgba(245, 54, 92, 0.12);
+                color: var(--accent-red);
+                padding: 2px 8px;
+                border-radius: 4px;
+              "
+              >🚨 {{ t.no_reparable.get_criticidad_display }}</span
+            >{% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: 155px;
+        "
+      >
+        <a
+          href="{% url 'app:detalle_ticket' t.pk %}"
+          class="btn btn-ghost btn-sm"
+          style="text-align: center"
+          >Ver detalles</a
+        >
+        <a
+          href="{% url 'app:pausar_ticket' t.pk %}"
+          class="btn btn-primary btn-sm"
+          style="text-align: center"
+          >Definir pausa →</a
+        >
+        <a
+          href="{% url 'app:derivar_ticket' t.pk %}"
+          class="btn btn-ghost btn-sm"
+          style="text-align: center"
+          >Re-derivar →</a
+        >
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div
+  style="
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  "
+>
+  <!-- Tickets recientes -->
+  <div class="card">
+    <div
+      class="card-title"
+      style="display: flex; justify-content: space-between; align-items: center"
+    >
+      <span>🎫 Tickets recientes</span>
+      <a
+        href="{% url 'app:gestor_tickets' %}"
+        style="font-size: 12px; color: var(--accent-blue)"
+        >Ver todos →</a
+      >
+    </div>
+    {% if tickets_recientes %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Título</th>
+            <th>Urgencia</th>
+            <th>Estado</th>
+            <th>Asignado a</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets_recientes %}
+          <tr>
+            <td style="font-family: var(--font-mono); font-size: 12px">
+              #{{ t.pk }}
+            </td>
+            <td style="font-size: 13px">{{ t.titulo|truncatechars:35 }}</td>
+            <td>
+              <span class="urgencia-{{ t.urgencia }}"
+                >{{ t.get_urgencia_display }}</span
+              >
+            </td>
+            <td>
+              <span
+                style="font-size:11px;padding:2px 8px;border-radius:4px;
+                background:{% if t.estado.codigo == 'cerrado' or t.estado.codigo == 'reparado' %}rgba(45,206,137,0.15){% elif t.estado.codigo == 'no_reparado' %}rgba(245,54,92,0.15){% elif t.estado.codigo == 'pausado' %}rgba(244,197,66,0.15){% else %}rgba(74,143,255,0.15){% endif %};
+                color:{% if t.estado.codigo == 'cerrado' or t.estado.codigo == 'reparado' %}var(--accent-green){% elif t.estado.codigo == 'no_reparado' %}var(--accent-red){% elif t.estado.codigo == 'pausado' %}var(--accent-yellow){% else %}var(--accent-blue){% endif %};"
+              >
+                {{ t.get_estado_display }}
+              </span>
+            </td>
+            <td style="font-size: 12px; color: var(--text-secondary)">
+              {{ t.asignado_a.get_full_name|default:'—' }}
+            </td>
+            <td style="font-size: 11px; color: var(--text-muted)">
+              {{ t.created_at|date:"d/m H:i" }}
+            </td>
+            <td>
+              <a
+                href="{% url 'app:detalle_ticket' t.pk %}"
+                class="btn btn-ghost btn-sm"
+                >Ver</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 32px; color: var(--text-muted)">
+      Sin tickets registrados.
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 18px">
+    <div class="card">
+      <div class="card-title">Por categoría</div>
+      {% for c in por_categoria %}
+      <div
+        style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px"
+      >
+        <div style="flex: 1; font-size: 12px; text-transform: capitalize">
+          {{ c.categoria }}
+        </div>
+        <div
+          style="
+            width: 70px;
+            background: var(--bg-600);
+            border-radius: 3px;
+            height: 5px;
+            overflow: hidden;
+          "
+        >
+          {% if total_tickets %}
+          <div
+            style="height:5px;background:var(--accent-blue);width:{% widthratio c.total total_tickets 100 %}%;"
+          ></div>
+          {% endif %}
+        </div>
+        <div
+          style="
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 22px;
+            text-align: right;
+          "
+        >
+          {{ c.total }}
+        </div>
+      </div>
+      {% empty %}
+      <div style="color: var(--text-muted); font-size: 13px">Sin datos</div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Por estado</div>
+      {% for e in por_estado %}
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 6px;
+        "
+      >
+        <span
+          style="
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: capitalize;
+          "
+          >{{ e.estado }}</span
+        >
+        <span style="font-size: 13px; font-weight: 700">{{ e.total }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if tickets_criticos %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
+>
+  <div class="card-title" style="color: var(--accent-red)">
+    🚨 Tickets críticos activos
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Título</th>
+          <th>Estado</th>
+          <th>Asignado a</th>
+          <th>Fecha</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets_criticos %}
+        <tr>
+          <td style="font-family: var(--font-mono); font-size: 12px">
+            #{{ t.pk }}
+          </td>
+          <td style="font-size: 13px; font-weight: 500">
+            {{ t.titulo|truncatechars:40 }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ t.get_estado_display }}
+          </td>
+          <td style="font-size: 12px">
+            {{ t.asignado_a.get_full_name|default:'Sin asignar' }}
+          </td>
+          <td style="font-size: 11px; color: var(--text-muted)">
+            {{ t.created_at|date:"d/m H:i" }}
+          </td>
+          <td style="display: flex; gap: 6px">
+            <a
+              href="{% url 'app:detalle_ticket' t.pk %}"
+              class="btn btn-ghost btn-sm"
+              >Ver</a
+            >
+            {% if t.estado.codigo == 'enviado' %}<a
+              href="{% url 'app:derivar_ticket' t.pk %}"
+              class="btn btn-primary btn-sm"
+              >Derivar</a
+            >{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
+  <div class="card">
+    <div class="card-title">📍 Top ubicaciones con incidentes</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Edificio</th>
+            <th style="text-align: center">Tickets</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in por_edificio %}
+          <tr>
+            <td style="font-size: 13px">{{ e.edificio }}</td>
+            <td style="text-align: center; font-weight: 700">{{ e.total }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td
+              colspan="2"
+              style="text-align: center; color: var(--text-muted)"
+            >
+              Sin datos
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚡ Acciones rápidas</div>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <a
+        href="{% url 'app:gestor_tickets' %}?estado=enviado"
+        class="btn btn-primary"
+        style="justify-content: center"
+        >Sin asignar ({{ sin_asignar }})</a
+      >
+      {% if validados_count > 0 %}<a
+        href="{% url 'app:gestor_tickets' %}?estado=validado"
+        class="btn btn-ghost"
+        style="
+          justify-content: center;
+          border-color: var(--accent-yellow);
+          color: var(--accent-yellow);
+        "
+        >Validados por asignar ({{ validados_count }})</a
+      >{% endif %} {% if reparados_pendientes_count > 0 %}<a
+        href="{% url 'app:gestor_tickets' %}?estado=reparado"
+        class="btn btn-ghost"
+        style="
+          justify-content: center;
+          border-color: var(--accent-green);
+          color: var(--accent-green);
+        "
+        >Reparados por cerrar ({{ reparados_pendientes_count }})</a
+      >{% endif %} {% if no_reparados > 0 %}<a
+        href="{% url 'app:gestor_tickets' %}?estado=no_reparado"
+        class="btn btn-ghost"
+        style="
+          justify-content: center;
+          border-color: var(--accent-red);
+          color: var(--accent-red);
+        "
+        >No reparados – Escalar ({{ no_reparados }})</a
+      >{% endif %}
+      <a
+        href="{% url 'app:gestor_solicitudes_cuenta' %}"
+        class="btn btn-ghost"
+        style="justify-content: center"
+        >Solicitudes de cuenta ({{ solicitudes_cuenta }})</a
+      >
+      <a
+        href="{% url 'app:gestor_inasistencias' %}"
+        class="btn btn-ghost"
+        style="justify-content: center"
+        >Inasistencias pendientes ({{ inasistencias_pendientes }})</a
+      >
+      <a
+        href="{% url 'app:reporte_materiales' %}"
+        class="btn btn-ghost"
+        style="justify-content: center"
+        >Reporte de materiales</a
+      >
+      <a
+        href="{% url 'app:gestor_bi' %}"
+        class="btn btn-ghost"
+        style="justify-content: center"
+        >Business Intelligence</a
+      >
+    </div>
+  </div>
+</div>
+{% endblock %}

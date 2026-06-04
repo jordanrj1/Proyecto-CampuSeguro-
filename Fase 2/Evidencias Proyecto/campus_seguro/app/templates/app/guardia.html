@@ -1,0 +1,241 @@
+{% extends 'app/base.html' %}
+{% block title %}Panel Guardia{% endblock %}
+
+{% comment %}
+   TEMPLATE: app/guardia.html
+   ─────────────────────────────────────────────────────────────
+   CONTROLADOR (views.py):
+     Función: dashboard_guardia(request)
+     URL:     /dashboard/  (el router dashboard() redirige aquí cuando user.rol == 'guardia')
+     Acceso:  Solo usuarios con rol 'guardia' y cuenta activa.
+
+   VARIABLES DE CONTEXTO (enviadas desde dashboard_guardia):
+     pendientes (QuerySet<Ticket>)
+       → Tickets con estado 'en_validacion' y sin soft-delete.
+       → Ordenados por urgencia DESC y fecha de creación DESC.
+       → Cada objeto tiene: id, titulo, urgencia, created_at,
+         creado_por (Usuario), ubicacion (Ubicacion).
+
+     pendientes_count (int)
+       → Cantidad de tickets pendientes de validar. Usado en el KPI amarillo.
+
+     mis_validaciones (QuerySet<ValidacionGuardia>)
+       → Las últimas 8 validaciones realizadas por este guardia.
+       → Tiene: ticket (FK), resultado ('valido'/'invalido'), created_at.
+
+     total_validados (int)
+       → Total histórico de validaciones de este guardia (no solo las 8 recientes).
+
+     validos (int)
+       → Cantidad de validaciones con resultado='valido'.
+
+     invalidos (int)
+       → Cantidad de validaciones con resultado='invalido'.
+
+     inasistencias (QuerySet<Inasistencia>)
+       → Últimas 3 inasistencias del guardia actual.
+       → Tiene: fecha_desde, fecha_hasta, motivo, estado (FK → EstadoCatalogo).
+
+     user (Usuario)
+       → El guardia autenticado. Viene del context processor estándar de Django
+         (request.user), no se pasa explícitamente desde la vista.
+       → Se usa para: user.turno (muestra el turno del guardia en el subtítulo).
+
+   FILTRO URGENCIA CRÍTICA (línea ~53):
+     El condicional {% if t.urgencia == "critica" %} resalta la fila en rojo tenue.
+     Corregido en sesión actual: era '="" ="critica"' (typo), ahora es '== "critica"'.
+     urgencia es un CharField del modelo Ticket con valores: baja/media/alta/critica.
+
+   URLS QUE GENERA:
+     app:validar_ticket → /guardia/validar/<ticket_id>/
+       Formulario de validación en terreno (ValidacionForm en forms.py).
+     app:detalle_ticket → /tickets/<ticket_id>/
+       Vista de detalle del ticket.
+     app:registrar_inasistencia → /inasistencias/nueva/
+       Formulario para que el guardia registre su propia inasistencia.
+
+   CONEXIONES:
+     - Modelo Ticket:            app/models.py → class Ticket
+     - Modelo ValidacionGuardia: app/models.py → class ValidacionGuardia
+     - Modelo Inasistencia:      app/models.py → class Inasistencia
+     - Vista que alimenta:       app/views.py → dashboard_guardia()
+     - CSS urgencia-{valor}:     static/css/main.css → .urgencia-critica, .urgencia-alta, etc.
+{% endcomment %}
+
+{%block content%}
+<div class="topbar">
+  <div>
+    <div class="page-title">Panel de Guardia</div>
+    <div class="page-subtitle">
+      Validaciones en terreno · {{ user.turno|default:"Turno general" }}
+    </div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi yellow">
+    <div class="kpi-label">Pendientes</div>
+    <div class="kpi-value">{{ pendientes_count }}</div>
+    <div class="kpi-sub">por validar</div>
+  </div>
+  <div class="kpi blue">
+    <div class="kpi-label">Total validados</div>
+    <div class="kpi-value">{{ total_validados }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Válidos</div>
+    <div class="kpi-value">{{ validos }}</div>
+    <div class="kpi-sub">incidencias reales</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Inválidos</div>
+    <div class="kpi-value">{{ invalidos }}</div>
+    <div class="kpi-sub">no requerían acción</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">🚨 Validaciones pendientes</div>
+  {% if pendientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Solicitante</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Hace</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in pendientes %}
+        <tr
+          {% if t.urgencia == "critica" %}style="background:rgba(245,54,92,0.05);"
+          {% endif %}
+        >
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:30 }}</strong></td>
+          <td>{{ t.creado_por.get_full_name|truncatechars:24 }}</td>
+          <td>
+            {{ t.ubicacion.edificio }} P{{ t.ubicacion.piso }}{%if t.ubicacion.sala%} · {{ t.ubicacion.sala }}{% endif %}
+          </td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td><span class="id-mono">{{ t.created_at|timesince }}</span></td>
+          <td>
+            <a
+              href="{% url 'app:validar_ticket' t.id %}"
+              class="btn btn-primary btn-sm"
+              >🛡️ Validar</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">✓</div>
+    <div class="label">No hay validaciones pendientes</div>
+    <div class="sub">Sin alertas activas en este momento.</div>
+  </div>
+  {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
+  <div class="card">
+    <div class="card-title">📋 Mis validaciones recientes</div>
+    {% if mis_validaciones %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Resultado</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in mis_validaciones %}
+          <tr>
+            <td>
+              <strong>#{{ v.ticket.id }}</strong> · {{v.ticket.titulo|truncatechars:30}}
+            </td>
+            <td>
+              {% if v.resultado == 'valido' %}<span class="badge badge-green"
+                >Válido</span
+              >
+              {% else %}<span class="badge badge-red">Inválido</span>{% endif %}
+            </td>
+            <td>
+              <span class="id-mono">{{ v.created_at|date:"d/m H:i" }}</span>
+            </td>
+            <td>
+              <a
+                href="{% url 'app:detalle_ticket' v.ticket.id %}"
+                class="btn btn-ghost btn-sm"
+                >→</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px">
+      <div class="sub">Sin validaciones realizadas</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">📅 Mis inasistencias</div>
+    {% if inasistencias %} {% for i in inasistencias %}
+    <div
+      style="
+        padding: 10px;
+        background: var(--bg-700);
+        border-radius: 8px;
+        margin-bottom: 8px;
+      "
+    >
+      <div style="font-size: 12px; font-weight: 600">
+        {{ i.fecha_desde|date:"d/m" }} → {{ i.fecha_hasta|date:"d/m/Y" }}
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px">
+        {{ i.get_motivo_display }}
+      </div>
+      <div style="margin-top: 6px">
+        {% if i.estado.codigo == 'aprobada' %}<span class="badge badge-green"
+          >Aprobada</span
+        >
+        {% elif i.estado.codigo == 'rechazada' %}<span class="badge badge-red"
+          >Rechazada</span
+        >
+        {% else %}<span class="badge badge-yellow">Pendiente</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %} {% else %}
+    <div class="empty-state" style="padding: 18px">
+      <div class="sub">Sin registros</div>
+    </div>
+    {% endif %}
+    <a
+      href="{% url 'app:registrar_inasistencia' %}"
+      class="btn btn-ghost btn-full btn-sm"
+      style="margin-top: 10px"
+      >+ Registrar inasistencia</a
+    >
+  </div>
+</div>
+{% endblock %}
