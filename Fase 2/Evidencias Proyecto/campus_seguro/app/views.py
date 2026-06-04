@@ -706,6 +706,16 @@ def derivar_ticket(request, pk):
                           f'{ticket.titulo} requiere validación en terreno.',
                           ticket=ticket, prioridad='alta' if ticket.urgencia == 'critica' else 'media',
                           url_accion=reverse('app:validar_ticket', kwargs={'pk': ticket.pk}))
+            # Notificación al usuario creador (Cambio a En Validación)
+            notificar(
+                destinatario=ticket.creado_por,
+                tipo='ticket_actualizado',
+                titulo=f'Ticket #{ticket.pk} en verificación',
+                mensaje=f'Tu reporte "{ticket.titulo}" ha sido derivado al equipo de seguridad para ser validado en terreno.',
+                ticket=ticket,
+                prioridad='media',
+                url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+            )
             messages.success(request, '✓ Ticket derivado a Guardia.')
 
         elif destino == 'mantencion':
@@ -721,6 +731,16 @@ def derivar_ticket(request, pk):
                       f'Tienes un nuevo trabajo: {ticket.titulo}',
                       ticket=ticket, prioridad='alta' if ticket.urgencia == 'critica' else 'media',
                       url_accion=reverse('app:completar_mantencion', kwargs={'pk': ticket.pk}))
+            # Notificación al usuario creador (Cambio a En Mantención)
+            notificar(
+                destinatario=ticket.creado_por,
+                tipo='ticket_actualizado',
+                titulo=f'Ticket #{ticket.pk} en proceso de reparación',
+                mensaje=f'Tu reporte "{ticket.titulo}" ya se encuentra en proceso de solución.',
+                ticket=ticket,
+                prioridad='media',
+                url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+            )
             messages.success(request, f'✓ Ticket asignado a {tecnico.get_full_name()}.')
 
         return redirect('app:gestor_tickets')
