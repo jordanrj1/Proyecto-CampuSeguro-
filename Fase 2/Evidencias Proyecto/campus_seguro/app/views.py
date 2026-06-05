@@ -687,6 +687,17 @@ def gestor_tickets(request):
 
 @login_required
 @rol_requerido('gestor')
+def vista_gestor_dashboard(request):
+    # Dashboard BI alternativo creado por Moises (Sprint 2).
+    # Renderiza gestor_dashboard.html con diseno Bootstrap Icons independiente.
+    # El template usa datos estaticos de maqueta; los datos reales
+    # se pueden conectar en futuras iteraciones.
+    # URL: /gestor/dashboard-ui/  nombre: app:gestor_dashboard
+    return render(request, 'app/gestor_dashboard.html')
+
+
+@login_required
+@rol_requerido('gestor')
 def derivar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
     if request.method == 'POST':

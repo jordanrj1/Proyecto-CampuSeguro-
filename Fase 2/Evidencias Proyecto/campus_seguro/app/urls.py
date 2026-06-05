@@ -45,6 +45,8 @@ urlpatterns = [
     # ── GESTOR: BI / OPERATIVO ────────────────────────
     path('gestor/operativo/', views.gestor_operativo, name='gestor_operativo'),
     path('gestor/bi/', views.gestor_bi, name='gestor_bi'),
+    # Dashboard BI alternativo (Moises, Sprint 2) — gestor_dashboard.html
+    path('gestor/dashboard-ui/', views.vista_gestor_dashboard, name='gestor_dashboard'),
 
     # ── GESTOR: MATERIALES ────────────────────────────
     path('gestor/materiales/', views.materiales_listado, name='materiales_listado'),

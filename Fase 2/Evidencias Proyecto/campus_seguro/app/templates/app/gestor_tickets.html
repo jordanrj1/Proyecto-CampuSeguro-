@@ -33,7 +33,7 @@
             </nav>
             
             <div class="sidebar-footer">
-                <form method="post" action="{% url 'logout' %}" style="width: 100%;">
+                <form method="post" action="{% url 'app:logout' %}" style="width: 100%;">
                     {% csrf_token %}
                     <button type="submit" class="nav-item" style="width: 100%; background: none; border: none; cursor: pointer; color: var(--duoc-gris);">
                         <i class="bi bi-box-arrow-right"></i>
