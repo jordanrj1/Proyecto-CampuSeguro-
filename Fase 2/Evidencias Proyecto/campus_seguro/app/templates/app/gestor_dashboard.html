@@ -1,0 +1,247 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Tickets - Campus Seguro DuocUC</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'css/gestor_dashboard.css' %}">
+</head>
+<body>
+    <div class="dashboard-container">
+
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="{% url 'app:dashboard' %}" class="sidebar-brand">
+                    <div class="sidebar-brand-icon">CS</div>
+                    <span>Campus Seguro</span>
+                </a>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="{% url 'app:gestor_dashboard' %}" class="nav-item active">
+                    <i class="bi bi-pie-chart-fill"></i>
+                    <span>BI Dashboard</span>
+                </a>
+                <a href="{% url 'app:gestor_tickets' %}" class="nav-item">
+                    <i class="bi bi-ticket-detailed-fill"></i>
+                    <span>Tickets</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <form method="post" action="{% url 'logout' %}" style="width: 100%;">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-item" style="width: 100%; background: none; border: none; cursor: pointer; color: var(--duoc-gris);">
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="search-bar">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Buscar tickets, activos o usuarios..." id="searchInput">
+                </div>
+                
+                <div class="header-actions">
+                    <button class="notification-btn">
+                        <i class="bi bi-bell-fill"></i>
+                        <span class="notification-badge"></span>
+                    </button>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar">
+                            {{ user.username|first|upper }}
+                        </div>
+                        <div class="user-info">
+                            <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                            <span class="user-role">Gestor</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                
+                <div class="page-header-flex">
+                    <div>
+                        <h1 class="page-title">Business Intelligence Dashboard</h1>
+                        <p class="page-subtitle">Visión global de incidencias y costos operativos</p>
+                    </div>
+                    <div class="filter-group">
+                        <select class="btn btn-filter"><option>Últimos 7 días</option></select>
+                        <button class="btn btn-primary">Aplicar</button>
+                    </div>
+                </div>
+
+                <section class="kpi-row">
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                        <div class="kpi-data">
+                            <span class="kpi-label">Tickets Activos</span>
+                            <span class="kpi-value">124</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-yellow"><i class="bi bi-clock-fill"></i></div>
+                        <div class="kpi-data">
+                            <span class="kpi-label">Tiempo Promedio</span>
+                            <span class="kpi-value">4.2 <small>hrs</small></span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-blue"><i class="bi bi-pause-fill"></i></div>
+                        <div class="kpi-data">
+                            <span class="kpi-label">En Pausa (Material)</span>
+                            <span class="kpi-value">18</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+                        <div class="kpi-data">
+                            <span class="kpi-label">Tasa Resolución</span>
+                            <span class="kpi-value">89%</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="charts-row">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Incidencias por Edificio</h3>
+                        <div class="bar-chart-css">
+                            <div class="grid-lines">
+                                <span>60</span><span>45</span><span>30</span><span>15</span><span>0</span>
+                            </div>
+                            <div class="bars-container">
+                                <div class="bar-group">
+                                    <div class="bar" style="height: 100%;"></div>
+                                    <span class="bar-label">Edificio H</span>
+                                </div>
+                                <div class="bar-group">
+                                    <div class="bar" style="height: 75%;"></div>
+                                    <span class="bar-label">Edificio E</span>
+                                </div>
+                                <div class="bar-group">
+                                    <div class="bar" style="height: 60%;"></div>
+                                    <span class="bar-label">Cabañas N.1</span>
+                                </div>
+                                <div class="bar-group">
+                                    <div class="bar" style="height: 40%;"></div>
+                                    <span class="bar-label">Casino E</span>
+                                </div>
+                                <div class="bar-group">
+                                    <div class="bar" style="height: 25%;"></div>
+                                    <span class="bar-label">Centro CITT</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h3 class="chart-title">Distribución por Categoría</h3>
+                        <div class="donut-container">
+                            <div class="donut-chart"></div>
+                            <div class="legend">
+                                <div><span class="dot blue"></span> Eléctrico (35%)</div>
+                                <div><span class="dot green"></span> Plomería (25%)</div>
+                                <div><span class="dot yellow"></span> Estructural (20%)</div>
+                                <div><span class="dot red"></span> Audiovisual (15%)</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="heatmap-section">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Heatmap: Horarios de Mayor Incidencia</h3>
+                        <div class="heatmap-container">
+                            <div class="hm-header"></div>
+                            <div class="hm-header">08:00</div>
+                            <div class="hm-header">10:00</div>
+                            <div class="hm-header">12:00</div>
+                            <div class="hm-header">14:00</div>
+                            <div class="hm-header">16:00</div>
+                            <div class="hm-header">18:00</div>
+                            <div class="hm-header">20:00</div>
+                            <div class="hm-header">22:00</div>
+
+                            <div class="hm-day">Lun</div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-high tooltip-container">
+                                <span class="tooltip">15 tickets</span>
+                            </div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+
+                            <div class="hm-day">Mar</div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+
+                            <div class="hm-day">Mié</div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+
+                            <div class="hm-day">Jue</div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+
+                            <div class="hm-day">Vie</div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-high"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-med"></div>
+                            <div class="hm-cell hm-low"></div>
+                            <div class="hm-cell hm-low"></div>
+                        </div>
+
+                        <div class="heatmap-legend">
+                            <span>Menos</span>
+                            <div class="hm-legend-color hm-low"></div>
+                            <div class="hm-legend-color hm-med"></div>
+                            <div class="hm-legend-color hm-high"></div>
+                            <span>Más</span>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Array de datos temporal (Estructura JS nativa, ignorada por el parser de Django)
+        const ticketsData = [];
+    </script>
+</body>
+</html>
