@@ -263,6 +263,14 @@ class RestablecerContrasenaForm(forms.Form):
 # TICKETS
 # ═══════════════════════════════════════════════════════════════
 class TicketForm(forms.ModelForm):
+    """
+    Formulario para crear/editar tickets de reporte de incidencia.
+    
+    ✅ CAMBIO CLAVE: Se sobrescribe __init__ para que:
+    - El campo 'urgencia' NO tenga valor por defecto (muestra "Seleccionar...")
+    - El campo 'categoria' NO tenga valor por defecto
+    - Los campos tengan clases CSS de Bootstrap para el template
+    """
     class Meta:
         model = Ticket
         fields = [
@@ -272,16 +280,74 @@ class TicketForm(forms.ModelForm):
             'foto_evidencia', 'id_activo_sap',
         ]
         widgets = {
-            'titulo': forms.TextInput(attrs={'placeholder': 'Ej: Enchufe quemado en sala 305'}),
-            'descripcion': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Describe el problema, síntomas y contexto...'}),
-            'ubicacion': forms.Select(attrs={'class': 'form-control'}),
-            'id_activo_sap': forms.TextInput(attrs={'placeholder': 'ACT-2024-001 (opcional)'}),
+            'titulo': forms.TextInput(attrs={
+                'placeholder': 'Ej: Enchufe quemado en sala 305',
+                'class': 'form-control',
+            }),
+            'descripcion': forms.Textarea(attrs={
+                'rows': 4,
+                'placeholder': 'Describe el problema, síntomas y contexto...',
+                'class': 'form-control',
+            }),
+            'ubicacion': forms.Select(attrs={'class': 'form-select'}),
+            'categoria': forms.Select(attrs={'class': 'form-select'}),
+            'urgencia': forms.Select(attrs={'class': 'form-select'}),
+            'afecta_clase': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_electrico': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_estructural': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_accesibilidad': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'foto_evidencia': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*',
+            }),
+            'id_activo_sap': forms.TextInput(attrs={
+                'placeholder': 'ACT-2024-001 (opcional)',
+                'class': 'form-control',
+            }),
         }
 
+    def __init__(self, *args, **kwargs):
+        """
+        ✅ CAMBIO CLAVE: Elimina el valor por defecto de 'urgencia' y 'categoria'
+        para que el template muestre "Seleccionar..." en lugar de "Media".
+        
+        El modelo Ticket tiene default='media' en urgencia, lo que hace que
+        Django Form lo preseleccione. Aquí lo forzamos a vacío.
+        """
+        super().__init__(*args, **kwargs)
+        
+        # ✅ Quitar el default de urgencia (que viene del modelo como 'media')
+        self.fields['urgencia'].initial = ''
+        self.fields['urgencia'].required = True
+        self.fields['urgencia'].empty_label = 'Seleccionar...'
+        
+        # ✅ Quitar el default de categoria por consistencia
+        self.fields['categoria'].initial = ''
+        self.fields['categoria'].required = True
+        self.fields['categoria'].empty_label = 'Seleccionar...'
+        
+        # Agregar labels más amigables
+        self.fields['titulo'].label = 'Título del reporte'
+        self.fields['descripcion'].label = 'Descripción detallada'
+        self.fields['ubicacion'].label = 'Ubicación'
+        self.fields['categoria'].label = 'Categoría'
+        self.fields['urgencia'].label = 'Urgencia'
+        self.fields['foto_evidencia'].label = 'Evidencia fotográfica'
+        self.fields['afecta_clase'].label = 'Afecta clases'
+        self.fields['riesgo_electrico'].label = 'Riesgo eléctrico'
+        self.fields['riesgo_estructural'].label = 'Riesgo estructural'
+        self.fields['riesgo_accesibilidad'].label = 'Afecta accesibilidad'
+
     def clean_foto_evidencia(self):
+        """Valida que la foto sea obligatoria al crear un ticket nuevo."""
         foto = self.cleaned_data.get('foto_evidencia')
         if not foto and not self.instance.pk:
             raise ValidationError('La foto de evidencia es obligatoria.')
+        
+        # Validar tamaño (10MB máximo)
+        if foto and foto.size > 10 * 1024 * 1024:
+            raise ValidationError('La foto no puede superar los 10 MB.')
+        
         return foto
 
 

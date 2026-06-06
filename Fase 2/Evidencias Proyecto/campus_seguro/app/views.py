@@ -25,6 +25,7 @@
 #   - @rol_requerido(*roles): Verifica que el usuario tenga el rol correcto.
 # ═══════════════════════════════════════════════════════════════
 import logging
+import json  # ✅ Necesario para serializar ubicaciones a JSON
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -53,8 +54,6 @@ from .forms import (
 )
 
 # Importación condicional del servicio Auth0.
-# Si Auth0 no está configurado (AUTH0_ENABLED=False), las funciones de
-# auth0_service igual están disponibles pero no se llaman desde el código.
 from . import auth0_service
 from .auth0_service import Auth0Error
 
@@ -109,40 +108,38 @@ def notificar_gestores(tipo, titulo, mensaje, ticket=None, prioridad='media', ur
         notificar(gestor, tipo, titulo, mensaje, ticket, prioridad, url_accion)
 
 
+def _preparar_contexto_ubicaciones():
+    """
+    Helper que prepara los datos de ubicaciones para el template.
+    Retorna un diccionario con:
+    - edificios: lista de nombres de edificios únicos
+    - ubicaciones_json: JSON con todas las ubicaciones para filtrado en cascada
+    """
+    ubicaciones = Ubicacion.objects.all().order_by('sede', 'edificio', 'piso', 'sala')
+    edificios = Ubicacion.objects.values_list('edificio', flat=True).distinct().order_by('edificio')
+    
+    ubicaciones_json = json.dumps([
+        {
+            'id': u.id,
+            'edificio': u.edificio,
+            'piso': u.piso,
+            'sala': u.sala,
+            'tipo': u.get_tipo_display()
+        }
+        for u in ubicaciones
+    ])
+    
+    return {
+        'edificios': edificios,
+        'ubicaciones_json': ubicaciones_json,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # AUTH: LOGIN / LOGOUT / REGISTRO / RECUPERACIÓN
-# ─────────────────────────────────────────────────────────────
-# Documentación de flujo completo: docs/FLUJO_AUTENTICACION.md
 # ═══════════════════════════════════════════════════════════════
 
 def login_view(request):
-    """
-    Vista de inicio de sesión con soporte Auth0 + fallback Django local.
-
-    FLUJO PRINCIPAL (Auth0 habilitado):
-        1. Usuario ingresa email + contraseña en el formulario.
-        2. Se llama a auth0_service.autenticar_usuario(email, password).
-        3. Auth0 valida las credenciales contra su base de usuarios.
-        4. Si válidas: Auth0 retorna access_token + id_token (JWT).
-        5. Se decodifica id_token para extraer email y auth0_sub.
-        6. Se busca al usuario local por correo_institucional.
-        7. Se verifica estado_cuenta (pendiente/suspendida/rechazada/activa).
-        8. Si puede ingresar: login() + registro en LogAuditoria + redirect.
-
-    FLUJO FALLBACK (Auth0 no configurado / AUTH0_ENABLED=False):
-        Usa Django's authenticate() con la contraseña local.
-        Permite desarrollar y testear sin credenciales de Auth0.
-        También cubre el caso del superusuario administrador.
-
-    VALIDACIÓN DE ESTADO DE CUENTA:
-        La cuenta en Auth0 puede estar activa, pero el estado local
-        (estado_cuenta.codigo) puede ser 'pendiente', 'suspendida', etc.
-        El estado local es la fuente de verdad para el acceso al sistema.
-
-    Template: app/login.html
-    Redirect exitoso: app:dashboard (router por rol)
-    Redirect si ya autenticado: app:dashboard
-    """
     if request.user.is_authenticated:
         return redirect('app:dashboard')
 
@@ -152,10 +149,8 @@ def login_view(request):
         password = form.cleaned_data['password']
         user = None
 
-        # ── RAMA AUTH0 ──────────────────────────────────────
         if settings.AUTH0_ENABLED:
             try:
-                # Normalizar: Auth0 usa email, el campo puede ser username o correo
                 email_para_auth0 = username_input
                 try:
                     u_local = Usuario.objects.get(correo_institucional__iexact=username_input)
@@ -163,32 +158,22 @@ def login_view(request):
                 except Usuario.DoesNotExist:
                     pass
 
-                # Enviar credenciales a Auth0 (ROPC flow)
                 token_data = auth0_service.autenticar_usuario(email_para_auth0, password)
                 id_token = token_data.get('id_token')
 
                 if id_token:
-                    # Decodificar JWT para obtener email del usuario
                     claims = auth0_service.decodificar_token(id_token)
                     email_auth0 = claims.get('email', '').lower()
                     auth0_sub = claims.get('sub', '')
 
-                    # Buscar usuario local por correo institucional
                     try:
                         user = Usuario.objects.get(correo_institucional__iexact=email_auth0)
-                        # Actualizar auth0_sub si no lo tenía (primera vez)
                         if not user.auth0_sub and auth0_sub:
                             user.auth0_sub = auth0_sub
                             user.save(update_fields=['auth0_sub'])
                     except Usuario.DoesNotExist:
-                        logger.warning(
-                            f"Auth0 autenticó a {email_auth0} pero no existe en BD local."
-                        )
-                        messages.error(
-                            request,
-                            'Tu cuenta no está registrada en Campus Seguro. '
-                            'Solicita registro institucional.'
-                        )
+                        logger.warning(f"Auth0 autenticó a {email_auth0} pero no existe en BD local.")
+                        messages.error(request, 'Tu cuenta no está registrada en Campus Seguro. Solicita registro institucional.')
                         return render(request, 'app/login.html', {'form': form})
 
             except Auth0Error as e:
@@ -199,10 +184,6 @@ def login_view(request):
                 else:
                     messages.error(request, f'Error de autenticación: {e.message}')
                 return render(request, 'app/login.html', {'form': form})
-
-        # ── RAMA FALLBACK DJANGO LOCAL ───────────────────────
-        # Activa cuando Auth0 no está configurado O cuando el usuario
-        # es superusuario/admin (que usa autenticación Django estándar).
         else:
             user = authenticate(request, username=username_input, password=password)
             if not user:
@@ -212,7 +193,6 @@ def login_view(request):
                 except Usuario.DoesNotExist:
                     pass
 
-        # ── VALIDACIÓN DE ESTADO Y LOGIN ─────────────────────
         if user:
             estado = user.estado_cuenta.codigo
             if estado == 'pendiente':
@@ -239,34 +219,6 @@ def login_view(request):
 
 
 def registro_view(request):
-    """
-    Vista de solicitud de cuenta nueva.
-
-    FLUJO CON AUTH0 HABILITADO:
-        1. Usuario completa el formulario (email, contraseña, datos personales).
-        2. Se llama a auth0_service.crear_usuario_auth0() para crear el usuario
-           en Auth0 con la contraseña ingresada.
-        3. Auth0 devuelve el auth0_sub (ID único del usuario en Auth0).
-        4. Se crea el usuario local con set_unusable_password() → contraseña
-           NO se guarda en la BD de Campus Seguro.
-        5. Se guarda auth0_sub en el campo Usuario.auth0_sub.
-        6. Estado: 'pendiente'. Rol: 'usuario'. is_active=False.
-        7. Se notifica a los gestores sobre la nueva solicitud.
-        8. Gestor revisa y aprueba (asignando el rol que corresponda).
-
-    FLUJO SIN AUTH0 (fallback desarrollo):
-        - La contraseña se guarda localmente (set_password).
-        - auth0_sub queda en None.
-        - El resto del flujo es igual.
-
-    CAMBIO VS. VERSIÓN ANTERIOR:
-        - El selector de roles (usuario/gestor/guardia/mantención) fue
-          ELIMINADO del formulario. Todos los registros son 'usuario'.
-        - El gestor asigna el rol real al aprobar la cuenta.
-        - is_active se establece en False (antes era True con estado='activa').
-
-    Template: app/registro.html
-    """
     if request.user.is_authenticated:
         return redirect('app:dashboard')
 
@@ -275,7 +227,6 @@ def registro_view(request):
         auth0_sub = None
         usar_auth0 = settings.AUTH0_ENABLED
 
-        # ── Crear usuario en Auth0 (si está habilitado) ───────
         if usar_auth0:
             try:
                 resultado_auth0 = auth0_service.crear_usuario_auth0(
@@ -301,7 +252,6 @@ def registro_view(request):
                     messages.error(request, f'Error al crear cuenta: {e.message}')
                 return render(request, 'app/registro.html', {'form': form})
 
-        # ── Crear usuario local en BD Campus Seguro ───────────
         user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
 
         LogAuditoria.objects.create(
@@ -311,7 +261,6 @@ def registro_view(request):
             modulo='cuenta',
         )
 
-        # Notificar a todos los gestores activos
         notificar_gestores(
             'cuenta_solicitud',
             f'Nueva solicitud de cuenta: {user.get_full_name()}',
@@ -339,21 +288,13 @@ def olvide_contrasena_view(request):
             link = request.build_absolute_uri(
                 reverse('app:restablecer_contrasena', kwargs={'token': token.token})
             )
-            # En producción: enviar por correo real
-            # Aquí lo mostramos como mensaje informativo
-            messages.success(
-                request,
-                f'✓ Se ha generado un enlace de recuperación. Revisa tu correo institucional.'
-            )
-            # Demo / dev: mostrar el link
+            messages.success(request, f'✓ Se ha generado un enlace de recuperación. Revisa tu correo institucional.')
             messages.info(request, f'🔗 [DEV] Enlace de recuperación: {link}')
-
             LogAuditoria.objects.create(
                 usuario=user, accion='Solicitud de recuperación de contraseña',
                 ip_address=get_client_ip(request), modulo='cuenta'
             )
         except Usuario.DoesNotExist:
-            # Mismo mensaje por seguridad
             messages.success(request, '✓ Si el correo está registrado, recibirás un enlace de recuperación.')
         return redirect('app:login')
 
@@ -388,27 +329,6 @@ def restablecer_contrasena_view(request, token):
 
 
 def logout_view(request):
-    """
-    Vista de cierre de sesión completo (local + Auth0).
-
-    CRITERIO DE ACEPTACIÓN del proyecto:
-        "Botón cerrar sesión limpia toda sesión (Auth0 + local)"
-
-    FLUJO:
-        1. Registrar en LogAuditoria el cierre de sesión.
-        2. Guardar auth0_sub del usuario (antes de limpiar sesión Django).
-        3. Limpiar sesión Django local (logout() + session.flush()).
-        4. Si Auth0 habilitado:
-           a. Intentar revocar sesiones activas en Auth0 via Management API.
-           b. Redirigir al endpoint de logout de Auth0.
-           c. Auth0 invalida su cookie de sesión y redirige a /login/.
-        5. Si Auth0 no habilitado: redirigir directamente a /login/.
-
-    NOTA SOBRE ALLOWED LOGOUT URLs:
-        La URL de retorno de Auth0 (http://localhost:8000/login/) debe estar
-        registrada en Auth0 Dashboard → Application → Allowed Logout URLs.
-        Ver docs/AUTH0_CONFIGURACION.md paso 5.
-    """
     auth0_sub = None
     if request.user.is_authenticated:
         auth0_sub = getattr(request.user, 'auth0_sub', None)
@@ -419,19 +339,12 @@ def logout_view(request):
             modulo='cuenta',
         )
 
-    # Limpiar sesión Django (invalida cookie de sesión del servidor)
     logout(request)
 
-    # ── Logout en Auth0 (si está habilitado) ─────────────────
     if settings.AUTH0_ENABLED:
-        # Intentar revocar sesiones via Management API (no bloquear si falla)
         if auth0_sub:
             auth0_service.revocar_sesion_auth0(auth0_sub)
 
-        # URL fija de retorno leída desde .env → AUTH0_LOGOUT_RETURN_URL.
-        # Usar URL fija (no request.build_absolute_uri) evita la discrepancia
-        # entre http://127.0.0.1:8000 y http://localhost:8000 que Auth0
-        # trata como URLs distintas en su validación de Allowed Logout URLs.
         return_to = settings.AUTH0_LOGOUT_RETURN_URL
         auth0_logout_url = auth0_service.construir_url_logout(return_to)
         return redirect(auth0_logout_url)
@@ -475,7 +388,6 @@ def dashboard_gestor(request):
     hoy = timezone.now().date()
     semana = hoy - timedelta(days=7)
 
-    # Trabajadores con inasistencia activa hoy
     trabajadores_ausentes = Usuario.objects.filter(
         rol__in=['mantencion', 'guardia'],
         inasistencias__estado__codigo='aprobada',
@@ -569,25 +481,114 @@ def dashboard_mantencion(request):
 # ═══════════════════════════════════════════════════════════════
 @login_required
 def crear_ticket(request):
-    form = TicketForm(request.POST or None, request.FILES or None)
-    if request.method == 'POST' and form.is_valid():
-        ticket = form.save(commit=False)
-        ticket.creado_por = request.user
-        ticket.estado = EstadoCatalogo.para('ticket', 'enviado')
+    """
+    Vista para crear un nuevo ticket de reporte de incidencia.
+    
+    ✅ CAMBIO CLAVE: Se pasa TicketForm() al contexto para que el template
+    pueda acceder a form.fields.categoria.choices y form.fields.urgencia.choices
+    """
+    if request.method == 'POST':
+        titulo = request.POST.get('titulo', '').strip()
+        descripcion = request.POST.get('descripcion', '').strip()
+        ubicacion_id = request.POST.get('ubicacion', '').strip()
+        categoria = request.POST.get('categoria')
+        urgencia = request.POST.get('urgencia', 'media')
+        
+        afecta_clase = request.POST.get('afecta_clase') == 'on'
+        riesgo_electrico = request.POST.get('riesgo_electrico') == 'on'
+        riesgo_estructural = request.POST.get('riesgo_estructural') == 'on'
+        riesgo_accesibilidad = request.POST.get('riesgo_accesibilidad') == 'on'
+        
+        # Validaciones básicas
+        if not titulo or not descripcion or not ubicacion_id or not categoria:
+            messages.error(request, 'Por favor completa todos los campos obligatorios.')
+            contexto = _preparar_contexto_ubicaciones()
+            contexto['form'] = TicketForm()  # ✅ AGREGADO: Pasar el form
+            return render(request, 'app/crear_ticket.html', contexto)
+        
+        # Validar ubicación
+        try:
+            ubicacion = Ubicacion.objects.get(id=ubicacion_id)
+        except (Ubicacion.DoesNotExist, ValueError):
+            messages.error(request, 'La ubicación seleccionada no es válida. Por favor selecciónala nuevamente.')
+            contexto = _preparar_contexto_ubicaciones()
+            contexto['form'] = TicketForm()  # ✅ AGREGADO: Pasar el form
+            return render(request, 'app/crear_ticket.html', contexto)
+        
+        # Validar foto
+        foto = None
+        if 'foto_evidencia' in request.FILES:
+            foto = request.FILES['foto_evidencia']
+            if foto.size > 10 * 1024 * 1024:
+                messages.error(request, 'La foto no puede superar los 10 MB.')
+                contexto = _preparar_contexto_ubicaciones()
+                contexto['form'] = TicketForm()  # ✅ AGREGADO: Pasar el form
+                return render(request, 'app/crear_ticket.html', contexto)
+        else:
+            messages.error(request, 'La foto de evidencia es obligatoria.')
+            contexto = _preparar_contexto_ubicaciones()
+            contexto['form'] = TicketForm()  # ✅ AGREGADO: Pasar el form
+            return render(request, 'app/crear_ticket.html', contexto)
+        
+        # Crear ticket
+        ticket = Ticket(
+            titulo=titulo,
+            descripcion=descripcion,
+            ubicacion=ubicacion,
+            categoria=categoria,
+            urgencia=urgencia,
+            creado_por=request.user,
+            afecta_clase=afecta_clase,
+            riesgo_electrico=riesgo_electrico,
+            riesgo_estructural=riesgo_estructural,
+            riesgo_accesibilidad=riesgo_accesibilidad,
+            estado=EstadoCatalogo.para('ticket', 'enviado'),
+            foto_evidencia=foto,
+        )
         ticket.save()
-        registrar_log(ticket, request.user, 'Ticket creado', estado_nuevo='enviado', ip=get_client_ip(request))
-        notificar(request.user, 'ticket_enviado', f'Ticket #{ticket.pk} enviado',
-                  'Tu reporte ha sido registrado correctamente.', ticket=ticket)
-        notificar_gestores('ticket_enviado', f'Nuevo ticket #{ticket.pk}',
-                           f'{request.user.get_full_name()} reportó: {ticket.titulo}',
-                           ticket=ticket, prioridad='alta' if ticket.urgencia == 'critica' else 'media',
-                           url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk}))
+        
+        # Registros de trazabilidad
+        registrar_log(
+            ticket, request.user, 'Ticket creado',
+            estado_nuevo='enviado',
+            ip=get_client_ip(request)
+        )
+        
+        HistorialAcciones.objects.create(
+            ticket=ticket,
+            usuario=request.user,
+            tipo_accion='creacion',
+            estado_anterior=None,
+            estado_nuevo='enviado',
+            descripcion=f'Ticket creado por {request.user.get_full_name() or request.user.username}',
+            es_global=True,
+            ip_address=get_client_ip(request),
+        )
+        
+        # Notificaciones
+        notificar(
+            request.user, 'ticket_enviado',
+            f'Ticket #{ticket.pk} enviado',
+            'Tu reporte ha sido registrado correctamente.',
+            ticket=ticket
+        )
+        
+        notificar_gestores(
+            'ticket_enviado',
+            f'Nuevo ticket #{ticket.pk}',
+            f'{request.user.get_full_name() or request.user.username} reportó: {ticket.titulo}',
+            ticket=ticket,
+            prioridad='alta' if ticket.urgencia == 'critica' else 'media',
+            url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+        )
+        
         messages.success(request, f'✓ Ticket #{ticket.pk} creado exitosamente.')
         return redirect('app:mis_tickets')
-    return render(request, 'app/crear_ticket.html', {
-        'form': form,
-        'ubicaciones': Ubicacion.objects.all().order_by('sede', 'edificio', 'piso', 'sala'),
-    })
+    
+    # GET: Mostrar formulario vacío
+    contexto = _preparar_contexto_ubicaciones()
+    contexto['form'] = TicketForm()  # ✅ AGREGADO: Pasar el form (ESTO ES LO QUE FALTABA)
+    return render(request, 'app/crear_ticket.html', contexto)
 
 
 @login_required
@@ -614,7 +615,6 @@ def detalle_ticket(request, pk):
     if es_operativo:
         logs = ticket.logs.select_related('usuario').order_by('created_at')
     else:
-        # Usuario solo ve cambios de estado públicos (no internos)
         ESTADOS_PUBLICOS = {'enviado', 'en_validacion', 'en_mantencion', 'reparado', 'pausado', 'no_reparado', 'cerrado'}
         logs = ticket.logs.filter(es_interno=False).select_related('usuario').order_by('created_at')
 
@@ -700,7 +700,6 @@ def derivar_ticket(request, pk):
             registrar_log(ticket, request.user, 'Derivado a Guardia (validación)',
                           estado_anterior=estado_anterior, estado_nuevo='en_validacion',
                           ip=get_client_ip(request), es_interno=True)
-            # Notificar a guardias activos
             for g in Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa', activo=True):
                 notificar(g, 'asignacion', f'Validación pendiente #{ticket.pk}',
                           f'{ticket.titulo} requiere validación en terreno.',
@@ -843,36 +842,6 @@ def gestor_solicitudes_cuenta(request):
 @login_required
 @rol_requerido('gestor')
 def aprobar_cuenta(request, pk):
-    """
-    Vista para que el gestor revise y apruebe (o rechace) una solicitud de cuenta.
-
-    CAMBIO VS. VERSIÓN ANTERIOR:
-        Ahora el gestor debe seleccionar el ROL que tendrá el usuario
-        al momento de aprobar. Esto reemplaza el sistema anterior donde
-        el usuario elegía su propio rol al registrarse.
-
-    FLUJO DE APROBACIÓN:
-        1. Gestor accede a la solicitud desde /gestor/solicitudes/.
-        2. Ve los datos del solicitante (nombre, correo, vínculo, etc.).
-        3. Selecciona el rol adecuado (usuario / gestor / guardia / mantención).
-        4. Hace clic en "Aprobar".
-        5. El sistema:
-           a. Asigna el rol seleccionado al Usuario local.
-           b. Cambia estado_cuenta → 'activa' e is_active → True.
-           c. Si Auth0 habilitado: llama a auth0_service.actualizar_rol_auth0()
-              para sincronizar el rol en los metadatos de Auth0.
-           d. Registra en LogAuditoria.
-           e. Notifica al usuario que su cuenta fue aprobada.
-        6. El usuario ahora puede iniciar sesión y accede a su panel por rol.
-
-    FLUJO DE RECHAZO:
-        - Estado → 'rechazada'. is_active permanece False.
-        - El usuario recibe una notificación de rechazo.
-
-    Template: app/revisar_cuenta.html
-    Parámetros URL:
-        pk (int): ID del Usuario con estado_cuenta='pendiente'.
-    """
     user = get_object_or_404(Usuario, pk=pk, estado_cuenta__codigo='pendiente')
     form_rol = AsignarRolForm(request.POST or None)
 
@@ -889,9 +858,6 @@ def aprobar_cuenta(request, pk):
 
             rol_asignado = form_rol.cleaned_data['rol']
 
-            # RUT temporal: usuarios importados por sincronizar_auth0 tienen RUT con prefijo SYNC-.
-            # Si el gestor ingresa un RUT real en revisar_cuenta.html, se actualiza aqui.
-            # Ver: app/templates/app/revisar_cuenta.html seccion "RUT pendiente de correccion"
             rut_nuevo = request.POST.get('rut_nuevo', '').strip()
             if rut_nuevo and rut_nuevo != user.rut:
                 if not Usuario.objects.filter(rut=rut_nuevo).exclude(pk=user.pk).exists():
@@ -899,7 +865,6 @@ def aprobar_cuenta(request, pk):
                 else:
                     messages.warning(request, f'El RUT {rut_nuevo} ya pertenece a otro usuario. Se mantuvo el RUT temporal.')
 
-            # Actualizar datos locales del usuario
             user.rol = rol_asignado
             user.estado_cuenta = EstadoCatalogo.para('cuenta', 'activa')
             user.is_active = True
@@ -907,7 +872,6 @@ def aprobar_cuenta(request, pk):
             user.aprobado_por = request.user
             user.save()
 
-            # Sincronizar rol con Auth0 si está configurado
             if settings.AUTH0_ENABLED and user.auth0_sub:
                 try:
                     auth0_service.actualizar_rol_auth0(
@@ -915,16 +879,9 @@ def aprobar_cuenta(request, pk):
                         rol=rol_asignado,
                         estado='activa',
                     )
-                    logger.info(
-                        f"Rol '{rol_asignado}' sincronizado en Auth0 para {user.auth0_sub}"
-                    )
+                    logger.info(f"Rol '{rol_asignado}' sincronizado en Auth0 para {user.auth0_sub}")
                 except Auth0Error as e:
-                    # No bloquear la aprobación si Auth0 falla.
-                    # El rol quedó actualizado localmente; la sincronización
-                    # se puede reintentar manualmente.
-                    logger.warning(
-                        f"No se pudo sincronizar rol en Auth0 para {user.auth0_sub}: {e.message}"
-                    )
+                    logger.warning(f"No se pudo sincronizar rol en Auth0 para {user.auth0_sub}: {e.message}")
                     messages.warning(
                         request,
                         f'Cuenta aprobada localmente, pero no se pudo sincronizar el rol '
@@ -978,7 +935,6 @@ def aprobar_cuenta(request, pk):
 @login_required
 @rol_requerido('gestor')
 def gestor_usuarios(request):
-    """Listado y administración de usuarios activos"""
     qs = Usuario.objects.all().order_by('-fecha_registro')
     rol_filtro = request.GET.get('rol')
     estado_filtro = request.GET.get('estado')
@@ -1020,7 +976,6 @@ def suspender_usuario(request, pk):
 @login_required
 @rol_requerido('gestor')
 def reset_usuario_gestor(request, pk):
-    """El gestor genera un token de reset para un usuario"""
     user = get_object_or_404(Usuario, pk=pk)
     if request.method == 'POST':
         token = TokenRecuperacion.generar(user, ip=get_client_ip(request))
@@ -1045,8 +1000,6 @@ def reset_usuario_gestor(request, pk):
 @login_required
 @rol_requerido('gestor')
 def gestor_operativo(request):
-    """Dashboard de gestión operativa: rendimiento de trabajadores"""
-    # Rendimiento de mantención
     rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
         total_trabajos=Count('registromantencion', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
@@ -1055,7 +1008,6 @@ def gestor_operativo(request):
         hh_totales=Sum('registromantencion__horas_hombre'),
     ).order_by('-trabajos_completados')
 
-    # Rendimiento de guardia
     rendimiento_guardia = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').annotate(
         total_validaciones=Count('validacionguardia', distinct=True),
         validos=Count('validacionguardia', filter=Q(validacionguardia__resultado='valido'), distinct=True),
@@ -1080,7 +1032,6 @@ def gestor_bi(request):
     fecha_desde_str = request.GET.get('fecha_desde', '')
     fecha_hasta_str = request.GET.get('fecha_hasta', '')
 
-    # Rango de fechas ─────────────────────────────────────────────
     hasta = hoy
     if fecha_desde_str:
         try:
@@ -1099,7 +1050,6 @@ def gestor_bi(request):
     else:
         desde = hoy - timedelta(days=30)
 
-    # ── GENERAL ──────────────────────────────────────────────────
     tickets = Ticket.objects.filter(
         deleted_at__isnull=True,
         created_at__date__gte=desde,
@@ -1124,7 +1074,6 @@ def gestor_bi(request):
         ).annotate(total=Count('id')).filter(total__gt=1).order_by('-total')[:8]
     )
 
-    # ── GUARDIAS ─────────────────────────────────────────────────
     val_qs = ValidacionGuardia.objects.filter(
         created_at__date__gte=desde, created_at__date__lte=hasta
     )
@@ -1154,7 +1103,6 @@ def gestor_bi(request):
             tiempo_prom=Avg('tiempo_validacion_minutos'),
         ).order_by('-total')
     )
-    # Puntaje operativo por guardia
     max_val_total = max((g['total'] for g in por_guardia), default=1)
     for g in por_guardia:
         tasa_v = (g['validas'] / g['total'] * 100) if g['total'] else 0
@@ -1172,7 +1120,6 @@ def gestor_bi(request):
         ).values('categoria').annotate(total=Count('id')).order_by('-total')
     )
 
-    # ── MANTENCIÓN ───────────────────────────────────────────────
     mant_qs = RegistroMantencion.objects.filter(
         created_at__date__gte=desde, created_at__date__lte=hasta
     )
@@ -1215,7 +1162,6 @@ def gestor_bi(request):
     denominador = mant_total + nrep_total
     tasa_nrep = round((nrep_total / denominador * 100) if denominador else 0, 1)
 
-    # Puntaje operativo por técnico
     max_mant_total = max((t['total'] for t in por_tecnico), default=1)
     for t in por_tecnico:
         nrep_tec = nrep_qs.filter(tecnico_id=t['tecnico__id']).count()
@@ -1228,7 +1174,6 @@ def gestor_bi(request):
         t['score'] = int(t['resolucion'] * 0.40 + t['foto_tasa'] * 0.20 + t['autonomia'] * 0.25 + actividad_pts * 0.15)
         t['nrep_count'] = nrep_tec
 
-    # ── MATERIALES ───────────────────────────────────────────────
     mat_qs = MaterialUtilizado.objects.filter(
         registro__created_at__date__gte=desde,
         registro__created_at__date__lte=hasta,
@@ -1251,7 +1196,6 @@ def gestor_bi(request):
         .annotate(total=Sum('cantidad'), frecuencia=Count('id'), tipos=Count('material', distinct=True))
         .order_by('-total')
     )
-    # Materiales consumidos por tipo de incidente (ticket categoria)
     mat_por_tipo_ticket = list(
         mat_qs.values('registro__ticket__categoria')
         .annotate(
@@ -1265,7 +1209,6 @@ def gestor_bi(request):
         .annotate(items_distintos=Count('material', distinct=True), cantidad_total=Sum('cantidad'))
         .order_by('-cantidad_total')
     )
-    # Categorías disponibles para filtro
     categorias_materiales = list(
         Material.objects.filter(activo=True)
         .values_list('categoria', flat=True).distinct().order_by('categoria')
@@ -1285,26 +1228,22 @@ def gestor_bi(request):
         'trabajador_id': trabajador_id, 'cat_material': cat_material,
         'fecha_desde_str': fecha_desde_str, 'fecha_hasta_str': fecha_hasta_str,
         'guardias': guardias, 'tecnicos': tecnicos,
-        # General
         'total_tickets': total_tickets, 'afectan_clase': afectan_clase,
         'riesgos_electricos': riesgos_electricos, 'riesgos_estructurales': riesgos_estructurales,
         'cerrados_periodo': cerrados_periodo, 'tasa_cierre': tasa_cierre, 'porc_impacto': porc_impacto,
         'por_categoria': por_categoria, 'por_urgencia': por_urgencia,
         'por_estado': por_estado, 'por_edificio': por_edificio, 'reincidencia': reincidencia,
-        # Guardias
         'val_total': val_total, 'val_validas': val_validas, 'val_invalidas': val_invalidas,
         'val_con_foto': val_con_foto, 'val_tiempo_prom': val_tiempo_prom,
         'val_tasa_validez': val_tasa_validez, 'val_tasa_foto': val_tasa_foto,
         'val_check_elec': val_check_elec, 'val_check_estr': val_check_estr,
         'val_check_acc': val_check_acc, 'por_guardia': por_guardia, 'val_por_categoria': val_por_categoria,
-        # Mantención
         'mant_total': mant_total, 'mant_hh_total': mant_hh_total, 'mant_hh_prom': mant_hh_prom,
         'mant_tiempo_prom': mant_tiempo_prom, 'mant_personal_adicional': mant_personal_adicional,
         'mant_nivel_mayor': mant_nivel_mayor, 'mant_con_foto': mant_con_foto,
         'mant_tasa_foto': mant_tasa_foto, 'por_tecnico': por_tecnico,
         'nrep_total': nrep_total, 'nrep_por_criticidad': nrep_por_criticidad,
         'nrep_externalizacion': nrep_externalizacion, 'tasa_nrep': tasa_nrep,
-        # Materiales
         'materiales_top': materiales_top, 'por_categoria_mat': por_categoria_mat,
         'mat_por_tipo_ticket': mat_por_tipo_ticket, 'mat_por_tecnico': mat_por_tecnico,
         'categorias_materiales': categorias_materiales, 'cat_material': cat_material,
@@ -1731,7 +1670,7 @@ def dashboard_gestor_bi_v2(request):
         desde = hoy - timedelta(days=7)
     elif rango == 'año':
         desde = hoy - timedelta(days=365)
-    else:  # mes por defecto
+    else:
         desde = hoy - timedelta(days=30)
 
     tickets = Ticket.objects.filter(deleted_at__isnull=True, created_at__date__gte=desde)
@@ -1858,30 +1797,7 @@ def reasignar_por_inasistencia(request, pk):
 
 
 # ═══════════════════════════════════════════════════════════════
-# AUTH0 WEBHOOK – Auditoría de acciones externas
-# ─────────────────────────────────────────────────────────────
-# Recibe eventos del Log Streaming de Auth0 y los registra en
-# LogAuditoria local, cerrando la brecha de trazabilidad entre
-# acciones que ocurren en Auth0 (cambio de contraseña desde el
-# dashboard, bloqueo manual, etc.) y el registro local de Django.
-#
-# CONFIGURACIÓN EN AUTH0 DASHBOARD:
-#   1. Ir a: Monitoring → Log Streams → Create Log Stream
-#   2. Tipo: Custom Webhook
-#   3. Payload URL: https://TU-URL/auth0/webhook/
-#   4. Authorization: Bearer + el valor de AUTH0_WEBHOOK_SECRET en .env
-#
-# EVENTOS QUE REGISTRA (tipos de log Auth0):
-#   scp  → cambio de contraseña
-#   sui  → usuario bloqueado/desbloqueado
-#   s    → login exitoso externo
-#   f    → login fallido externo
-#   ss   → logout
-#   otros → registrados como 'evento_auth0' genérico
-#
-# SEGURIDAD:
-#   Valida el header Authorization antes de procesar el payload.
-#   Sin el secret correcto, retorna 401 sin revelar información.
+# AUTH0 WEBHOOK
 # ═══════════════════════════════════════════════════════════════
 import json as _json
 from django.views.decorators.csrf import csrf_exempt
@@ -1891,11 +1807,6 @@ from django.views.decorators.http import require_POST
 @csrf_exempt
 @require_POST
 def auth0_webhook(request):
-    """
-    Endpoint para recibir eventos de Auth0 Log Streaming.
-    Registra en LogAuditoria las acciones que ocurren fuera de Django.
-    """
-    # Validar secret del webhook
     webhook_secret = settings.AUTH0_WEBHOOK_SECRET
     if webhook_secret:
         auth_header = request.headers.get('Authorization', '')
@@ -1904,15 +1815,12 @@ def auth0_webhook(request):
             logger.warning('Auth0 webhook: token inválido rechazado.')
             return JsonResponse({'error': 'Unauthorized'}, status=401)
 
-    # Auth0 Log Streaming usa NDJSON: cada línea es un JSON independiente.
-    # También puede enviar un objeto único o un array, según configuración.
     raw_body = request.body.decode('utf-8', errors='replace').strip()
     eventos = []
     try:
         parsed = _json.loads(raw_body)
         eventos = parsed if isinstance(parsed, list) else [parsed]
     except ValueError:
-        # Intentar NDJSON: un objeto JSON por línea
         for linea in raw_body.splitlines():
             linea = linea.strip()
             if not linea:
@@ -1926,70 +1834,52 @@ def auth0_webhook(request):
         logger.warning(f'Auth0 webhook: body no parseable. Raw: {raw_body[:200]}')
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    # ── Mapa completo de códigos de evento Auth0 → descripción legible ──
-    # Fuente: https://auth0.com/docs/deploy-monitor/logs/log-event-type-codes
     tipo_map = {
-        # Login / Logout
-        's':        'Login exitoso',
-        'f':        'Login fallido (credenciales incorrectas)',
-        'fp':       'Login fallido (contrasena incorrecta)',
-        'fu':       'Login fallido (usuario no existe)',
-        'fc':       'Login fallido (cuenta bloqueada)',
-        'fco':      'Login fallido (origin no autorizado)',
-        'ss':       'Registro exitoso',
-        'fs':       'Registro fallido',
-        'slo':      'Logout exitoso',
-        'flo':      'Logout fallido',
-        # Contrasena
-        'scp':      'Cambio de contrasena exitoso',
-        'fcp':      'Cambio de contrasena fallido',
-        'spwd':     'Solicitud de cambio de contrasena enviada',
-        'fpwd':     'Solicitud de cambio de contrasena fallida',
-        # Email
-        'sce':      'Cambio de email exitoso',
-        'fce':      'Cambio de email fallido',
-        # Usuario (gestion)
-        'su':       'Usuario actualizado (dashboard Auth0)',
-        'fu':       'Actualizacion de usuario fallida',
-        'sdu':      'Usuario eliminado de Auth0',
-        'fdu':      'Eliminacion de usuario fallida',
-        'scupm':    'Metadatos de usuario actualizados',
-        # Bloqueos
+        's': 'Login exitoso',
+        'f': 'Login fallido (credenciales incorrectas)',
+        'fp': 'Login fallido (contrasena incorrecta)',
+        'fu': 'Login fallido (usuario no existe)',
+        'fc': 'Login fallido (cuenta bloqueada)',
+        'fco': 'Login fallido (origin no autorizado)',
+        'ss': 'Registro exitoso',
+        'fs': 'Registro fallido',
+        'slo': 'Logout exitoso',
+        'flo': 'Logout fallido',
+        'scp': 'Cambio de contrasena exitoso',
+        'fcp': 'Cambio de contrasena fallido',
+        'spwd': 'Solicitud de cambio de contrasena enviada',
+        'fpwd': 'Solicitud de cambio de contrasena fallida',
+        'sce': 'Cambio de email exitoso',
+        'fce': 'Cambio de email fallido',
+        'su': 'Usuario actualizado (dashboard Auth0)',
+        'sdu': 'Usuario eliminado de Auth0',
+        'fdu': 'Eliminacion de usuario fallida',
+        'scupm': 'Metadatos de usuario actualizados',
         'limit_wc': 'Cuenta bloqueada (demasiados intentos)',
         'limit_ui': 'Demasiadas solicitudes del usuario',
         'limit_mu': 'Multiples usuarios detectados',
-        # Admin
-        'adi':      'Usuario invitado por administrador',
+        'adi': 'Usuario invitado por administrador',
         'admin_update_launch': 'Actualizacion de Auth0 iniciada',
-        # API interna (llamadas M2M del propio sistema)
-        'sapi':     '[INTERNO] Llamada a Management API (operacion automatica del sistema)',
-        'fapi':     '[INTERNO] Llamada a Management API fallida',
-        # MFA
+        'sapi': '[INTERNO] Llamada a Management API',
+        'fapi': '[INTERNO] Llamada a Management API fallida',
         'gd_auth_succeed': 'Autenticacion MFA exitosa',
-        'gd_auth_failed':  'Autenticacion MFA fallida',
-        # Otros
-        'scoa':     'Autenticacion cross-origin exitosa',
-        'fcoa':     'Autenticacion cross-origin fallida',
+        'gd_auth_failed': 'Autenticacion MFA fallida',
+        'scoa': 'Autenticacion cross-origin exitosa',
+        'fcoa': 'Autenticacion cross-origin fallida',
     }
 
-    # Eventos que son ruido interno (operaciones automaticas del propio sistema)
-    # y no aportan valor a la auditoria de seguridad del gestor.
-    # sapi = cada vez que Django llama a la Management API (crear usuario, actualizar rol, etc.)
     TIPOS_IGNORADOS = {'sapi', 'fapi'}
 
     for evento in eventos:
-        # Auth0 envuelve el evento real dentro de un campo "data"
         datos = evento.get('data', evento)
-        tipo_raw  = datos.get('type', evento.get('type', ''))
+        tipo_raw = datos.get('type', evento.get('type', ''))
         user_name = datos.get('user_name', '') or datos.get('user_id', '') or evento.get('user_name', '')
         descripcion = tipo_map.get(tipo_raw, f'Evento Auth0 ({tipo_raw})')
 
-        # Ignorar eventos internos del sistema (ruido de la Management API)
         if tipo_raw in TIPOS_IGNORADOS:
             logger.debug(f'Auth0 webhook: evento interno ignorado ({tipo_raw}) para {user_name}')
             continue
 
-        # Buscar usuario local por email si está disponible
         usuario_local = None
         if user_name and '@' in user_name:
             try:
@@ -1997,9 +1887,6 @@ def auth0_webhook(request):
             except Usuario.DoesNotExist:
                 pass
 
-        # Cuando Auth0 elimina un usuario, suspenderlo en Django para mantener
-        # consistencia: el registro local se preserva (con sus tickets e historial)
-        # pero el usuario queda inactivo, reflejando que ya no existe en Auth0.
         if tipo_raw == 'sdu' and usuario_local:
             try:
                 estado_suspendida = EstadoCatalogo.objects.get(entidad='cuenta', codigo='suspendida')
@@ -2010,9 +1897,8 @@ def auth0_webhook(request):
             except EstadoCatalogo.DoesNotExist:
                 logger.warning('Auth0 webhook: no se encontro estado "suspendida" en catalogo')
 
-        # Construir detalle legible
         ip_evento = datos.get('ip', '')
-        log_id    = evento.get('log_id', datos.get('log_id', ''))
+        log_id = evento.get('log_id', datos.get('log_id', ''))
         detalle_partes = [f'Tipo: {tipo_raw}']
         if user_name:
             detalle_partes.append(f'Usuario Auth0: {user_name}')

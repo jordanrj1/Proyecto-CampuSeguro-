@@ -245,6 +245,99 @@ class Ubicacion(models.Model):
     def __str__(self):
         return f"{self.sede} – {self.edificio} P{self.piso} {self.sala}"
 
+    @classmethod
+    def crear_default_campus(cls):
+        """
+        Crea las ubicaciones por defecto del campus:
+        - Edificio E: Pisos 1-5, 16 salas por piso, solo Piso 2 tiene baño
+        - Edificio H: Pisos 1-8, 16 salas por piso + 1 baño por piso
+        
+        Uso:
+            from app.models import Ubicacion
+            Ubicacion.crear_default_campus()
+        """
+        print("🏗️  Creando ubicaciones del Campus Seguro...")
+        
+        # Configuración de edificios
+        edificios_config = {
+            'E': {
+                'pisos': range(1, 6),  # Pisos 1 al 5
+                'salas_por_piso': 16,
+                'banos_por_piso': {2: 1},  # Solo Piso 2 tiene 1 baño
+            },
+            'H': {
+                'pisos': range(1, 9),  # Pisos 1 al 8
+                'salas_por_piso': 16,
+                'banos_por_piso': {p: 1 for p in range(1, 9)},  # Todos los pisos tienen 1 baño
+            }
+        }
+        
+        total_creadas = 0
+        total_omitidas = 0
+        
+        for edificio, config in edificios_config.items():
+            print(f"\n📍 Procesando Edificio {edificio}...")
+            
+            for piso in config['pisos']:
+                # Crear salas (E001, E002, ... H001, H002, ...)
+                for num_sala in range(1, config['salas_por_piso'] + 1):
+                    nombre_sala = f"{edificio}{num_sala:03d}"  # Ej: E001, E016, H001
+                    
+                    ubicacion, creada = cls.objects.get_or_create(
+                        sede='Sede Principal',
+                        edificio=f"Edificio {edificio}",
+                        piso=str(piso),
+                        sala=nombre_sala,
+                        defaults={
+                            'tipo': 'aula',
+                            'capacidad': 30,
+                        }
+                    )
+                    
+                    if creada:
+                        total_creadas += 1
+                    else:
+                        total_omitidas += 1
+                
+                # Crear baños según configuración
+                if piso in config['banos_por_piso']:
+                    num_banos = config['banos_por_piso'][piso]
+                    for num_bano in range(1, num_banos + 1):
+                        nombre_bano = f"Baño P{piso}"
+                        
+                        ubicacion, creada = cls.objects.get_or_create(
+                            sede='Sede Principal',
+                            edificio=f"Edificio {edificio}",
+                            piso=str(piso),
+                            sala=nombre_bano,
+                            defaults={
+                                'tipo': 'baño',
+                                'capacidad': None,
+                            }
+                        )
+                        
+                        if creada:
+                            total_creadas += 1
+                        else:
+                            total_omitidas += 1
+        
+        print(f"\n✅ Total de ubicaciones creadas: {total_creadas}")
+        print(f"️  Ubicaciones ya existentes (omitidas): {total_omitidas}")
+        
+        # Mostrar resumen
+        print("\n📊 Resumen:")
+        print(f"  - Edificio E: {cls.objects.filter(edificio='Edificio E').count()} ubicaciones")
+        print(f"  - Edificio H: {cls.objects.filter(edificio='Edificio H').count()} ubicaciones")
+        
+        # Mostrar ejemplo de ubicaciones creadas
+        print("\n🔍 Ejemplos de ubicaciones:")
+        for u in cls.objects.filter(edificio='Edificio E', piso='2')[:3]:
+            print(f"  - {u.edificio} - Piso {u.piso} - {u.sala} ({u.get_tipo_display()})")
+        
+        print("\n✨ ¡Ubicaciones creadas exitosamente!")
+        
+        return total_creadas
+
 
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO DE MATERIALES (BI compras inteligentes)
@@ -683,6 +776,3 @@ class MaterialesFaltantes(models.Model):
 
     def __str__(self):
         return f"Material faltante: {self.material.nombre} (Ticket #{self.registro_mantencion.ticket.pk})"
-
-
-

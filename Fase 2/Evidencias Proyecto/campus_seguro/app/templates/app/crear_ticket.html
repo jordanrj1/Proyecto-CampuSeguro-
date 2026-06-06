@@ -2,165 +2,220 @@
 {% block title %}Reportar Incidente · Campus Seguro{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Reportar Incidente</div>
-    <div class="page-subtitle">Completa todos los campos para que el equipo pueda actuar rápido</div>
-  </div>
-  <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h2 class="page-title">Reportar Incidente</h2>
+          <p class="text-muted">Completa todos los campos para que el equipo pueda actuar rápido</p>
+        </div>
+        <a href="{% url 'app:mis_tickets' %}" class="btn btn-outline-secondary">← Cancelar</a>
+      </div>
 
-{% if form.errors %}
-<div style="background:rgba(245,54,92,0.1);border:1px solid var(--accent-red);border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--accent-red);">
-  <strong>Por favor corrige los siguientes errores:</strong>
-  {% for field, errors in form.errors.items %}
-    {% for error in errors %}<div style="margin-top:4px;">· {{ field }}: {{ error }}</div>{% endfor %}
-  {% endfor %}
-</div>
-{% endif %}
-
-<form method="post" enctype="multipart/form-data">
-  {% csrf_token %}
-
-  <!-- SECCIÓN 1: Qué pasó -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📝 ¿Qué ocurrió?</div>
-    <div style="margin-bottom:14px;">
-      <label class="form-label">Título del reporte *</label>
-      <input type="text" name="titulo" class="form-control"
-        placeholder="Ej: Enchufe quemado, fuga de agua, proyector sin imagen…"
-        value="{{ form.titulo.value|default:'' }}" required maxlength="200">
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Sé específico: qué falló y síntoma principal.</div>
-    </div>
-    <div>
-      <label class="form-label">Descripción detallada *</label>
-      <textarea name="descripcion" class="form-control" rows="4"
-        placeholder="¿Cuándo comenzó? ¿Con qué frecuencia ocurre? ¿Hay riesgo inmediato para personas?">{{ form.descripcion.value|default:'' }}</textarea>
-    </div>
-  </div>
-
-  <!-- SECCIÓN 2: Dónde ocurrió -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📍 ¿Dónde ocurrió?</div>
-    <div class="form-group">
-      <label class="form-label">Ubicación (sala / espacio) *</label>
-      <select name="ubicacion" class="form-control" required>
-        <option value="">Seleccionar ubicación…</option>
-        {% regroup ubicaciones by sede as por_sede %}
-        {% for grupo in por_sede %}
-          <optgroup label="{{ grupo.grouper }}">
-            {% for u in grupo.list %}
-            <option value="{{ u.pk }}"
-              {% if form.ubicacion.value|stringformat:"s" == u.pk|stringformat:"s" %}selected{% endif %}>
-              {{ u.edificio }} · P{{ u.piso }} · {{ u.sala }} ({{ u.get_tipo_display }})
-            </option>
-            {% endfor %}
-          </optgroup>
-        {% empty %}
-          <option disabled>— No hay ubicaciones registradas. Contacta al administrador. —</option>
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
         {% endfor %}
-      </select>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-        Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
-      </div>
-    </div>
-  </div>
+      {% endif %}
 
-  <!-- SECCIÓN 3: Clasificación -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">🏷️ Clasificación del problema</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <div>
-        <label class="form-label">Categoría *</label>
-        <select name="categoria" class="form-control" required>
-          <option value="">Seleccionar…</option>
-          {% for val, label in form.fields.categoria.choices %}
-          <option value="{{ val }}" {% if form.categoria.value == val %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label">Urgencia *</label>
-        <select name="urgencia" class="form-control" required>
-          {% for val, label in form.fields.urgencia.choices %}
-          <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-          Crítica = riesgo inmediato para personas o clases en curso.
-        </div>
-      </div>
-    </div>
-  </div>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
 
-  <!-- SECCIÓN 4: Impacto y riesgos -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">⚠️ Impacto y riesgos asociados</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="afecta_clase" {% if form.afecta_clase.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-blue);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">📚 Afecta clases</div>
-          <div style="font-size:11px;color:var(--text-secondary);">El problema interrumpe o impide actividades académicas.</div>
+        <!-- SECCIÓN 1: Qué pasó -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">📝 ¿Qué ocurrió?</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="titulo" class="form-label">Título del reporte *</label>
+              <input type="text" class="form-control" id="titulo" name="titulo"
+                placeholder="Ej: Enchufe quemado, fuga de agua, proyector sin imagen…"
+                value="{{ form.titulo.value|default:'' }}" required maxlength="200">
+              <small class="form-text text-muted">Sé específico: qué falló y síntoma principal.</small>
+            </div>
+            <div class="mb-3">
+              <label for="descripcion" class="form-label">Descripción detallada *</label>
+              <textarea class="form-control" id="descripcion" name="descripcion" rows="4"
+                placeholder="¿Cuándo comenzó? ¿Con qué frecuencia ocurre? ¿Hay riesgo inmediato para personas?">{{ form.descripcion.value|default:'' }}</textarea>
+            </div>
+          </div>
         </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_electrico" {% if form.riesgo_electrico.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-red);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">⚡ Riesgo eléctrico</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Cables expuestos, chispas, cortocircuito.</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_estructural" {% if form.riesgo_estructural.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-red);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">🏗️ Riesgo estructural</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Grietas, filtraciones, techo o estructura dañada.</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_accesibilidad" {% if form.riesgo_accesibilidad.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-yellow);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">♿ Afecta accesibilidad</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Rampa, ascensor, baño adaptado u otra zona de acceso.</div>
-        </div>
-      </label>
-    </div>
-  </div>
 
-  <!-- SECCIÓN 5: Foto obligatoria -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📷 Evidencia fotográfica *</div>
-    <div id="dropZone" style="border:2px dashed var(--border-strong);border-radius:10px;padding:28px;text-align:center;position:relative;cursor:pointer;transition:border-color 0.2s;"
-      onmouseover="this.style.borderColor='var(--accent-blue)'" onmouseout="this.style.borderColor='var(--border-strong)'">
-      <input type="file" name="foto_evidencia" id="fotoInput" accept="image/*" required
-        style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="previewImg(this)">
-      <div id="previewBox" style="display:none;margin-bottom:12px;">
-        <img id="previewImg" style="max-height:200px;border-radius:8px;max-width:100%;box-shadow:var(--shadow);">
-        <div id="fileName" style="font-size:12px;color:var(--text-secondary);margin-top:8px;"></div>
-      </div>
-      <div id="uploadHint">
-        <div style="font-size:36px;margin-bottom:8px;">📸</div>
-        <div style="font-size:14px;font-weight:600;">Haz clic o arrastra una imagen aquí</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">JPG, PNG, WebP · Máximo 10 MB</div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-      La foto es <strong>obligatoria</strong>. Muestra claramente la falla, daño o elemento afectado.
-    </div>
-  </div>
+        <!-- SECCIÓN 2: Dónde ocurrió (MEJORADO: 3 selects en cascada) -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">📍 ¿Dónde ocurrió?</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <!-- Edificio -->
+              <div class="col-md-4 mb-3">
+                <label for="edificio" class="form-label">Edificio *</label>
+                <select class="form-select" id="edificio" name="edificio" required>
+                  <option value="">Seleccionar edificio…</option>
+                  {% for edificio in edificios %}
+                  <option value="{{ edificio }}">{{ edificio }}</option>
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">Selecciona el edificio primero.</small>
+              </div>
 
-  <div style="display:flex;justify-content:flex-end;gap:10px;">
-    <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">Cancelar</a>
-    <button type="submit" class="btn btn-primary" style="min-width:180px;">Enviar reporte →</button>
+              <!-- Piso -->
+              <div class="col-md-4 mb-3">
+                <label for="piso" class="form-label">Piso *</label>
+                <select class="form-select" id="piso" name="piso" required disabled>
+                  <option value="">Primero selecciona edificio…</option>
+                </select>
+                <small class="form-text text-muted">Pisos disponibles en el edificio.</small>
+              </div>
+
+              <!-- Sala -->
+              <div class="col-md-4 mb-3">
+                <label for="sala" class="form-label">Sala *</label>
+                <select class="form-select" id="sala" name="sala" required disabled>
+                  <option value="">Primero selecciona piso…</option>
+                </select>
+                <small class="form-text text-muted">Salas disponibles en el piso.</small>
+              </div>
+            </div>
+            
+            <!-- Campo oculto para guardar el ID de ubicación final -->
+            <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
+            
+            <div id="ubicacion-info" class="alert alert-info mt-2" style="display:none;">
+              <strong>Ubicación seleccionada:</strong> <span id="ubicacion-texto"></span>
+            </div>
+            
+            <div class="alert alert-warning mt-3" role="alert">
+              <small>
+                <strong>💡 Nota:</strong> Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 3: Clasificación -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">🏷️ Clasificación del problema</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="categoria" class="form-label">Categoría *</label>
+                <select class="form-select" id="categoria" name="categoria" required>
+                  <option value="">Seleccionar…</option>
+                  {% for val, label in form.fields.categoria.choices %}
+                    {% if val %}
+                    <option value="{{ val }}" {% if form.categoria.value == val %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="urgencia" class="form-label">Urgencia *</label>
+                <select class="form-select" id="urgencia" name="urgencia" required>
+                  <option value="" {% if not form.urgencia.value %}selected{% endif %}>Seleccionar…</option>
+                  {% for val, label in form.fields.urgencia.choices %}
+                    {% if val %}
+                    <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">Crítica = riesgo inmediato para personas o clases en curso.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 4: Impacto y riesgos -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">⚠️ Impacto y riesgos asociados</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-check-inline p-3 border rounded w-100">
+                  <input class="form-check-input" type="checkbox" name="afecta_clase" id="afecta_clase" value="on"
+                    {% if form.afecta_clase.value %}checked{% endif %}>
+                  <label class="form-check-label w-100" for="afecta_clase">
+                    <strong>📚 Afecta clases</strong>
+                    <small class="d-block text-muted">El problema interrumpe o impide actividades académicas.</small>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-check-inline p-3 border rounded w-100">
+                  <input class="form-check-input" type="checkbox" name="riesgo_electrico" id="riesgo_electrico" value="on"
+                    {% if form.riesgo_electrico.value %}checked{% endif %}>
+                  <label class="form-check-label w-100" for="riesgo_electrico">
+                    <strong>⚡ Riesgo eléctrico</strong>
+                    <small class="d-block text-muted">Cables expuestos, chispas, cortocircuito.</small>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-check-inline p-3 border rounded w-100">
+                  <input class="form-check-input" type="checkbox" name="riesgo_estructural" id="riesgo_estructural" value="on"
+                    {% if form.riesgo_estructural.value %}checked{% endif %}>
+                  <label class="form-check-label w-100" for="riesgo_estructural">
+                    <strong>🏗️ Riesgo estructural</strong>
+                    <small class="d-block text-muted">Grietas, filtraciones, techo o estructura dañada.</small>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <div class="form-check form-check-inline p-3 border rounded w-100">
+                  <input class="form-check-input" type="checkbox" name="riesgo_accesibilidad" id="riesgo_accesibilidad" value="on"
+                    {% if form.riesgo_accesibilidad.value %}checked{% endif %}>
+                  <label class="form-check-label w-100" for="riesgo_accesibilidad">
+                    <strong>♿ Afecta accesibilidad</strong>
+                    <small class="d-block text-muted">Rampa, ascensor, baño adaptado u otra zona de acceso.</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 5: Foto obligatoria -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">📷 Evidencia fotográfica *</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="foto_evidencia" class="form-label">Subir imagen</label>
+              <input class="form-control" type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" required onchange="previewImg(this)">
+              <small class="form-text text-muted">JPG, PNG, WebP · Máximo 10 MB</small>
+            </div>
+            <div id="previewBox" class="mt-3" style="display:none;">
+              <img id="previewImg" class="img-fluid rounded shadow" style="max-height:300px;">
+              <p id="fileName" class="text-muted mt-2"></p>
+            </div>
+            <small class="text-danger"><strong>La foto es obligatoria.</strong> Muestra claramente la falla, daño o elemento afectado.</small>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{% url 'app:mis_tickets' %}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">Enviar reporte →</button>
+        </div>
+      </form>
+    </div>
   </div>
-</form>
+</div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════
+// VISTA PREVIA DE IMAGEN
+// ═══════════════════════════════════════════════════════════════
 function previewImg(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
@@ -168,10 +223,148 @@ function previewImg(input) {
       document.getElementById('previewImg').src = e.target.result;
       document.getElementById('fileName').textContent = input.files[0].name;
       document.getElementById('previewBox').style.display = 'block';
-      document.getElementById('uploadHint').style.display = 'none';
     };
     reader.readAsDataURL(input.files[0]);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// FILTRADO EN CASCADA: EDIFICIO → PISO → SALA
+// ═══════════════════════════════════════════════════════════════
+
+// Datos de ubicaciones desde Django (JSON)
+const ubicacionesData = {{ ubicaciones_json|safe }};
+
+// Elementos del DOM
+const edificioSelect = document.getElementById('edificio');
+const pisoSelect = document.getElementById('piso');
+const salaSelect = document.getElementById('sala');
+const ubicacionIdInput = document.getElementById('ubicacion_id');
+const ubicacionInfo = document.getElementById('ubicacion-info');
+const ubicacionTexto = document.getElementById('ubicacion-texto');
+
+// Cargar pisos cuando se selecciona edificio
+edificioSelect.addEventListener('change', function() {
+  const edificioSeleccionado = this.value;
+  
+  // Resetear selects dependientes
+  pisoSelect.innerHTML = '<option value="">Cargando pisos…</option>';
+  salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  salaSelect.disabled = true;
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+  
+  if (!edificioSeleccionado) {
+    pisoSelect.innerHTML = '<option value="">Primero selecciona edificio…</option>';
+    pisoSelect.disabled = true;
+    return;
+  }
+  
+  // Obtener pisos únicos del edificio seleccionado
+  const pisosDisponibles = [...new Set(
+    ubicacionesData
+      .filter(u => u.edificio === edificioSeleccionado)
+      .map(u => u.piso)
+  )].sort((a, b) => parseInt(a) - parseInt(b));
+  
+  // Llenar select de pisos
+  pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
+  pisosDisponibles.forEach(piso => {
+    const option = document.createElement('option');
+    option.value = piso;
+    option.textContent = `Piso ${piso}`;
+    pisoSelect.appendChild(option);
+  });
+  
+  pisoSelect.disabled = false;
+});
+
+// Cargar salas cuando se selecciona piso
+pisoSelect.addEventListener('change', function() {
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = this.value;
+  
+  // Resetear select de salas
+  salaSelect.innerHTML = '<option value="">Cargando salas…</option>';
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+  
+  if (!pisoSeleccionado) {
+    salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    salaSelect.disabled = true;
+    return;
+  }
+  
+  // Obtener salas del edificio y piso seleccionados
+  const salasDisponibles = ubicacionesData.filter(
+    u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado
+  );
+  
+  // Llenar select de salas
+  salaSelect.innerHTML = '<option value="">Seleccionar sala…</option>';
+  salasDisponibles.forEach(ubicacion => {
+    const option = document.createElement('option');
+    option.value = ubicacion.id;
+    option.textContent = `${ubicacion.sala} (${ubicacion.tipo})`;
+    option.dataset.sala = ubicacion.sala;
+    option.dataset.tipo = ubicacion.tipo;
+    salaSelect.appendChild(option);
+  });
+  
+  salaSelect.disabled = false;
+});
+
+// Actualizar información cuando se selecciona sala
+salaSelect.addEventListener('change', function() {
+  const selectedOption = this.options[this.selectedIndex];
+  
+  if (this.value) {
+    const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
+    const piso = pisoSelect.options[pisoSelect.selectedIndex].text;
+    const sala = selectedOption.dataset.sala;
+    const tipo = selectedOption.dataset.tipo;
+    
+    ubicacionIdInput.value = this.value;
+    ubicacionTexto.textContent = `${edificio} → ${piso} → ${sala} (${tipo})`;
+    ubicacionInfo.style.display = 'block';
+  } else {
+    ubicacionIdInput.value = '';
+    ubicacionInfo.style.display = 'none';
+  }
+});
+
+// Validación antes de enviar el formulario
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (!ubicacionIdInput.value) {
+    e.preventDefault();
+    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Sala)');
+    edificioSelect.focus();
+  }
+});
+// Prevenir doble envío del formulario
+let formSubmitted = false;
+
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (formSubmitted) {
+    e.preventDefault();
+    alert('El formulario ya está siendo procesado. Por favor espera...');
+    return false;
+  }
+  
+  // Validar ubicación
+  if (!ubicacionIdInput.value) {
+    e.preventDefault();
+    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Sala)');
+    edificioSelect.focus();
+    return false;
+  }
+  
+  formSubmitted = true;
+  
+  // Deshabilitar botón de envío
+  const submitBtn = this.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = 'Enviando... <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+});
 </script>
 {% endblock %}
