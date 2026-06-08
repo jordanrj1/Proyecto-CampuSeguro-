@@ -655,6 +655,72 @@ def eliminar_ticket(request, pk):
     return render(request, 'app/confirmar_eliminar.html', {'ticket': ticket})
 
 
+@login_required
+def cancelar_ticket(request, pk):
+    """
+    Vista para que el usuario cancele su propio ticket.
+    GET: Muestra página de confirmación.
+    POST: Ejecuta la cancelación.
+    Solo se puede cancelar si el estado es "Enviado".
+    """
+    ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
+    
+    # Validar que el usuario sea el creador del ticket
+    if ticket.creado_por != request.user:
+        messages.error(request, 'No tienes permiso para cancelar este ticket.')
+        return redirect('app:detalle_ticket', pk=pk)
+    
+    # Validar que el ticket esté en estado "Enviado"
+    if ticket.estado.codigo != 'enviado':
+        messages.error(request, 'Este ticket ya fue tomado y no se puede cancelar.')
+        return redirect('app:detalle_ticket', pk=pk)
+    
+    # Si es GET: mostrar página de confirmación
+    if request.method == 'GET':
+        return render(request, 'app/confirmar_cancelar.html', {'ticket': ticket})
+    
+    # Si es POST: ejecutar la cancelación
+    # Guardar estado anterior
+    estado_anterior = ticket.estado
+    
+    # Cambiar estado a "Cancelado"
+    ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
+    ticket.save()
+    
+    # Registrar en HistorialAcciones
+    HistorialAcciones.objects.create(
+        ticket=ticket,
+        usuario=request.user,
+        tipo_accion='cancelacion',
+        estado_anterior=estado_anterior,
+        estado_nuevo=ticket.estado,
+        descripcion=f'Ticket cancelado por {request.user.get_full_name() or request.user.username}',
+        es_global=True,
+        ip_address=get_client_ip(request),
+    )
+    
+    # Registrar en LogAuditoria
+    registrar_log(
+        ticket, request.user, 'Ticket cancelado por usuario',
+        estado_anterior=estado_anterior.codigo,
+        estado_nuevo='cancelado',
+        ip=get_client_ip(request)
+    )
+    
+    # Notificar al gestor
+    notificar_gestores(
+        'ticket_cancelado',
+        f'Ticket #{ticket.pk} cancelado',
+        f'{request.user.get_full_name() or request.user.username} canceló el ticket #{ticket.pk}: {ticket.titulo}',
+        ticket=ticket,
+        prioridad='baja',
+        url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+    )
+    
+    messages.success(request, '✓ Ticket cancelado exitosamente.')
+    return redirect('app:detalle_ticket', pk=pk)
+
+
 # ═══════════════════════════════════════════════════════════════
 # GESTOR
 # ═══════════════════════════════════════════════════════════════

@@ -26,6 +26,7 @@ urlpatterns = [
     path('tickets/<int:pk>/', views.detalle_ticket, name='detalle_ticket'),
     path('tickets/<int:pk>/editar/', views.editar_ticket, name='editar_ticket'),
     path('tickets/<int:pk>/eliminar/', views.eliminar_ticket, name='eliminar_ticket'),
+    path('tickets/<int:pk>/cancelar/', views.cancelar_ticket, name='cancelar_ticket'),
 
     # ── GESTOR: TICKETS ───────────────────────────────
     path('gestor/tickets/', views.gestor_tickets, name='gestor_tickets'),
