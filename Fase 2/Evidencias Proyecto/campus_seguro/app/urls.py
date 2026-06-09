@@ -31,6 +31,7 @@ urlpatterns = [
     # ── GESTOR: TICKETS ───────────────────────────────
     path('gestor/tickets/', views.gestor_tickets, name='gestor_tickets'),
     path('gestor/tickets/<int:pk>/derivar/', views.derivar_ticket, name='derivar_ticket'),
+    path('ajax/guardias-disponibles/', views.guardias_disponibles_ajax, name='guardias_disponibles_ajax'),
     path('gestor/tickets/<int:pk>/reasignar/', views.reasignar_ticket, name='reasignar_ticket'),
     path('gestor/tickets/<int:pk>/pausar/', views.pausar_ticket, name='pausar_ticket'),
     path('gestor/tickets/<int:pk>/reactivar/', views.reactivar_ticket, name='reactivar_ticket'),

@@ -35,7 +35,7 @@ from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Count, Sum, Q, Avg, F
 from django.urls import reverse
-from datetime import timedelta
+from datetime import timedelta, datetime
 from functools import wraps
 from django.conf import settings
 
@@ -43,7 +43,7 @@ from .models import (
     Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
-    HistorialAcciones, MaterialesFaltantes, EstadoCatalogo
+    HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
 )
 from .forms import (
     LoginForm, RegistroUsuarioForm, OlvideContrasenaForm, RestablecerContrasenaForm,
@@ -354,7 +354,7 @@ def logout_view(request):
 
 # ═══════════════════════════════════════════════════════════════
 # DASHBOARD (router por rol)
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 @login_required
 def dashboard(request):
     user = request.user
@@ -436,9 +436,33 @@ def dashboard_gestor(request):
 
 
 def dashboard_guardia(request):
+    """
+    Dashboard del Guardia - Muestra validaciones pendientes y asignadas.
+    
+    CAMBIOS TARJETA 08:
+    - Agregar sección "Mis Revisiones Asignadas" (tickets asignados específicamente a este guardia)
+    - Filtrar por asignaciones con rol_asignacion='guardia' y estado='pendiente'
+    """
     user = request.user
+    hoy = timezone.now().date()
+    
+    # Tickets pendientes de validación general (cualquier guardia puede tomar)
     pendientes = Ticket.objects.filter(estado__codigo='en_validacion', deleted_at__isnull=True)
+    
+    # Mis validaciones realizadas
     mis_validaciones = ValidacionGuardia.objects.filter(guardia=user)
+    
+    # ══════════════════════════════════════════════════════════════
+    # NUEVO: Mis Revisiones Asignadas (TARJETA 08)
+    # Tickets asignados específicamente a este guardia con fecha programada
+    # Filtra solo las asignaciones con estado 'pendiente'
+    # ═══════════════════════════════════════════════════════════════
+    mis_revisiones = AsignacionTicket.objects.filter(
+        usuario=user,
+        rol_asignacion='guardia',
+        estado__codigo='pendiente'
+    ).select_related('ticket', 'ticket__ubicacion').order_by('fecha_programada')
+    
     context = {
         'pendientes': pendientes.order_by('-urgencia', '-created_at'),
         'pendientes_count': pendientes.count(),
@@ -447,6 +471,9 @@ def dashboard_guardia(request):
         'validos': mis_validaciones.filter(resultado='valido').count(),
         'invalidos': mis_validaciones.filter(resultado='invalido').count(),
         'inasistencias': Inasistencia.objects.filter(usuario=user).order_by('-fecha_desde')[:3],
+        # Campos nuevos para TARJETA 08
+        'mis_revisiones': mis_revisiones,
+        'mis_revisiones_count': mis_revisiones.count(),
     }
     return render(request, 'app/guardia.html', context)
 
@@ -765,34 +792,94 @@ def vista_gestor_dashboard(request):
 @login_required
 @rol_requerido('gestor')
 def derivar_ticket(request, pk):
+    """
+    Vista para derivar ticket a validación (guardia) o mantención (técnico).
+    
+    CAMBIOS TARJETA 08:
+    - Si elige "guardia": mostrar formulario con selector de fecha y guardias disponibles
+    - Si elige "mantencion": comportamiento actual (sin cambios)
+    """
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
+    
     if request.method == 'POST':
         destino = request.POST.get('destino')
         estado_anterior = ticket.estado.codigo
         ticket.gestor_responsable = request.user
 
         if destino == 'guardia':
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
-            ticket.save()
-            registrar_log(ticket, request.user, 'Derivado a Guardia (validación)',
-                          estado_anterior=estado_anterior, estado_nuevo='en_validacion',
-                          ip=get_client_ip(request), es_interno=True)
-            for g in Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa', activo=True):
-                notificar(g, 'asignacion', f'Validación pendiente #{ticket.pk}',
-                          f'{ticket.titulo} requiere validación en terreno.',
-                          ticket=ticket, prioridad='alta' if ticket.urgencia == 'critica' else 'media',
-                          url_accion=reverse('app:validar_ticket', kwargs={'pk': ticket.pk}))
-            # Notificación al usuario creador (Cambio a En Validación)
-            notificar(
-                destinatario=ticket.creado_por,
-                tipo='ticket_actualizado',
-                titulo=f'Ticket #{ticket.pk} en verificación',
-                mensaje=f'Tu reporte "{ticket.titulo}" ha sido derivado al equipo de seguridad para ser validado en terreno.',
+            # ═══════════════════════════════════════════════════════════════
+            # NUEVO: Asignar guardia específico con fecha programada (TARJETA 08)
+            # ═══════════════════════════════════════════════════════════════
+            guardia_id = request.POST.get('guardia_id')
+            fecha_programada_str = request.POST.get('fecha_programada')
+            
+            if not guardia_id or not fecha_programada_str:
+                messages.error(request, 'Debes seleccionar un guardia y una fecha de validación.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
+            try:
+                fecha_programada = datetime.strptime(fecha_programada_str, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, 'Fecha de validación inválida.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
+            guardia = get_object_or_404(Usuario, pk=guardia_id, rol='guardia')
+            
+            # Verificar que el guardia no tenga inasistencia aprobada en esa fecha
+            if guardia.inasistencias.filter(
+                estado__codigo='aprobada',
+                fecha_desde__lte=fecha_programada,
+                fecha_hasta__gte=fecha_programada
+            ).exists():
+                messages.error(request, f'{guardia.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
+            # Crear asignación N-N
+            asignacion = AsignacionTicket.objects.create(
                 ticket=ticket,
-                prioridad='media',
-                url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+                usuario=guardia,
+                rol_asignacion='guardia',
+                asignado_por=request.user,
+                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                fecha_programada=fecha_programada
             )
-            messages.success(request, '✓ Ticket derivado a Guardia.')
+            
+            # ═══════════════════════════════════════════════════════════════
+            # CORRECCIÓN: Cambiar estado principal del ticket a 'en_validacion'
+            # Esto permite que la vista validar_ticket() pueda encontrar el ticket
+            # ═══════════════════════════════════════════════════════════════
+            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
+            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')  # ← NUEVO
+            ticket.save()
+            
+            # Registrar en historial
+            HistorialAcciones.objects.create(
+                ticket=ticket,
+                usuario=request.user,
+                tipo_accion='asignacion',
+                estado_anterior=estado_anterior,
+                estado_nuevo='en_validacion',
+                sub_estado_nuevo='asignado_guardia',
+                descripcion=f'Ticket asignado a guardia {guardia.get_full_name()} para validación el {fecha_programada.strftime("%d/%m/%Y")}',
+                es_global=True,
+                ip_address=get_client_ip(request),
+            )
+            
+            # Notificar al guardia asignado
+            notificar(
+                guardia, 'asignacion',
+                f'Te asignaron el ticket #{ticket.pk} para validar',
+                f'Debe realizar la validación en terreno el {fecha_programada.strftime("%d/%m/%Y")}.\n'
+                f'Ubicación: {ticket.ubicacion}\n'
+                f'Descripción: {ticket.titulo}',
+                ticket=ticket,
+                prioridad='alta' if ticket.urgencia in ['alta', 'critica'] else 'media',
+                url_accion=reverse('app:dashboard')
+            )
+            
+            # Notificar al gestor
+            messages.success(request, f'✓ Guardia {guardia.get_full_name()} asignado para validación el {fecha_programada.strftime("%d/%m/%Y")}.')
+            return redirect('app:gestor_tickets')
 
         elif destino == 'mantencion':
             tecnico_id = request.POST.get('tecnico')
@@ -818,11 +905,67 @@ def derivar_ticket(request, pk):
                 url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
             )
             messages.success(request, f'✓ Ticket asignado a {tecnico.get_full_name()}.')
+            return redirect('app:gestor_tickets')
 
-        return redirect('app:gestor_tickets')
-
+    # GET: Mostrar formulario de derivación
     tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa', activo=True)
-    return render(request, 'app/derivar.html', {'ticket': ticket, 'tecnicos': tecnicos})
+    guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa', activo=True)
+    return render(request, 'app/derivar.html', {
+        'ticket': ticket, 
+        'tecnicos': tecnicos,
+        'guardias': guardias  # Agregado para TARJETA 08
+    })
+
+
+@login_required
+@rol_requerido('gestor')
+def guardias_disponibles_ajax(request):
+    """
+    Vista AJAX para obtener guardias disponibles en una fecha específica.
+    Filtra guardias que NO tienen inasistencia aprobada en esa fecha.
+    
+    CAMBIOS TARJETA 08:
+    - Recibe fecha por GET
+    - Retorna JSON con lista de guardias disponibles
+    """
+    fecha_str = request.GET.get('fecha')
+    
+    if not fecha_str:
+        return JsonResponse({'error': 'Fecha requerida'}, status=400)
+    
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': 'Fecha inválida'}, status=400)
+    
+    # Obtener todos los guardias activos
+    guardias = Usuario.objects.filter(
+        rol='guardia',
+        estado_cuenta__codigo='activa',
+        activo=True
+    ).order_by('first_name', 'last_name')
+    
+    # Filtrar guardias que NO tienen inasistencia aprobada en esa fecha
+    guardias_disponibles = []
+    for g in guardias:
+        tiene_inasistencia = g.inasistencias.filter(
+            estado__codigo='aprobada',
+            fecha_desde__lte=fecha,
+            fecha_hasta__gte=fecha
+        ).exists()
+        
+        if not tiene_inasistencia:
+            guardias_disponibles.append({
+                'id': g.id,
+                'nombre': f'{g.get_full_name()} ({g.turno})' if g.turno else g.get_full_name(),
+                'turno': g.turno or 'General'
+            })
+    
+    return JsonResponse({
+        'fecha': fecha_str,
+        'guardias': guardias_disponibles,
+        'total': len(guardias_disponibles)
+    })
 
 
 @login_required
@@ -1367,6 +1510,24 @@ def validar_ticket(request, pk):
         validacion.save()
 
         estado_anterior = ticket.estado.codigo
+        
+        # ═══════════════════════════════════════════════════════════════
+        # NUEVO: Actualizar estado de la asignación a 'completada'
+        # Esto hace que el ticket desaparezca de "Mis Revisiones Asignadas"
+        # ═══════════════════════════════════════════════════════════════
+        try:
+            asignacion = AsignacionTicket.objects.get(
+                ticket=ticket,
+                usuario=request.user,
+                rol_asignacion='guardia',
+                estado__codigo='pendiente'
+            )
+            asignacion.estado = EstadoCatalogo.para('asignacion', 'completada')
+            asignacion.fecha_completado = timezone.now()
+            asignacion.save()
+        except AsignacionTicket.DoesNotExist:
+            pass # Si no existe, simplemente continúa
+
         if validacion.resultado == 'valido':
             ticket.estado = EstadoCatalogo.para('ticket', 'validado')
             mensaje_gestor = (f'Ticket #{ticket.pk} validado por guardia {request.user.get_full_name()}. '

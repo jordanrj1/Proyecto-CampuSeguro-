@@ -79,7 +79,7 @@ class TransicionEstado(models.Model):
 
 # ═══════════════════════════════════════════════════════════════
 # USUARIO PERSONALIZADO (registro institucional)
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class UsuarioManager(UserManager):
     """Manager personalizado que asigna estado_cuenta automáticamente."""
 
@@ -537,6 +537,19 @@ class AsignacionTicket(models.Model):
     )
     fecha_asignacion = models.DateTimeField(auto_now_add=True)
     fecha_completado = models.DateTimeField(null=True, blank=True)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # NUEVO: Campo para TARJETA 08 - Asignación de Guardia para Validar
+    # Permite programar la fecha en que el guardia debe realizar la validación
+    # en terreno. Se usa para filtrar guardias disponibles y mostrar en el
+    # dashboard del guardia la fecha programada de cada revisión asignada.
+    # ═══════════════════════════════════════════════════════════════
+    fecha_programada = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha programada',
+        help_text='Fecha en la que se debe realizar la validación o el trabajo asignado'
+    )
 
     class Meta:
         ordering = ['-fecha_asignacion']
@@ -550,7 +563,7 @@ class AsignacionTicket(models.Model):
 
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN + MATERIALES UTILIZADOS
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class RegistroMantencion(models.Model):
     ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='mantencion')
     tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT)
@@ -705,7 +718,7 @@ class Inasistencia(models.Model):
 
 # ═══════════════════════════════════════════════════════════════
 # HISTORIAL DE ACCIONES (Trazabilidad global e interna – HU-15)
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class HistorialAcciones(models.Model):
     """Tabla única de trazabilidad. es_global=True visible a todos; False solo a staff (gestor/operativos)."""
     TIPO_ACCION_CHOICES = [

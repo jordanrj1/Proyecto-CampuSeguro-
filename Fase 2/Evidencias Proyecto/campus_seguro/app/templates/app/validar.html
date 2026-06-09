@@ -1,4 +1,6 @@
-{% extends 'app/base.html' %} {% block title %}Validar Ticket #{{ ticket.id }}{%endblock%} {% block content %}
+{% extends 'app/base.html' %}
+{% block title %}Validar Ticket #{{ ticket.id }}{%endblock%}
+{% block content %}
 <div class="topbar">
   <div>
     <div class="page-title">Validar Ticket #{{ ticket.id }}</div>
@@ -73,7 +75,7 @@
   </div>
 
   <!-- Formulario -->
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" enctype="multipart/form-data" id="formValidacion">
     {% csrf_token %}
     <div class="card" style="margin-bottom: 14px">
       <div class="form-section-title">🔍 Checklist de riesgos detectados</div>
@@ -176,9 +178,22 @@
       </div>
       <div class="form-group">
         <label class="form-label">Foto de evidencia *</label>
-        <input type="file" name="foto_evidencia" accept="image/*" required />
+        <input type="file" name="foto_evidencia" accept="image/*" required id="fotoEvidenciaInput" />
         <div class="form-help">
           Foto en terreno como respaldo de la validación.
+        </div>
+        
+        <!-- Preview de la imagen -->
+        <div id="previewContainer" style="display: none; margin-top: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">
+            VISTA PREVIA
+          </div>
+          <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
+            <img id="previewImagen" src="" alt="Vista previa" style="width: 100%; max-height: 300px; object-fit: cover; display: block;" />
+          </div>
+          <button type="button" id="btnQuitarImagen" style="margin-top: 8px; font-size: 12px; color: var(--accent-red); background: none; border: none; cursor: pointer; text-decoration: underline;">
+            🗑️ Quitar imagen
+          </button>
         </div>
       </div>
     </div>
@@ -191,4 +206,46 @@
     </div>
   </form>
 </div>
+
+<script>
+  // Preview de imagen al seleccionar archivo
+  const fotoInput = document.getElementById('fotoEvidenciaInput');
+  const previewContainer = document.getElementById('previewContainer');
+  const previewImagen = document.getElementById('previewImagen');
+  const btnQuitarImagen = document.getElementById('btnQuitarImagen');
+
+  fotoInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    
+    if (file) {
+      // Verificar que sea una imagen
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor selecciona un archivo de imagen válido');
+        return;
+      }
+      
+      // Verificar tamaño (máximo 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('La imagen no puede superar los 10 MB');
+        return;
+      }
+      
+      const reader = new FileReader();
+      
+      reader.onload = function(e) {
+        previewImagen.src = e.target.result;
+        previewContainer.style.display = 'block';
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Botón para quitar la imagen
+  btnQuitarImagen.addEventListener('click', function() {
+    fotoInput.value = '';
+    previewImagen.src = '';
+    previewContainer.style.display = 'none';
+  });
+</script>
 {% endblock %}
