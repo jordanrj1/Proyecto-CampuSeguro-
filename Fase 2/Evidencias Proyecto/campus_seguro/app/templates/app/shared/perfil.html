@@ -88,16 +88,24 @@
         </div>
         <div>{{ usuario.fecha_registro|date:"d/m/Y" }}</div>
       </div>
-      {% if usuario.especialidad %}
+      {# ── MODIFICACIÓN CRÍTICA: Despliegue de Especialidades Muchos a Muchos solo para Mantención ── #}
+      {% if usuario.rol == 'mantencion' %}
       <div>
-        <div
-          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
-        >
-          ESPECIALIDAD
+        <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 5px">
+          ESPECIALIDADES TÉCNICAS
         </div>
-        <div>{{ usuario.especialidad }}</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;">
+          {% for esp in usuario.especialidades.all %}
+            <span style="font-size: 11.5px; padding: 3px 8px; border-radius: 6px; background: rgba(45, 206, 137, 0.15); color: var(--accent-green); font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+              🔧 {{ esp.nombre }}
+            </span>
+          {% empty %}
+            <span style="color: var(--text-muted); font-style: italic; font-size: 12.5px;">Sin especialidades registradas</span>
+          {% endfor %}
+        </div>
       </div>
-      {% endif %} {% if usuario.turno %}
+      {% endif %}
+      {% if usuario.turno %}
       <div>
         <div
           style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
