@@ -39,7 +39,13 @@
               </div>
             </div>
           </td>
-          <td>{{ t.especialidad|default:"General" }}</td>
+          <td>
+            {% for esp in t.especialidades.all %}
+              {{ esp.nombre }}{% if not forloop.last %}, {% endif %}
+            {% empty %}
+              <span style="color:var(--text-muted); font-style:italic;">Sin asignar</span>
+            {% endfor %}
+          </td>
           <td style="text-align:center;"><span class="id-mono" style="font-size:14px;font-weight:700;">{{ t.total_trabajos }}</span></td>
           <td style="text-align:center;"><span class="badge badge-green">{{ t.trabajos_completados }}</span></td>
           <td style="text-align:center;"><span class="badge badge-teal">{{ t.en_curso }}</span></td>

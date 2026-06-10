@@ -40,7 +40,7 @@ from functools import wraps
 from django.conf import settings
 
 from .models import (
-    Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -1111,6 +1111,20 @@ def aprobar_cuenta(request, pk):
             user.fecha_aprobacion = timezone.now()
             user.aprobado_por = request.user
             user.save()
+            
+            # ═══════════════════════════════════════════════════════════════
+            # NUEVO: LÓGICA DE ESPECIALIDAD PARA MANTENCIÓN
+            # ═══════════════════════════════════════════════════════════════
+            if rol_asignado == 'mantencion':
+                # Capturamos el ID de la especialidad desde el dropdown del HTML
+                especialidad_id = request.POST.get('especialidad_seleccionada')
+                if especialidad_id:
+                    especialidad_obj = get_object_or_404(Especialidad, id=especialidad_id)
+                    # Al usar la relación Muchos a Muchos (M:N), lo agregamos a la tabla intermedia
+                    user.especialidades.add(especialidad_obj) 
+                else:
+                    messages.warning(request, 'Se aprobó al mantenedor pero no se le asignó ninguna especialidad.')
+            # ═══════════════════════════════════════════════════════════════
 
             if settings.AUTH0_ENABLED and user.auth0_sub:
                 try:
@@ -1166,9 +1180,15 @@ def aprobar_cuenta(request, pk):
 
         return redirect('app:gestor_solicitudes_cuenta')
 
+    # ═══════════════════════════════════════════════════════════════
+    # GET: PASAR LAS ESPECIALIDADES AL TEMPLATE (CRÍTICO)
+    # ═══════════════════════════════════════════════════════════════
+    # Aquí necesitas enviar todas las especialidades de la base de datos
+    # para que el formulario HTML pueda dibujar el dropdown de opciones.
     return render(request, 'app/revisar_cuenta.html', {
         'cuenta': user,
         'form_rol': form_rol,
+        'especialidades': Especialidad.objects.all(), # 👈 NUEVA VARIABLE PARA EL CONTEXTO
     })
 
 

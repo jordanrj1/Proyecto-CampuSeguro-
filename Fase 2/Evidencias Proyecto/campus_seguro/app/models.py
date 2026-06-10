@@ -76,6 +76,13 @@ class TransicionEstado(models.Model):
     def __str__(self):
         return f"{self.estado_origen} → {self.estado_destino}"
 
+# Clase maestra de Especialidades
+class Especialidad(models.Model):
+    nombre = models.CharField(max_length=100) # Electricista SEC, Cerrajero, etc.
+    descripcion = models.CharField(max_length=250, blank=True, null=True)
+
+    def __str__(self):
+        return self.nombre
 
 # ═══════════════════════════════════════════════════════════════
 # USUARIO PERSONALIZADO (registro institucional)
@@ -126,7 +133,13 @@ class Usuario(AbstractUser):
     departamento = models.CharField(max_length=100, blank=True, null=True)
 
     # Datos operativos (guardia / mantención)
-    especialidad = models.CharField(max_length=100, blank=True, null=True)  # eléctrico, plomería, etc.
+    # CharField de especialidad cambiado por una relación real Muchos a Muchos:
+    especialidades = models.ManyToManyField(
+        Especialidad, 
+        through='EspecialidadUsuario', 
+        blank=True,
+        related_name='tecnicos'
+    )
     turno = models.CharField(max_length=50, blank=True, null=True)  # mañana / tarde / noche
 
     # Control
@@ -189,6 +202,14 @@ class Usuario(AbstractUser):
     def puede_asumir_tickets(self):
         return not self.tiene_inasistencia_activa and self.estado_cuenta.codigo == 'activa' and self.activo
 
+# Tabla intermedia explícita para la relación Muchos a Muchos entre Usuario y Especialidad,
+# permitiendo agregar campos adicionales en el futuro si es necesario (por ejemplo, fecha de obtención de la especialidad, certificación, etc.).
+class EspecialidadUsuario(models.Model):
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('usuario', 'especialidad')
 
 # ═══════════════════════════════════════════════════════════════
 # RECUPERACIÓN DE CONTRASEÑA

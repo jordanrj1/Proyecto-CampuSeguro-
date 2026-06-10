@@ -43,6 +43,7 @@
           <th>Rol</th>
           <th>Estado</th>
           <th>Vínculo</th>
+          <th>Especialidad</th>
           <th>Registro</th>
           <th>Acciones</th>
         </tr>
@@ -103,8 +104,22 @@
               >Rechazada</span
             >{% endif %}
           </td>
+          {# Columna de Vínculo Pura (Solo muestra Alumno, Docente, etc.) #}
           <td>
-            {{ u.get_vinculo_display|default:u.especialidad|default:"—" }}
+            {{ u.get_vinculo_display|default:"—" }}
+          </td>
+
+          {# Columna de Especialidad Pura (Solo para Mantención) #}
+          <td>
+            {% if u.rol == 'mantencion' %}
+              {% for esp in u.especialidades.all %}
+                {{ esp.nombre }}{% if not forloop.last %}, {% endif %}
+              {% empty %}
+                <span style="color:var(--text-muted); font-style:italic;">Sin asignar</span>
+              {% endfor %}
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
           </td>
           <td>
             <span class="id-mono">{{ u.fecha_registro|date:"d/m/Y" }}</span>
