@@ -32,12 +32,16 @@ urlpatterns = [
     path('gestor/tickets/', views.gestor_tickets, name='gestor_tickets'),
     path('gestor/tickets/<int:pk>/derivar/', views.derivar_ticket, name='derivar_ticket'),
     path('ajax/guardias-disponibles/', views.guardias_disponibles_ajax, name='guardias_disponibles_ajax'),
+    # TARJETA 09: Ruta AJAX para obtener técnicos de mantención disponibles en una fecha específica
+    # Filtra técnicos que NO tienen inasistencia aprobada en esa fecha
+    # Usado por el formulario de derivación para mostrar solo técnicos disponibles
+    path('ajax/tecnicos-disponibles/', views.tecnicos_disponibles_ajax, name='tecnicos_disponibles_ajax'),
     path('gestor/tickets/<int:pk>/reasignar/', views.reasignar_ticket, name='reasignar_ticket'),
     path('gestor/tickets/<int:pk>/pausar/', views.pausar_ticket, name='pausar_ticket'),
     path('gestor/tickets/<int:pk>/reactivar/', views.reactivar_ticket, name='reactivar_ticket'),
     path('gestor/tickets/<int:pk>/cerrar/', views.cerrar_ticket, name='cerrar_ticket'),
 
-    # ── GESTOR: CUENTAS / USUARIOS ────────────────────
+    # ─ GESTOR: CUENTAS / USUARIOS ────────────────────
     path('gestor/solicitudes/', views.gestor_solicitudes_cuenta, name='gestor_solicitudes_cuenta'),
     path('gestor/solicitudes/<int:pk>/revisar/', views.aprobar_cuenta, name='aprobar_cuenta'),
     path('gestor/usuarios/', views.gestor_usuarios, name='gestor_usuarios'),
@@ -67,7 +71,7 @@ urlpatterns = [
     path('mantencion/<int:pk>/completar/', views.completar_mantencion, name='completar_mantencion'),
     path('mantencion/<int:pk>/no-reparable/', views.marcar_no_reparable, name='no_reparable'),
 
-    # ── INASISTENCIAS (operativos) ───────────────────
+    # ─ INASISTENCIAS (operativos) ───────────────────
     path('inasistencia/registrar/', views.registrar_inasistencia, name='registrar_inasistencia'),
 
     # ── NOTIFICACIONES ────────────────────────────────

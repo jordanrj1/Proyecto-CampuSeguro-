@@ -797,7 +797,11 @@ def derivar_ticket(request, pk):
     
     CAMBIOS TARJETA 08:
     - Si elige "guardia": mostrar formulario con selector de fecha y guardias disponibles
-    - Si elige "mantencion": comportamiento actual (sin cambios)
+    
+    CAMBIOS TARJETA 09:
+    - Si elige "mantencion": mostrar formulario con selector de fecha y técnicos disponibles
+    - Validar disponibilidad del técnico (sin inasistencia aprobada en esa fecha)
+    - Crear AsignacionTicket con rol_asignacion='mantencion'
     """
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
     
@@ -808,7 +812,7 @@ def derivar_ticket(request, pk):
 
         if destino == 'guardia':
             # ═══════════════════════════════════════════════════════════════
-            # NUEVO: Asignar guardia específico con fecha programada (TARJETA 08)
+            # TARJETA 08: Asignar guardia específico con fecha programada
             # ═══════════════════════════════════════════════════════════════
             guardia_id = request.POST.get('guardia_id')
             fecha_programada_str = request.POST.get('fecha_programada')
@@ -844,12 +848,9 @@ def derivar_ticket(request, pk):
                 fecha_programada=fecha_programada
             )
             
-            # ═══════════════════════════════════════════════════════════════
-            # CORRECCIÓN: Cambiar estado principal del ticket a 'en_validacion'
-            # Esto permite que la vista validar_ticket() pueda encontrar el ticket
-            # ═══════════════════════════════════════════════════════════════
+            # Cambiar estado principal del ticket a 'en_validacion'
             ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')  # ← NUEVO
+            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
             ticket.save()
             
             # Registrar en historial
@@ -877,23 +878,78 @@ def derivar_ticket(request, pk):
                 url_accion=reverse('app:dashboard')
             )
             
-            # Notificar al gestor
             messages.success(request, f'✓ Guardia {guardia.get_full_name()} asignado para validación el {fecha_programada.strftime("%d/%m/%Y")}.')
             return redirect('app:gestor_tickets')
 
         elif destino == 'mantencion':
-            tecnico_id = request.POST.get('tecnico')
+            # ═══════════════════════════════════════════════════════════════
+            # TARJETA 09: Asignar técnico específico con fecha programada
+            # ═══════════════════════════════════════════════════════════════
+            tecnico_id = request.POST.get('tecnico_id')
+            fecha_programada_str = request.POST.get('fecha_programada_mantencion')
+            
+            if not tecnico_id or not fecha_programada_str:
+                messages.error(request, 'Debes seleccionar un técnico y una fecha de trabajo.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
+            try:
+                fecha_programada = datetime.strptime(fecha_programada_str, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, 'Fecha de trabajo inválida.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
             tecnico = get_object_or_404(Usuario, pk=tecnico_id, rol='mantencion')
+            
+            # Verificar que el técnico no tenga inasistencia aprobada en esa fecha
+            if tecnico.inasistencias.filter(
+                estado__codigo='aprobada',
+                fecha_desde__lte=fecha_programada,
+                fecha_hasta__gte=fecha_programada
+            ).exists():
+                messages.error(request, f'{tecnico.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
+                return redirect('app:derivar_ticket', pk=pk)
+            
+            # Crear asignación N-N para mantención
+            asignacion = AsignacionTicket.objects.create(
+                ticket=ticket,
+                usuario=tecnico,
+                rol_asignacion='mantencion',
+                asignado_por=request.user,
+                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                fecha_programada=fecha_programada
+            )
+            
+            # Asignar técnico al ticket y cambiar estado
             ticket.asignado_a = tecnico
             ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_tecnico')
             ticket.save()
-            registrar_log(ticket, request.user, f'Derivado a Mantención → {tecnico.get_full_name()}',
-                          estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
-                          ip=get_client_ip(request), es_interno=True)
-            notificar(tecnico, 'asignacion', f'Trabajo asignado #{ticket.pk}',
-                      f'Tienes un nuevo trabajo: {ticket.titulo}',
-                      ticket=ticket, prioridad='alta' if ticket.urgencia == 'critica' else 'media',
-                      url_accion=reverse('app:completar_mantencion', kwargs={'pk': ticket.pk}))
+            
+            # Registrar en historial
+            HistorialAcciones.objects.create(
+                ticket=ticket,
+                usuario=request.user,
+                tipo_accion='asignacion',
+                estado_anterior=estado_anterior,
+                estado_nuevo='en_mantencion',
+                sub_estado_nuevo='asignado_tecnico',
+                descripcion=f'Ticket asignado a técnico {tecnico.get_full_name()} para trabajo el {fecha_programada.strftime("%d/%m/%Y")}',
+                es_global=True,
+                ip_address=get_client_ip(request),
+            )
+            
+            # Notificar al técnico asignado
+            notificar(
+                tecnico, 'asignacion',
+                f'Te asignaron el ticket #{ticket.pk} para reparación',
+                f'Debe realizar el trabajo el {fecha_programada.strftime("%d/%m/%Y")}.\n'
+                f'Ubicación: {ticket.ubicacion}\n'
+                f'Descripción: {ticket.titulo}',
+                ticket=ticket,
+                prioridad='alta' if ticket.urgencia in ['alta', 'critica'] else 'media',
+                url_accion=reverse('app:completar_mantencion', kwargs={'pk': ticket.pk})
+            )
+            
             # Notificación al usuario creador (Cambio a En Mantención)
             notificar(
                 destinatario=ticket.creado_por,
@@ -904,7 +960,8 @@ def derivar_ticket(request, pk):
                 prioridad='media',
                 url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
             )
-            messages.success(request, f'✓ Ticket asignado a {tecnico.get_full_name()}.')
+            
+            messages.success(request, f'✓ Técnico {tecnico.get_full_name()} asignado para trabajo el {fecha_programada.strftime("%d/%m/%Y")}.')
             return redirect('app:gestor_tickets')
 
     # GET: Mostrar formulario de derivación
@@ -913,7 +970,7 @@ def derivar_ticket(request, pk):
     return render(request, 'app/derivar.html', {
         'ticket': ticket, 
         'tecnicos': tecnicos,
-        'guardias': guardias  # Agregado para TARJETA 08
+        'guardias': guardias
     })
 
 
@@ -924,7 +981,7 @@ def guardias_disponibles_ajax(request):
     Vista AJAX para obtener guardias disponibles en una fecha específica.
     Filtra guardias que NO tienen inasistencia aprobada en esa fecha.
     
-    CAMBIOS TARJETA 08:
+    TARJETA 08:
     - Recibe fecha por GET
     - Retorna JSON con lista de guardias disponibles
     """
@@ -965,6 +1022,61 @@ def guardias_disponibles_ajax(request):
         'fecha': fecha_str,
         'guardias': guardias_disponibles,
         'total': len(guardias_disponibles)
+    })
+
+
+@login_required
+@rol_requerido('gestor')
+def tecnicos_disponibles_ajax(request):
+    """
+    Vista AJAX para obtener técnicos disponibles en una fecha específica.
+    Filtra técnicos que NO tienen inasistencia aprobada en esa fecha.
+    
+    TARJETA 09:
+    - Recibe fecha por GET
+    - Retorna JSON con lista de técnicos disponibles
+    """
+    fecha_str = request.GET.get('fecha')
+    
+    if not fecha_str:
+        return JsonResponse({'error': 'Fecha requerida'}, status=400)
+    
+    try:
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': 'Fecha inválida'}, status=400)
+    
+    # Obtener todos los técnicos activos
+    tecnicos = Usuario.objects.filter(
+        rol='mantencion',
+        estado_cuenta__codigo='activa',
+        activo=True
+    ).order_by('first_name', 'last_name')
+    
+    # Filtrar técnicos que NO tienen inasistencia aprobada en esa fecha
+    tecnicos_disponibles = []
+    for t in tecnicos:
+        tiene_inasistencia = t.inasistencias.filter(
+            estado__codigo='aprobada',
+            fecha_desde__lte=fecha,
+            fecha_hasta__gte=fecha
+        ).exists()
+        
+        if not tiene_inasistencia:
+            # Obtener especialidades del técnico
+            especialidades = list(t.especialidades.values_list('nombre', flat=True))
+            especialidad_texto = ', '.join(especialidades) if especialidades else 'General'
+            
+            tecnicos_disponibles.append({
+                'id': t.id,
+                'nombre': t.get_full_name(),
+                'especialidad': especialidad_texto
+            })
+    
+    return JsonResponse({
+        'fecha': fecha_str,
+        'tecnicos': tecnicos_disponibles,
+        'total': len(tecnicos_disponibles)
     })
 
 
@@ -1532,7 +1644,7 @@ def validar_ticket(request, pk):
         estado_anterior = ticket.estado.codigo
         
         # ═══════════════════════════════════════════════════════════════
-        # NUEVO: Actualizar estado de la asignación a 'completada'
+        # TARJETA 08: Actualizar estado de la asignación a 'completada'
         # Esto hace que el ticket desaparezca de "Mis Revisiones Asignadas"
         # ═══════════════════════════════════════════════════════════════
         try:

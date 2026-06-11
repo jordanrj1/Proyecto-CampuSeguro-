@@ -77,7 +77,7 @@
               color: var(--accent-yellow);
             "
           >
-            🛡️ Validación Guardia
+            ️ Validación Guardia
           </div>
           <div
             style="
@@ -139,7 +139,7 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- NUEVO: Formulario para asignar Guardia con fecha (TARJETA 08) -->
+    <!-- Formulario para asignar Guardia con fecha (TARJETA 08) -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div id="guardiaBox" style="display: none; margin-top: 16px">
       <div style="background: var(--bg-700); border-radius: 10px; padding: 16px; border: 1px solid var(--border);">
@@ -172,17 +172,38 @@
       </div>
     </div>
 
-    <!-- Mantención: selector de técnico (comportamiento original) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- NUEVO: Formulario para asignar Técnico con fecha (TARJETA 09) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <div id="tecnicoBox" style="display: none; margin-top: 16px">
-      <label class="form-label">Técnico asignado *</label>
-      <select name="tecnico" class="form-control">
-        <option value="">Seleccionar técnico...</option>
-        {% for t in tecnicos %}
-        <option value="{{ t.id }}">
-          {{ t.get_full_name }}{% if t.especialidad %} – {{ t.especialidad }}{% endif %}
-        </option>
-        {% endfor %}
-      </select>
+      <div style="background: var(--bg-700); border-radius: 10px; padding: 16px; border: 1px solid var(--border);">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--accent-green);">
+          📅 Seleccionar fecha de trabajo
+        </div>
+        <input
+          type="date"
+          id="fechaMantencion"
+          name="fecha_programada_mantencion"
+          class="form-control"
+          min="{{ today }}"
+          style="margin-bottom: 16px"
+        />
+        <div id="tecnicosContainer" style="display: none;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">
+            🔧 Técnicos disponibles en esa fecha
+          </div>
+          <div id="tecnicosList" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+            <!-- Aquí se cargan los técnicos vía AJAX -->
+          </div>
+          <input type="hidden" name="tecnico_id" id="tecnicoIdInput" required />
+        </div>
+        <div id="tecnicosLoading" style="display: none; text-align: center; padding: 20px; color: var(--text-muted);">
+          <div style="font-size: 13px;">⏳ Buscando técnicos disponibles...</div>
+        </div>
+        <div id="tecnicosEmpty" style="display: none; text-align: center; padding: 20px; color: var(--accent-red);">
+          <div style="font-size: 13px;">⚠️ No hay técnicos disponibles en esa fecha</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -205,6 +226,12 @@
       document.getElementById("fechaValidacion").value = "";
       document.getElementById("guardiasContainer").style.display = "none";
     }
+    // Limpiar selección de técnico si se cambia de opción
+    if (d !== "mantencion") {
+      document.getElementById("tecnicoIdInput").value = "";
+      document.getElementById("fechaMantencion").value = "";
+      document.getElementById("tecnicosContainer").style.display = "none";
+    }
   }
 
   // Cargar guardias disponibles cuando cambia la fecha
@@ -223,14 +250,12 @@
       return;
     }
 
-    // Mostrar loading, ocultar otros
     loading.style.display = "block";
     container.style.display = "none";
     empty.style.display = "none";
     list.innerHTML = "";
     input.value = "";
 
-    // Llamada AJAX para obtener guardias disponibles
     fetch("{% url 'app:guardias_disponibles_ajax' %}?fecha=" + fecha)
       .then(response => response.json())
       .then(data => {
@@ -241,12 +266,10 @@
             const div = document.createElement("div");
             div.style.cssText = "display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-600); border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;";
             div.onclick = function() {
-              // Deseleccionar todos
               document.querySelectorAll(".guardia-option").forEach(el => {
                 el.style.borderColor = "transparent";
                 el.style.background = "var(--bg-600)";
               });
-              // Seleccionar este
               this.style.borderColor = "var(--accent-yellow)";
               this.style.background = "rgba(244, 197, 66, 0.1)";
               input.value = g.id;
@@ -275,6 +298,70 @@
       });
   });
 
+  // NUEVO: Cargar técnicos disponibles cuando cambia la fecha (TARJETA 09)
+  document.getElementById("fechaMantencion").addEventListener("change", function() {
+    const fecha = this.value;
+    const container = document.getElementById("tecnicosContainer");
+    const list = document.getElementById("tecnicosList");
+    const loading = document.getElementById("tecnicosLoading");
+    const empty = document.getElementById("tecnicosEmpty");
+    const input = document.getElementById("tecnicoIdInput");
+
+    if (!fecha) {
+      container.style.display = "none";
+      list.innerHTML = "";
+      input.value = "";
+      return;
+    }
+
+    loading.style.display = "block";
+    container.style.display = "none";
+    empty.style.display = "none";
+    list.innerHTML = "";
+    input.value = "";
+
+    fetch("{% url 'app:tecnicos_disponibles_ajax' %}?fecha=" + fecha)
+      .then(response => response.json())
+      .then(data => {
+        loading.style.display = "none";
+        
+        if (data.tecnicos && data.tecnicos.length > 0) {
+          data.tecnicos.forEach(t => {
+            const div = document.createElement("div");
+            div.style.cssText = "display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-600); border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;";
+            div.onclick = function() {
+              document.querySelectorAll(".tecnico-option").forEach(el => {
+                el.style.borderColor = "transparent";
+                el.style.background = "var(--bg-600)";
+              });
+              this.style.borderColor = "var(--accent-green)";
+              this.style.background = "rgba(45, 206, 137, 0.1)";
+              input.value = t.id;
+            };
+            div.className = "tecnico-option";
+            div.innerHTML = `
+              <input type="radio" name="tecnico_radio" value="${t.id}" style="margin: 0;" />
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 13px;">${t.nombre}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Especialidad: ${t.especialidad}</div>
+              </div>
+              <span style="font-size: 11px; color: var(--accent-green);">✅ Disponible</span>
+            `;
+            list.appendChild(div);
+          });
+          container.style.display = "block";
+        } else {
+          empty.style.display = "block";
+        }
+      })
+      .catch(error => {
+        console.error("Error al cargar técnicos:", error);
+        loading.style.display = "none";
+        empty.style.display = "block";
+        empty.innerHTML = '<div style="font-size: 13px;">❌ Error al cargar técnicos disponibles</div>';
+      });
+  });
+
   // Validación antes de enviar
   document.getElementById("formDerivar").addEventListener("submit", function(e) {
     const destino = document.querySelector('input[name="destino"]:checked');
@@ -292,10 +379,11 @@
         return;
       }
     } else if (destino.value === "mantencion") {
-      const tecnico = document.querySelector('select[name="tecnico"]').value;
-      if (!tecnico) {
+      const fecha = document.getElementById("fechaMantencion").value;
+      const tecnico = document.getElementById("tecnicoIdInput").value;
+      if (!fecha || !tecnico) {
         e.preventDefault();
-        alert("Debes seleccionar un técnico para la mantención.");
+        alert("Debes seleccionar una fecha y un técnico para la mantención.");
         return;
       }
     }
