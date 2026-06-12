@@ -46,7 +46,7 @@
         <tr>
           <td><span class="id-mono">#{{ t.id }}</span></td>
           <td><strong>{{ t.titulo|truncatechars:35 }}</strong></td>
-          <td>{{ t.get_categoria_display }}</td>
+          <td>{{ t.categoria.nombre_display|default:'Sin Categoría' }}</td>
           <td>{{ t.ubicacion }}</td>
           <td>
             <span class="urgencia-{{ t.urgencia }}"

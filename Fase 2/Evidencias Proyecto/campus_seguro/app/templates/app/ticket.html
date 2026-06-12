@@ -175,7 +175,7 @@
           <td style="font-size: 13px">{{ t.ubicacion }}</td>
           <td><strong>{{ t.titulo|truncatechars:32 }}</strong></td>
           <td style="font-size: 13px">{{ t.creado_por.get_full_name }}</td>
-          <td style="font-size: 12px">{{ t.get_categoria_display }}</td>
+          <td style="font-size: 12px">{{ t.categoria.nombre_display|default:'Sin Categoría' }}</td>
           <td>
             <span class="urgencia-{{ t.urgencia }}"
               >{{ t.get_urgencia_display }}</span

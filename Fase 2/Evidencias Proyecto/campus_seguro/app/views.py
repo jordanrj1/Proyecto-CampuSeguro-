@@ -40,7 +40,7 @@ from functools import wraps
 from django.conf import settings
 
 from .models import (
-    Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    CategoriaMaterial, CategoriaTicket, Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -562,7 +562,7 @@ def crear_ticket(request):
             titulo=titulo,
             descripcion=descripcion,
             ubicacion=ubicacion,
-            categoria=categoria,
+            categoria_id=categoria,
             urgencia=urgencia,
             creado_por=request.user,
             afecta_clase=afecta_clase,
@@ -773,7 +773,7 @@ def gestor_tickets(request):
         'tickets': qs,
         'estados': EstadoCatalogo.objects.filter(entidad='ticket').order_by('orden').values_list('codigo', 'nombre_display'),
         'urgencias': Ticket.URGENCIA_CHOICES,
-        'categorias': Ticket.CATEGORIA_CHOICES,
+        'categorias': CategoriaTicket.objects.filter(activo=True).values_list('codigo', 'nombre_display'),
         'filtros': {'estado': estado, 'urgencia': urgencia, 'categoria': categoria, 'q': busqueda},
     })
 
@@ -1810,7 +1810,7 @@ def materiales_listado(request):
         qs = qs.filter(categoria=categoria)
     return render(request, 'app/materiales.html', {
         'materiales': qs,
-        'categorias': Material.CATEGORIA_CHOICES,
+        'categorias': CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display'),
         'categoria_filtro': categoria,
     })
 
