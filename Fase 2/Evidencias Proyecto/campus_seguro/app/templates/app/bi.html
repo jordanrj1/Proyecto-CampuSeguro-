@@ -169,7 +169,7 @@
     <div class="card-title">🏷️ Por categoría</div>
     {% for c in por_categoria %}
     <div class="stat-row">
-      <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria }}</span>
+      <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:80px;height:5px;background:var(--bg-600);border-radius:3px;overflow:hidden;">
           {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-blue);width:{% widthratio c.total total_tickets 100 %}%;"></div>{% endif %}
@@ -353,7 +353,7 @@
     <div class="card-title">📋 Tipos de incidente más validados</div>
     {% for c in val_por_categoria %}
     <div class="stat-row">
-      <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria }}</span>
+      <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
       <span style="font-size:14px;font-weight:700;color:var(--accent-yellow);">{{ c.total }}</span>
     </div>
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
@@ -592,7 +592,7 @@
           <td style="font-size:12px;color:var(--text-muted);">{{ forloop.counter }}</td>
           <td><span class="id-mono">{{ m.material__codigo }}</span></td>
           <td style="font-weight:600;">{{ m.material__nombre }}</td>
-          <td><span style="font-size:11px;background:rgba(74,143,255,0.12);color:var(--accent-blue);padding:2px 8px;border-radius:4px;">{{ m.material__categoria|title }}</span></td>
+          <td><span style="font-size:11px;background:rgba(74,143,255,0.12);color:var(--accent-blue);padding:2px 8px;border-radius:4px;">{{ m.material__categoria__nombre_display|title }}</span></td>
           <td style="text-align:center;font-weight:600;">{{ m.veces_usado }}</td>
           <td style="text-align:center;color:var(--text-secondary);">{{ m.en_tickets }}</td>
           <td style="text-align:right;font-weight:700;color:var(--accent-teal);">{{ m.total_consumido|floatformat:1 }} <span style="font-size:11px;color:var(--text-muted);">{{ m.material__unidad }}</span></td>
@@ -624,7 +624,7 @@
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
         <div>
-          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ c.material__categoria }}</span>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ c.material__categoria__nombre_display|title }}</span>
           <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ c.tipos }} tipo{{ c.tipos|pluralize }}</span>
         </div>
         <div style="display:flex;gap:16px;font-size:12px;">
@@ -652,7 +652,7 @@
     <div style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div>
-          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ it.registro__ticket__categoria }}</span>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ it.registro__ticket__categoria__nombre_display|title }}</span>
           <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ it.tipos_material }} mat. distintos</span>
         </div>
         <div style="font-size:13px;font-weight:700;color:var(--accent-yellow);">{{ it.total_cantidad|floatformat:1 }}</div>

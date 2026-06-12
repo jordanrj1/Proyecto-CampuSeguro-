@@ -27,6 +27,8 @@ ESTADOS_INICIALES = [
     dict(entidad='ticket_sub', codigo='revisado',            nombre_display='Revisado',              es_inicial=False, es_final=False, orden=2),
     dict(entidad='ticket_sub', codigo='asignado_mantencion', nombre_display='Asignado a Mantención', es_inicial=False, es_final=False, orden=3),
     dict(entidad='ticket_sub', codigo='escalado',            nombre_display='Escalado',              es_inicial=False, es_final=True,  orden=4),
+    dict(entidad='ticket_sub', codigo='asignado_guardia',    nombre_display='Asignado a Guardia',    es_inicial=False, es_final=False, orden=5),
+    dict(entidad='ticket_sub', codigo='asignado_tecnico',    nombre_display='Asignado a Técnico',    es_inicial=False, es_final=False, orden=6),
     # cuenta
     dict(entidad='cuenta', codigo='pendiente',  nombre_display='Pendiente',  es_inicial=True,  es_final=False, orden=1, color_hex='#ffc107'),
     dict(entidad='cuenta', codigo='activa',     nombre_display='Activa',     es_inicial=False, es_final=False, orden=2, color_hex='#28a745'),
@@ -36,6 +38,7 @@ ESTADOS_INICIALES = [
     dict(entidad='asignacion', codigo='activa',     nombre_display='Activa',     es_inicial=True,  es_final=False, orden=1),
     dict(entidad='asignacion', codigo='completada', nombre_display='Completada', es_inicial=False, es_final=True,  orden=2),
     dict(entidad='asignacion', codigo='cancelada',  nombre_display='Cancelada',  es_inicial=False, es_final=True,  orden=3),
+    dict(entidad='asignacion', codigo='pendiente',  nombre_display='Pendiente',  es_inicial=False, es_final=False, orden=4),
     # inasistencia
     dict(entidad='inasistencia', codigo='pendiente', nombre_display='Pendiente', es_inicial=True,  es_final=False, orden=1),
     dict(entidad='inasistencia', codigo='aprobada',  nombre_display='Aprobada',  es_inicial=False, es_final=True,  orden=2),

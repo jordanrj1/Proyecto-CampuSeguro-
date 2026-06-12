@@ -40,7 +40,7 @@ from functools import wraps
 from django.conf import settings
 
 from .models import (
-    Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    CategoriaMaterial, CategoriaTicket, Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -423,7 +423,7 @@ def dashboard_gestor(request):
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
         'por_edificio': list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:6]),
-        'por_categoria': list(tickets.values('categoria').annotate(total=Count('id')).order_by('-total')),
+        'por_categoria': list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total')),
         'por_estado': [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id'))],
         'solicitudes_cuenta': Usuario.objects.filter(estado_cuenta__codigo='pendiente').count(),
         'inasistencias_pendientes': Inasistencia.objects.filter(estado__codigo='pendiente').count(),
@@ -562,7 +562,7 @@ def crear_ticket(request):
             titulo=titulo,
             descripcion=descripcion,
             ubicacion=ubicacion,
-            categoria=categoria,
+            categoria_id=categoria,
             urgencia=urgencia,
             creado_por=request.user,
             afecta_clase=afecta_clase,
@@ -762,7 +762,7 @@ def gestor_tickets(request):
 
     if estado: qs = qs.filter(estado__codigo=estado)
     if urgencia: qs = qs.filter(urgencia=urgencia)
-    if categoria: qs = qs.filter(categoria=categoria)
+    if categoria: qs = qs.filter(categoria__codigo=categoria)
     if busqueda:
         qs = qs.filter(
             Q(titulo__icontains=busqueda) | Q(descripcion__icontains=busqueda) |
@@ -773,7 +773,7 @@ def gestor_tickets(request):
         'tickets': qs,
         'estados': EstadoCatalogo.objects.filter(entidad='ticket').order_by('orden').values_list('codigo', 'nombre_display'),
         'urgencias': Ticket.URGENCIA_CHOICES,
-        'categorias': Ticket.CATEGORIA_CHOICES,
+        'categorias': CategoriaTicket.objects.filter(activo=True).values_list('codigo', 'nombre_display'),
         'filtros': {'estado': estado, 'urgencia': urgencia, 'categoria': categoria, 'q': busqueda},
     })
 
@@ -1319,8 +1319,23 @@ def gestor_usuarios(request):
         'roles': Usuario.ROL_CHOICES,
         'estados': EstadoCatalogo.objects.filter(entidad='cuenta').order_by('orden').values_list('codigo', 'nombre_display'),
         'filtros': {'rol': rol_filtro, 'estado': estado_filtro},
+        'todas_especialidades': Especialidad.objects.all(), # 👈 PASAMOS TODAS LAS ESPECIALIDADES PARA FILTRADO EN LA TABLA
     })
 
+# NUEVA VISTA: Procesar el cambio de especialidades (M:N)
+@login_required
+@rol_requerido('gestor')
+def actualizar_especialidades_mantenedor(request, pk):
+    if request.method == 'POST':
+        usuario = get_object_or_404(Usuario, pk=pk, rol='mantencion')
+        # Capturamos la lista de IDs seleccionadas desde los checkboxes
+        especialidades_ids = request.POST.getlist('especialidades_usuario')
+        
+        # .set() limpia las anteriores automáticamente e inyecta las nuevas en la tabla intermedia
+        usuario.especialidades.set(especialidades_ids)
+        
+        messages.success(request, f'✓ Especialidades de {usuario.get_full_name()} actualizadas correctamente.')
+    return redirect('app:gestor_usuarios')
 
 @login_required
 @rol_requerido('gestor')
@@ -1434,7 +1449,7 @@ def gestor_bi(request):
     cerrados_periodo = tickets.filter(estado__codigo='cerrado').count()
     porc_impacto = round((afectan_clase / total_tickets * 100) if total_tickets else 0, 1)
     tasa_cierre = round((cerrados_periodo / total_tickets * 100) if total_tickets else 0, 1)
-    por_categoria = list(tickets.values('categoria').annotate(total=Count('id')).order_by('-total'))
+    por_categoria = list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total'))
     por_urgencia = list(tickets.values('urgencia').annotate(total=Count('id')))
     por_estado = [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id')).order_by('-total')]
     por_edificio = list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:8])
@@ -1489,7 +1504,7 @@ def gestor_bi(request):
         Ticket.objects.filter(
             deleted_at__isnull=True, created_at__date__gte=desde,
             created_at__date__lte=hasta, validacion__isnull=False
-        ).values('categoria').annotate(total=Count('id')).order_by('-total')
+        ).values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total')
     )
 
     mant_qs = RegistroMantencion.objects.filter(
@@ -1564,12 +1579,12 @@ def gestor_bi(request):
         ).order_by('-total_consumido')[:20]
     )
     por_categoria_mat = list(
-        mat_qs.values('material__categoria')
+        mat_qs.values('material__categoria__nombre_display')
         .annotate(total=Sum('cantidad'), frecuencia=Count('id'), tipos=Count('material', distinct=True))
         .order_by('-total')
     )
     mat_por_tipo_ticket = list(
-        mat_qs.values('registro__ticket__categoria')
+        mat_qs.values('registro__ticket__categoria__nombre_display')
         .annotate(
             total_cantidad=Sum('cantidad'),
             tipos_material=Count('material', distinct=True),
@@ -1807,10 +1822,10 @@ def materiales_listado(request):
     qs = Material.objects.all().order_by('categoria', 'nombre')
     categoria = request.GET.get('categoria')
     if categoria:
-        qs = qs.filter(categoria=categoria)
+        qs = qs.filter(categoria__codigo=categoria)
     return render(request, 'app/materiales.html', {
         'materiales': qs,
-        'categorias': Material.CATEGORIA_CHOICES,
+        'categorias': CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display'),
         'categoria_filtro': categoria,
     })
 
@@ -2069,7 +2084,7 @@ def dashboard_gestor_bi_v2(request):
     if trabajador_id:
         tickets = tickets.filter(asignado_a_id=trabajador_id)
 
-    por_categoria = list(tickets.values('categoria').annotate(total=Count('id')).order_by('-total'))
+    por_categoria = list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total'))
     por_urgencia = list(tickets.values('urgencia').annotate(total=Count('id')))
     por_estado = [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id'))]
     por_edificio = list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:8])
@@ -2106,7 +2121,7 @@ def dashboard_gestor_bi_v2(request):
 def reporte_materiales(request):
     materiales = Material.objects.all().order_by('categoria', 'nombre')
     consumo = MaterialUtilizado.objects.values(
-        'material__codigo', 'material__nombre', 'material__categoria', 'material__unidad'
+        'material__codigo', 'material__nombre', 'material__categoria__nombre_display', 'material__unidad'
     ).annotate(
         total_consumido=Sum('cantidad'),
         veces_usado=Count('id'),

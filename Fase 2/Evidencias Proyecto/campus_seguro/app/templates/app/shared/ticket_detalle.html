@@ -112,7 +112,7 @@ Trazabilidad{% endblock %} {% block content %}
           >
             CATEGORÍA
           </div>
-          <div>{{ ticket.get_categoria_display }}</div>
+          <div>{{ ticket.categoria.nombre_display|default:'Sin Categoría' }}</div>
         </div>
         <div>
           <div

@@ -109,14 +109,24 @@
             {{ u.get_vinculo_display|default:"—" }}
           </td>
 
-          {# Columna de Especialidad Pura (Solo para Mantención) #}
+          {# Columna de Especialidad Ajustada con botón de acción #}
           <td>
             {% if u.rol == 'mantencion' %}
-              {% for esp in u.especialidades.all %}
-                {{ esp.nombre }}{% if not forloop.last %}, {% endif %}
-              {% empty %}
-                <span style="color:var(--text-muted); font-style:italic;">Sin asignar</span>
-              {% endfor %}
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 140px;">
+                <span style="font-size: 13px;">
+                  {% for esp in u.especialidades.all %}
+                    {{ esp.nombre }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    <span style="color:var(--text-muted); font-style:italic;">Sin asignar</span>
+                  {% endfor %}
+                </span>
+                <button type="button" class="btn btn-ghost btn-sm" 
+                        style="padding: 2px 6px; font-size: 11px; border-color: var(--border);"
+                        onclick="abrirModalEspecialidades('{{ u.id }}', '{{ u.get_full_name }}', [{% for e in u.especialidades.all %}{{ e.id }}, {% endfor %}])"
+                        title="Modificar Oficios">
+                  ✏️
+                </button>
+              </div>
             {% else %}
               <span style="color:var(--text-muted)">—</span>
             {% endif %}
@@ -169,4 +179,57 @@
   </div>
   {% endif %}
 </div>
+<div id="modalEsp" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="width: 100%; max-width: 420px; background: var(--bg-850); border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.5); padding: 20px; position: relative;">
+    <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px; color: var(--text-primary);" id="modalTitulo">Asignar Especialidades</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;" id="modalSubtitulo">Técnico Mantención</div>
+    
+    <form method="post" id="formModalEsp">
+      {% csrf_token %}
+      <div style="display: flex; flex-direction: column; gap: 10px; max-height: 240px; overflow-y: auto; margin-bottom: 20px; padding-right: 4px;">
+        {% for esp in todas_especialidades %}
+          <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-700); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: background 0.15s;">
+            <input type="checkbox" name="especialidades_usuario" value="{{ esp.id }}" class="esp-checkbox" style="width: 16px; height: 16px; accent-color: var(--accent-green);">
+            <span style="font-size: 13px; font-weight: 500;">{{ esp.nombre }}</span>
+          </label>
+        {% empty %}
+          <div style="color: var(--text-muted); font-size: 12px; font-style: italic;">No hay especialidades sembradas en el sistema.</div>
+        {% endfor %}
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-ghost" onclick="cerrarModalEsp()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="background: var(--accent-green); border-color: var(--accent-green);">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function abrirModalEspecialidades(idUsuario, nombreUsuario, especialidadesAsignadasIds) {
+    const modal = document.getElementById('modalEsp');
+    const form = document.getElementById('formModalEsp');
+    const titulo = document.getElementById('modalTitulo');
+    
+    // Seteamos la URL dinámica apuntando a la nueva vista del backend
+    form.action = `/gestor/usuarios/${idUsuario}/especialidades/`;
+    titulo.innerText = `⚙️ Especialidades de ${nombreUsuario}`;
+    
+    // Limpiamos y marcamos los checkboxes que el técnico ya tenga activos
+    document.querySelectorAll('.esp-checkbox').forEach(cb => {
+        cb.checked = especialidadesAsignadasIds.includes(parseInt(cb.value));
+    });
+    
+    modal.style.display = 'flex';
+}
+
+function cerrarModalEsp() {
+    document.getElementById('modalEsp').style.display = 'none';
+}
+
+// Cerrar al hacer clic fuera del contenedor del modal
+document.getElementById('modalEsp').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalEsp();
+});
+</script>
 {% endblock %}

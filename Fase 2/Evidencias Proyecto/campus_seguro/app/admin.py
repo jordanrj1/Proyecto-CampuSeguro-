@@ -1,33 +1,62 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import (
-    Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
+    CategoriaMaterial, CategoriaTicket, Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
     ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, TransicionEstado,
+    Especialidad, EspecialidadUsuario, EspecialidadMaterial,
 )
 
+# ═══════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE INLINES (Relaciones M:N y Transaccionales)
+# ═══════════════════════════════════════════════════════════════
+
+class EspecialidadUsuarioInline(admin.TabularInline):
+    """Permite asignar especialidades a un técnico desde el perfil de Usuario"""
+    model = EspecialidadUsuario
+    extra = 1
+
+
+class EspecialidadMaterialInline(admin.TabularInline):
+    """Permite amarrar especialidades a un insumo desde el perfil de Material"""
+    model = EspecialidadMaterial
+    extra = 1
+
+
+class MaterialUtilizadoInline(admin.TabularInline):
+    """Muestra los materiales gastados directamente dentro de la ficha de mantención"""
+    model = MaterialUtilizado
+    extra = 1
+
+# ═══════════════════════════════════════════════════════════════
+# REGISTROS DE ADMINISTRACIÓN PRINCIPALES
+# ═══════════════════════════════════════════════════════════════
 
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
     list_display = ('username', 'get_full_name', 'rol', 'estado_cuenta', 'correo_institucional', 'fecha_registro')
     list_filter = ('rol', 'estado_cuenta', 'vinculo')
     search_fields = ('username', 'first_name', 'last_name', 'correo_institucional', 'rut')
+    
+    # Formulario de EDICIÓN de usuarios existentes
     fieldsets = UserAdmin.fieldsets + (
         ('Datos Institucionales', {
             'fields': ('rol', 'rut', 'telefono', 'correo_institucional',
                        'vinculo', 'carrera', 'jornada', 'sede', 'departamento',
-                       'especialidad', 'turno', 'estado_cuenta', 'aprobado_por'),
+                       'turno', 'estado_cuenta', 'aprobado_por'),
         }),
     )
 
-
-@admin.register(Ticket)
-class TicketAdmin(admin.ModelAdmin):
-    list_display = ('id', 'titulo', 'estado', 'urgencia', 'categoria', 'creado_por', 'asignado_a', 'created_at')
-    list_filter = ('estado', 'urgencia', 'categoria')
-    search_fields = ('titulo', 'descripcion', 'ubicacion__edificio', 'ubicacion__sala')
-    readonly_fields = ('created_at', 'updated_at', 'cerrado_at')
+    # ✔️ CORREGIDO: Formulario de CREACIÓN de nuevos usuarios desde el panel
+    # Permite setear los campos institucionales obligatorios desde el primer segundo
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Datos Institucionales Iniciales', {
+            'fields': ('rol', 'rut', 'correo_institucional', 'sede', 'estado_cuenta'),
+        }),
+    )
+    
+    inlines = [EspecialidadUsuarioInline]
 
 
 @admin.register(Material)
@@ -35,6 +64,50 @@ class MaterialAdmin(admin.ModelAdmin):
     list_display = ('codigo', 'nombre', 'categoria', 'stock_actual', 'stock_minimo', 'activo')
     list_filter = ('categoria', 'activo')
     search_fields = ('codigo', 'nombre')
+    inlines = [EspecialidadMaterialInline]
+
+
+@admin.register(RegistroMantencion)
+class RegistroMantencionAdmin(admin.ModelAdmin):
+    """Ficha operativa de la reparación. Integra sus materiales de forma anidada"""
+    list_display = ('ticket', 'tecnico', 'tiempo_total_minutos', 'horas_hombre', 'created_at')
+    list_filter = ('personal_adicional_requerido', 'requiere_nivel_mayor')
+    search_fields = ('ticket__titulo', 'tecnico__username', 'descripcion_trabajo', 'causa_raiz')
+    inlines = [MaterialUtilizadoInline]  # 👈 Vinculación directa del consumo de pañol
+
+# ═══════════════════════════════════════════════════════════════
+# REGISTRO DE TABLAS MAESTRAS DE CATEGORÍAS (3FN)
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(CategoriaTicket)
+class CategoriaTicketAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre_display', 'activo')
+    search_fields = ('codigo', 'nombre_display')
+    list_filter = ('activo',)
+
+
+@admin.register(CategoriaMaterial)
+class CategoriaMaterialAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre_display', 'activo')
+    search_fields = ('codigo', 'nombre_display')
+    list_filter = ('activo',)
+
+
+@admin.register(Especialidad)
+class EspecialidadAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'descripcion')
+    search_fields = ('nombre',)
+
+# ═══════════════════════════════════════════════════════════════
+# RESTO DE ENTIDADES DEL SISTEMA
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Ticket)
+class TicketAdmin(admin.ModelAdmin):
+    list_display = ('id', 'titulo', 'estado', 'urgencia', 'categoria', 'creado_por', 'asignado_a', 'created_at')
+    list_filter = ('estado', 'urgencia', 'categoria')
+    search_fields = ('titulo', 'descripcion', 'ubicacion__edificio', 'ubicacion__sala')
+    readonly_fields = ('created_at', 'updated_at', 'cerrado_at')
 
 
 @admin.register(LogAuditoria)
@@ -74,12 +147,13 @@ class TransicionEstadoAdmin(admin.ModelAdmin):
     list_filter = ('rol_requerido', 'activo')
 
 
+# Registros planos simplificados de entidades menores (Removidos los modelos anidados)
 admin.site.register([
     TokenRecuperacion, Ubicacion, ValidacionGuardia,
-    RegistroMantencion, MaterialUtilizado, NoReparable,
-    Notificacion, Inasistencia, MaterialesFaltantes,
+    NoReparable, Notificacion, Inasistencia, MaterialesFaltantes,
 ])
 
+# Personalización del Back-Office institucional
 admin.site.site_header = 'Campus Seguro – Administración'
 admin.site.site_title = 'Campus Seguro'
 admin.site.index_title = 'Panel de Administración'

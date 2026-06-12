@@ -85,6 +85,39 @@ class Especialidad(models.Model):
         return self.nombre
 
 # ═══════════════════════════════════════════════════════════════
+# NUEVO: TABLAS MAESTRAS PARA CATEGORÍAS DE TICKETS Y MATERIALES
+# ═══════════════════════════════════════════════════════════════
+class CategoriaTicket(models.Model):
+    """Tabla maestra para la clasificación analítica de fallas y KPIs en los dashboards"""
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre_display = models.CharField(max_length=100)
+    descripcion = models.CharField(max_length=300, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    
+
+    class Meta:
+        verbose_name = 'Categoría de Ticket'
+        verbose_name_plural = 'Categorías de Tickets'
+
+    def __str__(self):
+        return self.nombre_display
+
+
+class CategoriaMaterial(models.Model):
+    """Tabla maestra para la ordenación logística del inventario del pañol"""
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre_display = models.CharField(max_length=100)
+    descripcion = models.CharField(max_length=300, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Categoría de Material'
+        verbose_name_plural = 'Categorías de Materiales'
+
+    def __str__(self):
+        return self.nombre_display
+
+# ═══════════════════════════════════════════════════════════════
 # USUARIO PERSONALIZADO (registro institucional)
 # ══════════════════════════════════════════════════════════════
 class UsuarioManager(UserManager):
@@ -372,26 +405,26 @@ class Material(models.Model):
         ('caja', 'Caja'),
         ('rollo', 'Rollo'),
     ]
-    CATEGORIA_CHOICES = [
-        ('electrico', 'Eléctrico'),
-        ('plomeria', 'Plomería'),
-        ('construccion', 'Construcción'),
-        ('ferreteria', 'Ferretería'),
-        ('limpieza', 'Limpieza'),
-        ('tecnologia', 'Tecnología'),
-        ('otro', 'Otro'),
-    ]
     codigo = models.CharField(max_length=50, unique=True)
     nombre = models.CharField(max_length=200)
-    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
+    # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real
+    categoria = models.ForeignKey(CategoriaMaterial, on_delete=models.PROTECT, related_name='materiales')
     unidad = models.CharField(max_length=20, choices=UNIDAD_CHOICES)
     stock_actual = models.PositiveIntegerField(default=0)
     stock_minimo = models.PositiveIntegerField(default=5)
     descripcion = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
+    # 🔗 RELACIÓN DE SEGURIDAD: Para filtrar en el formulario del técnico
+    especialidades = models.ManyToManyField(
+        Especialidad,
+        through='EspecialidadMaterial',
+        blank=True,
+        related_name='materiales',
+        help_text="Especialidades que están autorizadas a ver y usar este material en sus reportes."
+    )
 
     class Meta:
-        ordering = ['categoria', 'nombre']
+        ordering = ['categoria__nombre_display', 'nombre']
 
     def __str__(self):
         return f"{self.codigo} – {self.nombre}"
@@ -400,6 +433,18 @@ class Material(models.Model):
     def bajo_stock(self):
         return self.stock_actual <= self.stock_minimo
 
+class EspecialidadMaterial(models.Model):
+    """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""
+    material = models.ForeignKey(Material, on_delete=models.CASCADE)
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('material', 'especialidad')
+        verbose_name = 'Especialidad de Material'
+        verbose_name_plural = 'Especialidades de Materiales'
+
+    def __str__(self):
+        return f"{self.material.nombre} - {self.especialidad.nombre}"
 
 # ═══════════════════════════════════════════════════════════════
 # TICKET
@@ -410,16 +455,6 @@ class Ticket(models.Model):
         ('media', 'Media'),
         ('alta', 'Alta'),
         ('critica', 'Crítica'),
-    ]
-    CATEGORIA_CHOICES = [
-        ('electrico', 'Eléctrico'),
-        ('plomeria', 'Plomería'),
-        ('infraestructura', 'Infraestructura'),
-        ('climatizacion', 'Climatización'),
-        ('tecnologia', 'Tecnología'),
-        ('accesibilidad', 'Accesibilidad'),
-        ('mobiliario', 'Mobiliario'),
-        ('otro', 'Otro'),
     ]
     PAUSA_CHOICES = [
         ('material', 'En Pausa – Aprobación de materiales'),
@@ -456,7 +491,8 @@ class Ticket(models.Model):
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.PROTECT, related_name='tickets')
 
     # Clasificación
-    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
+    # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real hacia el catálogo dinámico
+    categoria = models.ForeignKey(CategoriaTicket, on_delete=models.PROTECT, related_name='tickets')
     urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media')
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField()

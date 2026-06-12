@@ -47,6 +47,7 @@ urlpatterns = [
     path('gestor/usuarios/', views.gestor_usuarios, name='gestor_usuarios'),
     path('gestor/usuarios/<int:pk>/suspender/', views.suspender_usuario, name='suspender_usuario'),
     path('gestor/usuarios/<int:pk>/reset/', views.reset_usuario_gestor, name='reset_usuario_gestor'),
+    path('gestor/usuarios/<int:pk>/especialidades/', views.actualizar_especialidades_mantenedor, name='actualizar_especialidades_mantenedor'),
 
     # ── GESTOR: BI / OPERATIVO ────────────────────────
     path('gestor/operativo/', views.gestor_operativo, name='gestor_operativo'),
