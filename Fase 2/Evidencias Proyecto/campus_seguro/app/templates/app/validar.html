@@ -35,7 +35,7 @@
           <strong style="color: var(--text-muted)">Ubicación:</strong> {{ticket.ubicacion}}
         </div>
         <div>
-          <strong style="color: var(--text-muted)">Categoría:</strong> {{ticket.get_categoria_display}}
+          <strong style="color: var(--text-muted)">Categoría:</strong> {{ticket.categoria.nombre_display|default:'Sin Categoría'}}
         </div>
         <div>
           <strong style="color: var(--text-muted)">Urgencia:</strong>
