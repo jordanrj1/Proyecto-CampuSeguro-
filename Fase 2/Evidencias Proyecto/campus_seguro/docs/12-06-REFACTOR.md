@@ -60,7 +60,6 @@ Sigue rigurosamente este flujo de comandos secuenciales para actualizar tu entor
 
 **1️⃣ Paso 1: Eliminar el archivo físico de la base de datos y migraciones viejas**
 * Elimina manualmente el archivo `db.sqlite3` de la raíz del proyecto.
-* Ve a la carpeta `app/migrations/` y elimina todos los archivos numerados (ej: `0001_...`). **¡No borres bajo ninguna circunstancia el archivo `__init__.py`!**
 
 **2️⃣ Paso 2: Reconstruir la estructura relacional limpia desde cero**
 Genera los nuevos planos relacionales limpios de la aplicación e impacta el motor de base de datos local para levantar las tablas desde cero:
