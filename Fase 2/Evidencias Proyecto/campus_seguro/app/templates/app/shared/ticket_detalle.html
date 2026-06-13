@@ -1,5 +1,7 @@
-{% extends 'app/base.html' %} {% block title %}Ticket #{{ ticket.pk }} ·
-Trazabilidad{% endblock %} {% block content %}
+{% extends 'app/base.html' %}
+{% block title %}Ticket #{{ ticket.pk }} · Trazabilidad{% endblock %}
+
+{% block content %}
 <div class="topbar">
   <div>
     <div class="page-title">Ticket #{{ ticket.pk }}</div>
@@ -228,6 +230,223 @@ Trazabilidad{% endblock %} {% block content %}
       {% endif %}
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- NUEVO: STEPPER DE PROGRESO DEL TICKET (tipo delivery) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">🕐 Progreso del ticket</div>
+
+      <div style="position: relative; padding: 30px 10px 20px;">
+        <!-- Línea de fondo (gris) -->
+        <div
+          style="
+            position: absolute;
+            top: 18px;
+            left: 5%;
+            right: 5%;
+            height: 3px;
+            background: var(--border);
+            z-index: 0;
+          "
+        ></div>
+
+        <!-- Línea de progreso (verde) - se muestra hasta el paso actual -->
+        <div
+          style="
+            position: absolute;
+            top: 18px;
+            left: 5%;
+            width: {% if ticket.estado.codigo == 'cerrado' %}90%{% elif ticket.mantencion %}70%{% elif ticket.validado_por %}50%{% elif ticket.estado.codigo == 'en_validacion' %}30%{% else %}5%{% endif %};
+            height: 3px;
+            background: var(--accent-green);
+            z-index: 1;
+            transition: width 0.5s ease;
+          "
+        ></div>
+
+        <!-- Contenedor de pasos -->
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            z-index: 2;
+          "
+        >
+          <!-- PASO 1: CREADO (siempre completado) -->
+          <div style="text-align: center; flex: 1;">
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: var(--accent-blue);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 8px;
+                font-weight: 700;
+                font-size: 14px;
+                border: 3px solid var(--bg-850);
+                color: var(--bg-850);
+              "
+            >
+              ✓
+            </div>
+            <div style="font-weight: 600; font-size: 11px; color: var(--text-primary); margin-bottom: 2px;">
+              Creado
+            </div>
+            <div style="font-size: 10px; color: var(--text-muted);">
+              {{ ticket.created_at|date:"d/m H:i" }}
+            </div>
+            <div style="font-size: 9px; color: var(--text-secondary);">
+              {{ ticket.creado_por.get_full_name }}
+            </div>
+          </div>
+
+          <!-- PASO 2: VALIDACIÓN -->
+          <div style="text-align: center; flex: 1;">
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: {% if ticket.validado_por %}var(--accent-green){% elif ticket.estado.codigo == 'en_validacion' %}var(--accent-yellow){% else %}var(--bg-700){% endif %};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 8px;
+                font-weight: 700;
+                font-size: 14px;
+                border: 3px solid var(--bg-850);
+                color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--bg-850){% else %}var(--text-muted){% endif %};
+              "
+            >
+              {% if ticket.validado_por %}✓{% else %}🛡️{% endif %}
+            </div>
+            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--text-primary){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
+              Validación
+            </div>
+            {% if ticket.validado_por %}
+              <div style="font-size: 10px; color: var(--accent-green);">
+                {{ ticket.validacion.created_at|date:"d/m H:i" }}
+              </div>
+              <div style="font-size: 9px; color: var(--text-secondary);">
+                {{ ticket.validado_por.get_full_name }}
+              </div>
+            {% else %}
+              <div style="font-size: 10px; color: var(--text-muted);">Pendiente</div>
+            {% endif %}
+          </div>
+
+          <!-- PASO 3: MANTENCIÓN -->
+          <div style="text-align: center; flex: 1;">
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: {% if ticket.mantencion %}var(--accent-green){% elif ticket.estado.codigo == 'en_mantencion' %}var(--accent-blue){% else %}var(--bg-700){% endif %};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 8px;
+                font-weight: 700;
+                font-size: 14px;
+                border: 3px solid var(--bg-850);
+                color: {% if ticket.mantencion or ticket.estado.codigo == 'en_mantencion' %}var(--bg-850){% else %}var(--text-muted){% endif %};
+              "
+            >
+              {% if ticket.mantencion %}✓{% else %}🔧{% endif %}
+            </div>
+            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.mantencion or ticket.estado.codigo == 'en_mantencion' %}var(--text-primary){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
+              Mantención
+            </div>
+            {% if ticket.asignado_a and ticket.asignado_a.rol == 'mantencion' %}
+              <div style="font-size: 10px; color: {% if ticket.mantencion %}var(--accent-green){% elif ticket.estado.codigo == 'en_mantencion' %}var(--accent-blue){% else %}var(--text-muted){% endif %};">
+                {% if ticket.mantencion %}{{ ticket.mantencion.created_at|date:"d/m H:i" }}{% else %}Asignado{% endif %}
+              </div>
+              <div style="font-size: 9px; color: var(--text-secondary);">
+                {{ ticket.asignado_a.get_full_name }}
+              </div>
+            {% else %}
+              <div style="font-size: 10px; color: var(--text-muted);">Sin asignar</div>
+            {% endif %}
+          </div>
+
+          <!-- PASO 4: REPARADO / NO REPARABLE -->
+          <div style="text-align: center; flex: 1;">
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: {% if ticket.estado.codigo == 'cerrado' %}var(--accent-green){% elif ticket.no_reparable %}var(--accent-red){% elif ticket.estado.codigo == 'reparado' %}var(--accent-blue){% else %}var(--bg-700){% endif %};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 8px;
+                font-weight: 700;
+                font-size: 14px;
+                border: 3px solid var(--bg-850);
+                color: {% if ticket.estado.codigo == 'cerrado' or ticket.no_reparable or ticket.estado.codigo == 'reparado' %}var(--bg-850){% else %}var(--text-muted){% endif %};
+              "
+            >
+              {% if ticket.no_reparable %}✗{% elif ticket.mantencion or ticket.estado.codigo == 'cerrado' %}✓{% endif %}
+            </div>
+            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.estado.codigo == 'cerrado' or ticket.no_reparable or ticket.estado.codigo == 'reparado' %}var(--text-primary){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
+              {% if ticket.no_reparable %}No reparable{% else %}Reparado{% endif %}
+            </div>
+            {% if ticket.mantencion %}
+              <div style="font-size: 10px; color: var(--accent-green);">
+                {{ ticket.mantencion.created_at|date:"d/m H:i" }}
+              </div>
+              <div style="font-size: 9px; color: var(--text-secondary);">
+                {{ ticket.mantencion.tecnico.get_full_name }}
+              </div>
+            {% else %}
+              <div style="font-size: 10px; color: var(--text-muted);">Pendiente</div>
+            {% endif %}
+          </div>
+
+          <!-- PASO 5: CERRADO -->
+          <div style="text-align: center; flex: 1;">
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: {% if ticket.estado.codigo == 'cerrado' %}var(--accent-green){% else %}var(--bg-700){% endif %};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 8px;
+                font-weight: 700;
+                font-size: 14px;
+                border: 3px solid var(--bg-850);
+                color: {% if ticket.estado.codigo == 'cerrado' %}var(--bg-850){% else %}var(--text-muted){% endif %};
+              "
+            >
+              {% if ticket.estado.codigo == 'cerrado' %}✓{% else %}📋{% endif %}
+            </div>
+            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.estado.codigo == 'cerrado' %}var(--text-primary){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
+              Cerrado
+            </div>
+            {% if ticket.estado.codigo == 'cerrado' %}
+              <div style="font-size: 10px; color: var(--accent-green);">
+                {{ ticket.cerrado_at|date:"d/m H:i" }}
+              </div>
+              <div style="font-size: 9px; color: var(--text-secondary);">
+                {{ ticket.gestor_responsable.get_full_name|default:'Gestor' }}
+              </div>
+            {% else %}
+              <div style="font-size: 10px; color: var(--text-muted);">Pendiente</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Galería de evidencia fotográfica (solo roles autorizados) -->
     {% if request.user.rol != 'usuario' %} {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
     <div class="card" style="margin-bottom: 18px">
@@ -416,7 +635,7 @@ Trazabilidad{% endblock %} {% block content %}
 
     <!-- Timeline de auditoría completo -->
     <div class="card" style="margin-bottom: 18px">
-      <div class="form-section-title">🕐 Línea de tiempo completa</div>
+      <div class="form-section-title">📋 Historial detallado</div>
       {% if logs %}
       <div style="position: relative; padding-left: 26px">
         <div

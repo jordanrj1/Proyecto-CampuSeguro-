@@ -184,22 +184,41 @@
           </div>
         </div>
 
-        <!-- SECCIÓN 5: Foto obligatoria -->
+        <!-- SECCIÓN 5: Foto obligatoria (MEJORADO) -->
         <div class="card mb-4">
           <div class="card-header">
             <h5 class="mb-0">📷 Evidencia fotográfica *</h5>
           </div>
           <div class="card-body">
             <div class="mb-3">
-              <label for="foto_evidencia" class="form-label">Subir imagen</label>
-              <input class="form-control" type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" required onchange="previewImg(this)">
-              <small class="form-text text-muted">JPG, PNG, WebP · Máximo 10 MB</small>
+              <div id="uploadArea" class="upload-area" style="border: 2px dashed #dee2e6; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s ease;">
+                <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" required style="display: none;">
+                
+                <!-- Estado vacío -->
+                <div id="emptyState">
+                  <div style="font-size: 48px; margin-bottom: 16px;">📷</div>
+                  <h5 style="margin-bottom: 8px; color: #495057;">Foto de evidencia</h5>
+                  <p style="color: #6c757d; margin-bottom: 16px;">Evidencia visual del problema reportado.</p>
+                  <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('foto_evidencia').click()">
+                    Seleccionar archivo
+                  </button>
+                  <small class="d-block mt-3 text-muted">JPG, PNG, WebP · Máximo 10 MB</small>
+                </div>
+
+                <!-- Estado con imagen -->
+                <div id="imageState" style="display: none;">
+                  <div style="position: relative; display: inline-block;">
+                    <img id="previewImg" class="img-fluid rounded" style="max-height: 300px; max-width: 100%;">
+                    <button type="button" class="btn btn-danger btn-sm" style="position: absolute; top: 8px; right: 8px; border-radius: 50%; width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;" onclick="removeImage(event)">
+                      ×
+                    </button>
+                  </div>
+                  <p id="fileName" class="text-muted mt-3 mb-0"></p>
+                  <small class="text-success">✓ Imagen cargada correctamente</small>
+                </div>
+              </div>
+              <small class="text-danger d-block mt-2"><strong>La foto es obligatoria.</strong> Muestra claramente la falla, daño o elemento afectado.</small>
             </div>
-            <div id="previewBox" class="mt-3" style="display:none;">
-              <img id="previewImg" class="img-fluid rounded shadow" style="max-height:300px;">
-              <p id="fileName" class="text-muted mt-2"></p>
-            </div>
-            <small class="text-danger"><strong>La foto es obligatoria.</strong> Muestra claramente la falla, daño o elemento afectado.</small>
           </div>
         </div>
 
@@ -212,20 +231,98 @@
   </div>
 </div>
 
+<style>
+.upload-area:hover {
+  border-color: #0d6efd !important;
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+.upload-area.drag-over {
+  border-color: #198754 !important;
+  background-color: rgba(25, 135, 84, 0.1);
+}
+</style>
+
 <script>
 // ═══════════════════════════════════════════════════════════════
-// VISTA PREVIA DE IMAGEN
+// VISTA PREVIA DE IMAGEN MEJORADA
 // ═══════════════════════════════════════════════════════════════
-function previewImg(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('previewImg').src = e.target.result;
-      document.getElementById('fileName').textContent = input.files[0].name;
-      document.getElementById('previewBox').style.display = 'block';
-    };
-    reader.readAsDataURL(input.files[0]);
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('foto_evidencia');
+const emptyState = document.getElementById('emptyState');
+const imageState = document.getElementById('imageState');
+const previewImg = document.getElementById('previewImg');
+const fileName = document.getElementById('fileName');
+
+// Click en el área de upload
+uploadArea.addEventListener('click', function(e) {
+  if (e.target.tagName !== 'BUTTON' && e.target.closest('button')) {
+    fileInput.click();
   }
+});
+
+// Drag and drop
+uploadArea.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  this.classList.add('drag-over');
+});
+
+uploadArea.addEventListener('dragleave', function(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+});
+
+uploadArea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFile(files[0]);
+  }
+});
+
+// Input file change
+fileInput.addEventListener('change', function(e) {
+  if (this.files && this.files[0]) {
+    handleFile(this.files[0]);
+  }
+});
+
+function handleFile(file) {
+  // Validar tipo
+  if (!file.type.startsWith('image/')) {
+    alert('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP)');
+    fileInput.value = '';
+    return;
+  }
+  
+  // Validar tamaño (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    alert('La imagen no puede superar los 10 MB');
+    fileInput.value = '';
+    return;
+  }
+  
+  // Mostrar preview
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    previewImg.src = e.target.result;
+    fileName.textContent = file.name;
+    emptyState.style.display = 'none';
+    imageState.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeImage(e) {
+  e.stopPropagation();
+  fileInput.value = '';
+  previewImg.src = '';
+  fileName.textContent = '';
+  emptyState.style.display = 'block';
+  imageState.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════════════
