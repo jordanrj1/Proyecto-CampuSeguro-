@@ -35,7 +35,7 @@
         <tr>
           <td><span class="id-mono">{{ m.codigo }}</span></td>
           <td><strong>{{ m.nombre }}</strong>{% if m.descripcion %}<br><span style="font-size:11px;color:var(--text-muted);">{{ m.descripcion|truncatechars:50 }}</span>{% endif %}</td>
-          <td><span class="badge badge-purple">{{ m.get_categoria_display }}</span></td>
+          <td><span class="badge badge-purple">{{ m.categoria.nombre_display|default:'Sin categoría' }}</span></td>
           <td>{{ m.get_unidad_display }}</td>
           <td style="text-align:center;"><span class="id-mono" style="font-size:14px;font-weight:700;">{{ m.stock_actual }}</span></td>
           <td style="text-align:center;"><span class="id-mono">{{ m.stock_minimo }}</span></td>
