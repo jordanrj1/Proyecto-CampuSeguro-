@@ -49,3 +49,19 @@ Explica el problema técnico que se resolvió en Sprint 2 (bases de datos aislad
 **Qué cambió en el sistema de registro y roles:** [CAMBIOS_REGISTRO_Y_ROLES.md](CAMBIOS_REGISTRO_Y_ROLES.md)
 
 Documenta el cambio del Sprint 1: por qué los usuarios ya no eligen su propio rol y cómo funciona ahora el flujo de aprobación.
+
+---
+
+## Quiero revisar la lógica de negocio, especialidades y refactorizaciones
+
+**Gestión y asignación de especialidades técnicas:** [ESPECIALIDADES.md](ESPECIALIDADES.md)
+
+Documenta cómo funciona el modelo de Especialidades M:N, el dropdown de asignación en la aprobación de cuentas y el filtrado inteligente en la visualización de mantenedores.
+
+**Evolución, limpieza y optimización del código:** [REFACTOR.md](REFACTOR.md)
+
+Compilado de los refactors técnicos transversales aplicados en las vistas y modelos del sistema para asegurar la mantenibilidad y un código limpio.
+
+**Filtros de bodega por especialidad y mejoras en Business Intelligence:** [REFACTOR_PAÑOL_Y_REPORTES.md](REFACTOR_PAÑOL_Y_REPORTES.md)
+
+Explica la restricción de materiales según el oficio del mantenedor, el funcionamiento del bypass del pañol, la optimización del clonador de filas y los fixes relacionales con `F()` aplicados en el módulo analítico (BI).

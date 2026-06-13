@@ -1418,6 +1418,12 @@ def gestor_bi(request):
     cat_material = request.GET.get('cat_material', '')
     fecha_desde_str = request.GET.get('fecha_desde', '')
     fecha_hasta_str = request.GET.get('fecha_hasta', '')
+    
+    cat_material_nombre = None
+    if cat_material:
+        cat_obj = CategoriaMaterial.objects.filter(codigo=cat_material).first()
+        if cat_obj:
+            cat_material_nombre = cat_obj.nombre_display
 
     hasta = hoy
     if fecha_desde_str:
@@ -1568,11 +1574,12 @@ def gestor_bi(request):
     if trabajador_id and seccion == 'materiales':
         mat_qs = mat_qs.filter(registro__tecnico_id=trabajador_id)
     if cat_material and seccion == 'materiales':
-        mat_qs = mat_qs.filter(material__categoria=cat_material)
+        mat_qs = mat_qs.filter(material__categoria__codigo=cat_material)
 
     materiales_top = list(
-        mat_qs.values('material__codigo', 'material__nombre', 'material__categoria', 'material__unidad')
+        mat_qs.values('material__codigo', 'material__nombre', 'material__unidad')
         .annotate(
+            categoria_nombre=F('material__categoria__nombre_display'),
             total_consumido=Sum('cantidad'),
             veces_usado=Count('id'),
             en_tickets=Count('registro__ticket', distinct=True),
@@ -1596,9 +1603,9 @@ def gestor_bi(request):
         .annotate(items_distintos=Count('material', distinct=True), cantidad_total=Sum('cantidad'))
         .order_by('-cantidad_total')
     )
+    # CORREGIDO: Traer el código y el nombre descriptivo real de la tabla maestra
     categorias_materiales = list(
-        Material.objects.filter(activo=True)
-        .values_list('categoria', flat=True).distinct().order_by('categoria')
+        CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display')
     )
     stock_bajo = list(
         Material.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
@@ -1633,7 +1640,7 @@ def gestor_bi(request):
         'nrep_externalizacion': nrep_externalizacion, 'tasa_nrep': tasa_nrep,
         'materiales_top': materiales_top, 'por_categoria_mat': por_categoria_mat,
         'mat_por_tipo_ticket': mat_por_tipo_ticket, 'mat_por_tecnico': mat_por_tecnico,
-        'categorias_materiales': categorias_materiales, 'cat_material': cat_material,
+        'categorias_materiales': categorias_materiales, 'cat_material': cat_material, 'cat_material_nombre': cat_material_nombre,
         'stock_bajo': stock_bajo, 'stock_cero': stock_cero, 'stock_total_activo': stock_total_activo,
     })
 
@@ -1733,6 +1740,7 @@ def tomar_trabajo(request, pk):
     return redirect('app:dashboard')
 
 
+# Soporte para desbloqueo dinámico de catálogo por especialidad
 @login_required
 @rol_requerido('mantencion')
 def completar_mantencion(request, pk):
@@ -1741,9 +1749,41 @@ def completar_mantencion(request, pk):
         messages.info(request, 'Este ticket ya tiene registro de mantención.')
         return redirect('app:dashboard')
 
+    # Catálogo Completo (Para validación del motor de Django y bypass)
+    todos_materiales = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
+    
+    # Catálogo Filtrado por Especialidad (Para la carga inicial del Técnico)
+    tecnico = request.user
+    especialidades_tecnico = tecnico.especialidades.all()
+
+    if especialidades_tecnico.exists():
+        materiales_filtrados = Material.objects.filter(
+            activo=True,
+            especialidades__in=especialidades_tecnico
+        ).distinct().order_by('categoria__nombre_display', 'nombre')
+    else:
+        materiales_filtrados = todos_materiales
+
+    # Serializamos ambos catálogos a listas limpias de JavaScript
+    def serialize_mat(qs):
+        return [
+            {
+                'id': m.id,
+                'text': f"{m.nombre} ({m.codigo}) - {m.categoria.nombre_display if m.categoria else 'General'}"
+            } for m in qs
+        ]
+
+    materiales_filtrados_json = json.dumps(serialize_mat(materiales_filtrados))
+    todos_materiales_json = json.dumps(serialize_mat(todos_materiales))
+
     if request.method == 'POST':
         form = MantencionForm(request.POST, request.FILES)
         formset = MaterialUtilizadoFormSet(request.POST, instance=RegistroMantencion())
+        
+        # Permitimos que Django acepte cualquier material activo en la validación POST
+        for sub_form in formset:
+            sub_form.fields['material'].queryset = todos_materiales
+
         if form.is_valid() and formset.is_valid():
             fin = timezone.now()
             registro = form.save(commit=False)
@@ -1776,15 +1816,20 @@ def completar_mantencion(request, pk):
     else:
         form = MantencionForm()
         formset = MaterialUtilizadoFormSet(instance=RegistroMantencion())
+        
+        # En la carga inicial GET, los selectores cargan únicamente el catálogo filtrado
+        for sub_form in formset:
+            sub_form.fields['material'].queryset = materiales_filtrados
 
     logs = ticket.logs.select_related('usuario').order_by('created_at')
-    materiales_disponibles = Material.objects.filter(activo=True).order_by('categoria', 'nombre')
+    
     return render(request, 'app/mantencion/completar.html', {
         'form': form,
         'formset': formset,
         'ticket': ticket,
-        'materiales': materiales_disponibles,
         'logs': logs,
+        'materiales_filtrados_json': materiales_filtrados_json,
+        'todos_materiales_json': todos_materiales_json,
     })
 
 
