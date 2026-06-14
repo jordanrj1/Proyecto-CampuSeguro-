@@ -5,19 +5,65 @@
 #
 # PROPÓSITO:
 #   Puebla de forma centralizada todas las tablas maestras relacionales:
-#   Categorías de Tickets, Categorías de Materiales, Especialidades
-#   Técnicas institucionales e Insumos base del pañol.
+#   Catálogo de Estados de Entidades, Categorías de Tickets, Categorías 
+#   de Materiales, Especialidades Técnicas e Insumos base del pañol.
 #
 # USO:
 #   python manage.py poblar_sistema
 # ═══════════════════════════════════════════════════════════════
 
 from django.core.management.base import BaseCommand
-from app.models import CategoriaTicket, CategoriaMaterial, Especialidad, Material, EspecialidadMaterial
+from app.models import EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, Material, EspecialidadMaterial
+
+
+# ─────────────────────────────────────────────────────────────────
+# Matriz Maestra del Catálogo Operativo (30 estados iniciales)
+# ─────────────────────────────────────────────────────────────────
+ESTADOS_INICIALES = [
+    # ticket
+    dict(entidad='ticket', codigo='enviado',       nombre_display='Enviado',       es_inicial=True,  es_final=False, orden=1,  color_hex='#6c757d'),
+    dict(entidad='ticket', codigo='en_proceso',    nombre_display='En Proceso',    es_inicial=False, es_final=False, orden=2,  color_hex='#007bff'),
+    dict(entidad='ticket', codigo='en_validacion', nombre_display='En Validación', es_inicial=False, es_final=False, orden=3,  color_hex='#fd7e14'),
+    dict(entidad='ticket', codigo='validado',      nombre_display='Validado',      es_inicial=False, es_final=False, orden=4,  color_hex='#20c997'),
+    dict(entidad='ticket', codigo='en_mantencion', nombre_display='En Mantención', es_inicial=False, es_final=False, orden=5,  color_hex='#17a2b8'),
+    dict(entidad='ticket', codigo='reparado',      nombre_display='Reparado',      es_inicial=False, es_final=False, orden=6,  color_hex='#28a745'),
+    dict(entidad='ticket', codigo='pausado',       nombre_display='Pausado',       es_inicial=False, es_final=False, orden=7,  color_hex='#ffc107'),
+    dict(entidad='ticket', codigo='no_reparado',   nombre_display='No Reparado',   es_inicial=False, es_final=True,  orden=8,  color_hex='#dc3545'),
+    dict(entidad='ticket', codigo='cerrado',       nombre_display='Cerrado',       es_inicial=False, es_final=True,  orden=9,  color_hex='#343a40'),
+    dict(entidad='ticket', codigo='cancelado',     nombre_display='Cancelado',     es_inicial=False, es_final=True,  orden=10, color_hex='#6f42c1'),
+    dict(entidad='ticket', codigo='revocado',      nombre_display='Revocado',      es_inicial=False, es_final=True,  orden=11, color_hex='#e83e8c'),
+    dict(entidad='ticket', codigo='eliminado',     nombre_display='Eliminado',     es_inicial=False, es_final=True,  orden=12, color_hex='#6c757d'),
+    # ticket_sub
+    dict(entidad='ticket_sub', codigo='pendiente_revision',  nombre_display='Pendiente Revisión',    es_inicial=True,  es_final=False, orden=1),
+    dict(entidad='ticket_sub', codigo='revisado',             nombre_display='Revisado',              es_inicial=False, es_final=False, orden=2),
+    dict(entidad='ticket_sub', codigo='asignado_mantencion',  nombre_display='Asignado a Mantención', es_inicial=False, es_final=False, orden=3),
+    dict(entidad='ticket_sub', codigo='escalado',             nombre_display='Escalado',              es_inicial=False, es_final=True,  orden=4),
+    dict(entidad='ticket_sub', codigo='asignado_guardia',    nombre_display='Asignado a Guardia',    es_inicial=False, es_final=False, orden=5),
+    dict(entidad='ticket_sub', codigo='asignado_tecnico',    nombre_display='Asignado a Técnico',    es_inicial=False, es_final=False, orden=6),
+    # cuenta
+    dict(entidad='cuenta', codigo='pendiente',  nombre_display='Pendiente',  es_inicial=True,  es_final=False, orden=1, color_hex='#ffc107'),
+    dict(entidad='cuenta', codigo='activa',     nombre_display='Activa',     es_inicial=False, es_final=False, orden=2, color_hex='#28a745'),
+    dict(entidad='cuenta', codigo='suspendida', nombre_display='Suspendida', es_inicial=False, es_final=False, orden=3, color_hex='#fd7e14'),
+    dict(entidad='cuenta', codigo='rechazada',  nombre_display='Rechazada',  es_inicial=False, es_final=True,  orden=4, color_hex='#dc3545'),
+    # asignacion
+    dict(entidad='asignacion', codigo='activa',     nombre_display='Activa',     es_inicial=True,  es_final=False, orden=1),
+    dict(entidad='asignacion', codigo='completada', nombre_display='Completada', es_inicial=False, es_final=True,  orden=2),
+    dict(entidad='asignacion', codigo='cancelada',  nombre_display='Cancelada',  es_inicial=False, es_final=True,  orden=3),
+    dict(entidad='asignacion', codigo='pendiente',  nombre_display='Pendiente',  es_inicial=False, es_final=False, orden=4),
+    # inasistencia
+    dict(entidad='inasistencia', codigo='pendiente', nombre_display='Pendiente', es_inicial=True,  es_final=False, orden=1),
+    dict(entidad='inasistencia', codigo='aprobada',  nombre_display='Aprobada',  es_inicial=False, es_final=True,  orden=2),
+    dict(entidad='inasistencia', codigo='rechazada', nombre_display='Rechazada', es_inicial=False, es_final=True,  orden=3),
+    # material_faltante
+    dict(entidad='material_faltante', codigo='pendiente',  nombre_display='Pendiente',  es_inicial=True,  es_final=False, orden=1),
+    dict(entidad='material_faltante', codigo='solicitado', nombre_display='Solicitado', es_inicial=False, es_final=False, orden=2),
+    dict(entidad='material_faltante', codigo='recibido',   nombre_display='Recibido',   es_inicial=False, es_final=True,  orden=3),
+    dict(entidad='material_faltante', codigo='cancelado',  nombre_display='Cancelado',  es_inicial=False, es_final=True,  orden=4),
+]
 
 
 class Command(BaseCommand):
-    help = 'Puebla las tablas maestras de categorías, especialidades y materiales con el catálogo institucional base.'
+    help = 'Puebla las tablas maestras de estados, categorías, especialidades y materiales con el catálogo institucional base.'
 
     def handle(self, *args, **options):
         self.stdout.write('')
@@ -31,8 +77,25 @@ class Command(BaseCommand):
         omitidos = 0
 
         # ═══════════════════════════════════════════════════════════════
-        # 1. SEMBRADO: CATEGORÍAS DE TICKETS (Tus nombres originales exactos)
+        # 1. SEMBRADO: MATRIZ MAESTRA DE ESTADOS DEL SISTEMA
         # ═══════════════════════════════════════════════════════════════
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Matriz del Catálogo de Estados...'))
+        for estado_data in ESTADOS_INICIALES:
+            _, creada = EstadoCatalogo.objects.get_or_create(
+                entidad=estado_data['entidad'],
+                codigo=estado_data['codigo'],
+                defaults=estado_data,
+            )
+            if creada:
+                creados += 1
+            else:
+                omitidos += 1
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Sincronizados {len(ESTADOS_INICIALES)} estados base del motor de estados.'))
+
+        # ═══════════════════════════════════════════════════════════════
+        # 2. SEMBRADO: CATEGORÍAS DE TICKETS (Nombres originales exactos)
+        # ═══════════════════════════════════════════════════════════════
+        self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Categorías de Tickets...'))
         cat_tickets_base = [
             {'codigo': 'electrico', 'nombre': 'Eléctrico'},
@@ -60,7 +123,7 @@ class Command(BaseCommand):
                 omitidos += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 2. SEMBRADO: CATEGORÍAS DE MATERIALES (Logística Bodega)
+        # 3. SEMBRADO: CATEGORÍAS DE MATERIALES (Logística Bodega)
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Categorías de Materiales...'))
@@ -87,7 +150,7 @@ class Command(BaseCommand):
                 omitidos += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 3. SEMBRADO: ESPECIALIDADES TÉCNICAS (Tus strings originales)
+        # 4. SEMBRADO: ESPECIALIDADES TÉCNICAS (Tus strings originales)
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Especialidades Técnicas...'))
@@ -128,7 +191,7 @@ class Command(BaseCommand):
                 omitidos += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 4. SEMBRADO: CATALOGO DE MATERIALES E INTERMEDIAS M:N (Opción B)
+        # 5. SEMBRADO: CATALOGO DE MATERIALES E INTERMEDIAS M:N
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Catálogo de Materiales e Intermedias M:N...'))
@@ -205,6 +268,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'   PROCESO FINALIZADO CON ÉXITO.'))
         self.stdout.write(f'    Registros nuevos añadidos al sistema: {creados}')
         self.stdout.write(f'    Relaciones M:N Material <-> Especialidad inyectadas: {uniones_creadas}')
-        self.stdout.write(f'    Registros omitidos (ya existían en la BD): {omitidos}')
+        self.stdout.write(f'    Registros de resguardo omitidos u obsoletos: {omitidos}')
         self.stdout.write(self.style.MIGRATE_HEADING('-' * 60))
         self.stdout.write('')
