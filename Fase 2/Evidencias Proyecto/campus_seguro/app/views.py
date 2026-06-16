@@ -1607,12 +1607,6 @@ def gestor_bi(request):
     categorias_materiales = list(
         CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display')
     )
-    stock_bajo = list(
-        Material.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
-        .annotate(deficit=F('stock_minimo') - F('stock_actual')).order_by('stock_actual')
-    )
-    stock_cero = Material.objects.filter(stock_actual=0, activo=True).count()
-    stock_total_activo = Material.objects.filter(activo=True).count()
 
     guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').order_by('first_name')
     tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
@@ -1641,7 +1635,6 @@ def gestor_bi(request):
         'materiales_top': materiales_top, 'por_categoria_mat': por_categoria_mat,
         'mat_por_tipo_ticket': mat_por_tipo_ticket, 'mat_por_tecnico': mat_por_tecnico,
         'categorias_materiales': categorias_materiales, 'cat_material': cat_material, 'cat_material_nombre': cat_material_nombre,
-        'stock_bajo': stock_bajo, 'stock_cero': stock_cero, 'stock_total_activo': stock_total_activo,
     })
 
 

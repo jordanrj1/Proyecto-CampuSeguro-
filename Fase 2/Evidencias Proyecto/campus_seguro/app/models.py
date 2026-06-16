@@ -410,8 +410,6 @@ class Material(models.Model):
     # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real
     categoria = models.ForeignKey(CategoriaMaterial, on_delete=models.PROTECT, related_name='materiales')
     unidad = models.CharField(max_length=20, choices=UNIDAD_CHOICES)
-    stock_actual = models.PositiveIntegerField(default=0)
-    stock_minimo = models.PositiveIntegerField(default=5)
     descripcion = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
     # 🔗 RELACIÓN DE SEGURIDAD: Para filtrar en el formulario del técnico
@@ -428,10 +426,11 @@ class Material(models.Model):
 
     def __str__(self):
         return f"{self.codigo} – {self.nombre}"
-
+    
     @property
-    def bajo_stock(self):
-        return self.stock_actual <= self.stock_minimo
+    def total_utilizado(self):
+        """Calcula el total histórico consumido sumando los registros de MaterialUtilizado"""
+        return sum(consumo.cantidad for consumo in self.consumos.all())
 
 class EspecialidadMaterial(models.Model):
     """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""

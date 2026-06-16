@@ -48,8 +48,7 @@ class UsuarioAdmin(UserAdmin):
         }),
     )
 
-    # ✔️ CORREGIDO: Formulario de CREACIÓN de nuevos usuarios desde el panel
-    # Permite setear los campos institucionales obligatorios desde el primer segundo
+    # Formulario de CREACIÓN de nuevos usuarios desde el panel
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Datos Institucionales Iniciales', {
             'fields': ('rol', 'rut', 'correo_institucional', 'sede', 'estado_cuenta'),
@@ -61,8 +60,9 @@ class UsuarioAdmin(UserAdmin):
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre', 'categoria', 'stock_actual', 'stock_minimo', 'activo')
-    list_filter = ('categoria', 'activo')
+    # ✔️ CORREGIDO: Removidas las referencias a stock_actual y stock_minimo
+    list_display = ('codigo', 'nombre', 'categoria', 'unidad', 'activo')
+    list_filter = ('categoria', 'activo', 'unidad')
     search_fields = ('codigo', 'nombre')
     inlines = [EspecialidadMaterialInline]
 

@@ -494,7 +494,7 @@ class InasistenciaForm(forms.ModelForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['codigo', 'nombre', 'categoria', 'unidad', 'stock_actual', 'stock_minimo', 'descripcion']
+        fields = ['codigo', 'nombre', 'categoria', 'unidad', 'descripcion']
 
 
 # ═══════════════════════════════════════════════════════════════
