@@ -268,14 +268,14 @@ Seguro{% endblock %} {% block content %}
         >Ver detalles</a
       >
       <a
-        href="{% url 'app:cerrar_ticket' t.pk %}"
+        href="{% url 'app:validar_reparacion' t.pk %}"
         class="btn btn-primary btn-sm"
         style="
           text-align: center;
           background: var(--accent-green);
           border-color: var(--accent-green);
         "
-        >✓ Cerrar ticket</a
+        >🔍 Validar reparación</a
       >
       <a
         href="{% url 'app:pausar_ticket' t.pk %}"

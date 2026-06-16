@@ -1180,6 +1180,61 @@ def cerrar_ticket(request, pk):
     return render(request, 'app/cerrar_ticket.html', {'ticket': ticket})
 
 
+@login_required
+@rol_requerido('gestor')
+def validar_reparacion(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='reparado', deleted_at__isnull=True)
+    mantencion = getattr(ticket, 'mantencion', None)
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+
+        if accion == 'aprobar':
+            estado_anterior = ticket.estado.codigo
+            ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
+            ticket.cerrado_at = timezone.now()
+            ticket.save()
+            registrar_log(ticket, request.user, 'Reparación aprobada por gestor — ticket cerrado',
+                          estado_anterior=estado_anterior, estado_nuevo='cerrado',
+                          ip=get_client_ip(request))
+            notificar(ticket.creado_por, 'ticket_cerrado',
+                      f'Ticket #{ticket.pk} cerrado',
+                      'La reparación fue aprobada por el gestor. Tu reporte quedó resuelto.',
+                      ticket=ticket)
+            if mantencion:
+                notificar(mantencion.tecnico, 'general',
+                          f'Reparación #{ticket.pk} aprobada',
+                          f'El gestor aprobó tu reparación del ticket "{ticket.titulo}".',
+                          ticket=ticket)
+            messages.success(request, '✓ Reparación aprobada. Ticket cerrado.')
+            return redirect('app:gestor_tickets')
+
+        elif accion == 'rechazar':
+            comentario = request.POST.get('comentario_rechazo', '').strip()
+            if not comentario:
+                messages.error(request, 'Debes ingresar el motivo del rechazo.')
+                return render(request, 'app/validar_reparacion.html',
+                              {'ticket': ticket, 'mantencion': mantencion})
+            estado_anterior = ticket.estado.codigo
+            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+            ticket.save()
+            registrar_log(ticket, request.user,
+                          f'Reparación rechazada por gestor — devuelta a mantención',
+                          estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
+                          ip=get_client_ip(request), es_interno=True,
+                          detalle=comentario)
+            if mantencion:
+                notificar(mantencion.tecnico, 'rechazo_validacion',
+                          f'Reparación #{ticket.pk} rechazada',
+                          f'El gestor rechazó la reparación: {comentario}',
+                          ticket=ticket)
+            messages.warning(request, '⚠ Reparación rechazada. Ticket devuelto a mantención.')
+            return redirect('app:gestor_tickets')
+
+    return render(request, 'app/validar_reparacion.html',
+                  {'ticket': ticket, 'mantencion': mantencion})
+
+
 # ── Gestor: Gestión de cuentas ─────────────────────
 @login_required
 @rol_requerido('gestor')

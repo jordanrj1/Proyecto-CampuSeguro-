@@ -1,6 +1,5 @@
 from django.urls import path
 from . import views
-from . import vistas_nuevas  # BUG-04: conectar vistas mejoradas
 
 app_name = 'app'
 
@@ -40,6 +39,7 @@ urlpatterns = [
     path('gestor/tickets/<int:pk>/pausar/', views.pausar_ticket, name='pausar_ticket'),
     path('gestor/tickets/<int:pk>/reactivar/', views.reactivar_ticket, name='reactivar_ticket'),
     path('gestor/tickets/<int:pk>/cerrar/', views.cerrar_ticket, name='cerrar_ticket'),
+    path('gestor/tickets/<int:pk>/validar-reparacion/', views.validar_reparacion, name='validar_reparacion'),
 
     # ─ GESTOR: CUENTAS / USUARIOS ────────────────────
     path('gestor/solicitudes/', views.gestor_solicitudes_cuenta, name='gestor_solicitudes_cuenta'),
@@ -82,8 +82,7 @@ urlpatterns = [
 
     # ── GESTOR: VINCULAR ACTIVOS ──────────────────────
     path('gestor/tickets/<int:pk>/vincular-activo/', views.vincular_activo_ticket, name='vincular_activo'),
-    # historial: vistas_nuevas amplía permisos (creador + asignado pueden ver, no solo gestor)
-    path('gestor/tickets/<int:pk>/historial/', vistas_nuevas.historial_acciones_ticket, name='historial_acciones'),
+    path('gestor/tickets/<int:pk>/historial/', views.historial_acciones_ticket, name='historial_acciones'),
 
     # ── MANTENCIÓN: TRAZABILIDAD ──────────────────────
     path('mantencion/<int:pk>/trazabilidad/', views.trazabilidad_ticket, name='trazabilidad_ticket'),
