@@ -46,22 +46,33 @@ a { color: inherit; text-decoration: none; }
 
 /* ── SIDEBAR ── */
 .sb-brand {
-  padding: 24px 22px; border-bottom: 1px solid var(--border);
+  padding: 18px 20px 0;
   display: flex; align-items: center; gap: 12px;
 }
 .sb-brand .logo {
-  width: 42px; height: 42px;
+  width: 38px; height: 38px;
   background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
-  border-radius: 11px; display: flex; align-items: center; justify-content: center;
-  font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(74,143,255,0.25);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(74,143,255,0.25);
 }
-.sb-brand .name { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+.sb-brand .name { font-size: 14px; font-weight: 800; letter-spacing: -0.3px; }
 .sb-brand .sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
 
-.sb-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+/* Bloque de usuario en cabecera del sidebar */
+.sb-user-header {
+  margin: 14px 12px 0;
+  padding: 12px 14px;
+  background: var(--bg-700);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 10px;
+}
+.sb-divider { height: 1px; background: var(--border); margin: 14px 0 0; }
+
+.sb-nav { flex: 1; padding: 14px 12px; overflow-y: auto; }
 .sb-nav::-webkit-scrollbar { width: 4px; }
 .sb-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
-.nav-section { margin-bottom: 24px; }
+.nav-section { margin-bottom: 22px; }
 .nav-label {
   font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
   color: var(--text-muted); text-transform: uppercase;
@@ -87,10 +98,19 @@ a { color: inherit; text-decoration: none; }
   font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 700;
 }
 
-.sb-user {
-  padding: 14px 18px; border-top: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
+/* Logout compacto al pie */
+.sb-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
 }
+.sb-logout {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 12px; border-radius: var(--radius-sm);
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 13px; font-family: var(--font-main);
+  transition: all 0.15s;
+}
+.sb-logout:hover { background: rgba(245,54,92,0.08); color: var(--accent-red); }
+
 .avatar {
   width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
   justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;
@@ -101,9 +121,28 @@ a { color: inherit; text-decoration: none; }
 .avatar.role-mantencion { background: rgba(45,206,137,0.2); color: var(--accent-green); }
 .user-info { flex: 1; min-width: 0; }
 .user-info .uname { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-info .urole { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.btn-logout { color: var(--text-muted); font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
-.btn-logout:hover { color: var(--accent-red); background: rgba(245,54,92,0.1); }
+
+/* Badge de rol — coloreado según rol */
+.role-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  margin-top: 3px;
+}
+.role-badge.role-usuario  { background: rgba(74,143,255,0.15);  color: var(--accent-blue); }
+.role-badge.role-gestor   { background: rgba(17,205,239,0.15);  color: var(--accent-teal); }
+.role-badge.role-guardia  { background: rgba(244,197,66,0.15);  color: var(--accent-yellow); }
+.role-badge.role-mantencion { background: rgba(45,206,137,0.15); color: var(--accent-green); }
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.breadcrumb a { color: var(--text-muted); transition: color 0.15s; }
+.breadcrumb a:hover { color: var(--accent-blue); }
+.breadcrumb .sep { color: var(--border-strong); }
 
 /* ── TOPBAR ── */
 .topbar {
@@ -207,8 +246,8 @@ select { cursor: pointer; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .form-section-title {
-  font-size: 11px; font-weight: 800; color: var(--accent-teal);
-  text-transform: uppercase; letter-spacing: 1.2px;
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 1px;
   margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
 }
 .form-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
@@ -247,6 +286,20 @@ select { cursor: pointer; }
 .progress-bar.yellow { background: var(--accent-yellow); }
 .progress-bar.red { background: var(--accent-red); }
 
+/* ── PAGINACIÓN ── */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 20px; }
+.page-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; padding: 0 10px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); background: var(--bg-700); border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+.page-link:hover { background: var(--bg-600); color: var(--text-primary); }
+.page-link.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); font-weight: 700; }
+.page-link.disabled { opacity: 0.35; pointer-events: none; }
+.page-info { font-size: 12px; color: var(--text-muted); margin: 0 8px; }
+
 /* ── EMPTY STATE ── */
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
 .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.6; }
@@ -276,8 +329,11 @@ select { cursor: pointer; }
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .sidebar { width: 80px; }
-  .sidebar .name, .sidebar .sub, .sidebar .nav-label, .sidebar .user-info { display: none; }
+  .sidebar .name, .sidebar .sub, .sidebar .nav-label,
+  .sidebar .user-info, .sidebar .sb-user-header { display: none; }
   .sidebar .nav-item { justify-content: center; }
+  .sidebar .sb-logout span { display: none; }
+  .sidebar .sb-logout { justify-content: center; }
   .main { margin-left: 80px; padding: 20px; }
 }
 </style>
@@ -288,6 +344,7 @@ select { cursor: pointer; }
 {% if user.is_authenticated %}
 <div class="layout">
   <aside class="sidebar">
+    <!-- Logo + nombre del sistema -->
     <div class="sb-brand">
       <div class="logo">🛡️</div>
       <div>
@@ -296,11 +353,22 @@ select { cursor: pointer; }
       </div>
     </div>
 
+    <!-- Identidad del usuario — visible siempre en cabecera -->
+    <div class="sb-user-header">
+      <div class="avatar role-{{ user.rol }}">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
+      <div class="user-info">
+        <div class="uname">{{ user.get_full_name|default:user.username }}</div>
+        <div class="role-badge role-{{ user.rol }}">{{ user.get_rol_display }}</div>
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
     <nav class="sb-nav">
       <div class="nav-section">
         <div class="nav-label">Principal</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-          <span class="icon">📊</span> Dashboard
+          <span class="icon">▦</span> Dashboard
         </a>
         <a href="{% url 'app:notificaciones' %}" class="nav-item {% if request.resolver_match.url_name == 'notificaciones' %}active{% endif %}">
           <span class="icon">🔔</span> Notificaciones
@@ -312,10 +380,10 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Mis Tickets</div>
         <a href="{% url 'app:mis_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'mis_tickets' %}active{% endif %}">
-          <span class="icon">🎫</span> Ver mis tickets
+          <span class="icon">◈</span> Ver mis tickets
         </a>
         <a href="{% url 'app:crear_ticket' %}" class="nav-item {% if request.resolver_match.url_name == 'crear_ticket' %}active{% endif %}">
-          <span class="icon">➕</span> Crear ticket
+          <span class="icon">+</span> Crear ticket
         </a>
       </div>
       {% endif %}
@@ -324,28 +392,28 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Gestión Operativa</div>
         <a href="{% url 'app:gestor_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_tickets' %}active{% endif %}">
-          <span class="icon">📋</span> Todos los Tickets
+          <span class="icon">≡</span> Todos los Tickets
         </a>
         <a href="{% url 'app:gestor_operativo' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_operativo' %}active{% endif %}">
-          <span class="icon">👥</span> Rendimiento Trabajadores
+          <span class="icon">◉</span> Rendimiento Trabajadores
         </a>
         <a href="{% url 'app:gestor_bi' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_bi' %}active{% endif %}">
-          <span class="icon">📈</span> Business Intelligence
+          <span class="icon">↗</span> Business Intelligence
         </a>
       </div>
       <div class="nav-section">
         <div class="nav-label">Administración</div>
         <a href="{% url 'app:gestor_solicitudes_cuenta' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_solicitudes_cuenta' %}active{% endif %}">
-          <span class="icon">📝</span> Solicitudes de Cuenta
+          <span class="icon">◻</span> Solicitudes de Cuenta
         </a>
         <a href="{% url 'app:gestor_usuarios' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_usuarios' %}active{% endif %}">
-          <span class="icon">👤</span> Usuarios
+          <span class="icon">◯</span> Usuarios
         </a>
         <a href="{% url 'app:gestor_inasistencias' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_inasistencias' %}active{% endif %}">
-          <span class="icon">📅</span> Inasistencias
+          <span class="icon">◷</span> Inasistencias
         </a>
         <a href="{% url 'app:materiales_listado' %}" class="nav-item {% if request.resolver_match.url_name == 'materiales_listado' %}active{% endif %}">
-          <span class="icon">📦</span> Materiales
+          <span class="icon">▣</span> Materiales
         </a>
       </div>
       {% endif %}
@@ -353,11 +421,11 @@ select { cursor: pointer; }
       {% if user.rol == 'guardia' %}
       <div class="nav-section">
         <div class="nav-label">Guardia</div>
-        <a href="{% url 'app:dashboard' %}" class="nav-item">
-          <span class="icon">🛡️</span> Validaciones Pendientes
+        <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+          <span class="icon">◈</span> Validaciones Pendientes
         </a>
-        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item">
-          <span class="icon">📅</span> Registrar Inasistencia
+        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item {% if request.resolver_match.url_name == 'registrar_inasistencia' %}active{% endif %}">
+          <span class="icon">◷</span> Registrar Inasistencia
         </a>
       </div>
       {% endif %}
@@ -365,30 +433,29 @@ select { cursor: pointer; }
       {% if user.rol == 'mantencion' %}
       <div class="nav-section">
         <div class="nav-label">Mantención</div>
-        <a href="{% url 'app:dashboard' %}" class="nav-item">
-          <span class="icon">🔧</span> Mis Trabajos
+        <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+          <span class="icon">⊙</span> Mis Trabajos
         </a>
-        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item">
-          <span class="icon">📅</span> Registrar Inasistencia
+        <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item {% if request.resolver_match.url_name == 'registrar_inasistencia' %}active{% endif %}">
+          <span class="icon">◷</span> Registrar Inasistencia
         </a>
       </div>
       {% endif %}
 
       <div class="nav-section">
         <div class="nav-label">Cuenta</div>
-        <a href="{% url 'app:mi_perfil' %}" class="nav-item">
-          <span class="icon">⚙️</span> Mi Perfil
+        <a href="{% url 'app:mi_perfil' %}" class="nav-item {% if request.resolver_match.url_name == 'mi_perfil' %}active{% endif %}">
+          <span class="icon">◌</span> Mi Perfil
         </a>
       </div>
     </nav>
 
-    <div class="sb-user">
-      <div class="avatar role-{{ user.rol }}">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
-      <div class="user-info">
-        <div class="uname">{{ user.get_full_name|default:user.username }}</div>
-        <div class="urole">{{ user.get_rol_display }}</div>
-      </div>
-      <button onclick="document.getElementById('modal-logout').style.display='flex'" class="btn-logout" title="Cerrar sesión" style="background:none;border:none;cursor:pointer;">⏏</button>
+    <!-- Cerrar sesión al pie -->
+    <div class="sb-footer">
+      <button onclick="document.getElementById('modal-logout').style.display='flex'" class="sb-logout">
+        <span style="font-size:14px;">⏏</span>
+        <span>Cerrar sesión</span>
+      </button>
     </div>
   </aside>
 
@@ -406,8 +473,14 @@ select { cursor: pointer; }
   </div>
 
   <main class="main">
+    <!-- Breadcrumb automático -->
+    <div class="breadcrumb">
+      <a href="{% url 'app:dashboard' %}">Inicio</a>
+      {% block breadcrumb %}{% endblock %}
+    </div>
+
     {% for message in messages %}
-    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    <div class="alert alert-{{ message.tags|default:'info' }}" data-autodismiss="{{ message.tags }}">{{ message }}</div>
     {% endfor %}
     {% block content %}{% endblock %}
   </main>
@@ -417,5 +490,37 @@ select { cursor: pointer; }
 {% endif %}
 
 {% block extra_js %}{% endblock %}
+
+<script>
+// Auto-dismiss: las alertas de éxito desaparecen solas a los 4 segundos
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('[data-autodismiss]').forEach(function (el) {
+    var tag = el.getAttribute('data-autodismiss');
+    if (tag && (tag.includes('success') || tag.includes('info'))) {
+      setTimeout(function () {
+        el.style.transition = 'opacity 0.6s ease';
+        el.style.opacity = '0';
+        setTimeout(function () { el.style.display = 'none'; }, 650);
+      }, 4000);
+    }
+  });
+
+  // Prevención de doble submit: deshabilita botones al enviar cualquier form
+  document.querySelectorAll('form').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (btn) {
+        var original = btn.textContent || btn.value;
+        btn.disabled = true;
+        if (btn.tagName === 'BUTTON') btn.textContent = 'Guardando…';
+        // Re-habilitar a los 10s como failsafe si algo falla
+        setTimeout(function () {
+          btn.disabled = false;
+          if (btn.tagName === 'BUTTON') btn.textContent = original;
+        }, 10000);
+      });
+    });
+  });
+});
+</script>
 </body>
 </html>

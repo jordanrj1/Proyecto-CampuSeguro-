@@ -35,6 +35,7 @@ from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Count, Sum, Q, Avg, F
 from django.urls import reverse
+from django.core.paginator import Paginator
 from datetime import timedelta, datetime
 from functools import wraps
 from django.conf import settings
@@ -471,9 +472,9 @@ def dashboard_guardia(request):
         'validos': mis_validaciones.filter(resultado='valido').count(),
         'invalidos': mis_validaciones.filter(resultado='invalido').count(),
         'inasistencias': Inasistencia.objects.filter(usuario=user).order_by('-fecha_desde')[:3],
-        # Campos nuevos para TARJETA 08
         'mis_revisiones': mis_revisiones,
         'mis_revisiones_count': mis_revisiones.count(),
+        'today': hoy,
     }
     return render(request, 'app/guardia.html', context)
 
@@ -490,15 +491,25 @@ def dashboard_mantencion(request):
         usuario=user, estado__codigo='aprobada',
         fecha_desde__lte=hoy, fecha_hasta__gte=hoy
     ).first()
+    from django.db.models import OuterRef, Subquery
+    hh_subquery = SesionTrabajo.objects.filter(
+        tecnico=user, ticket=OuterRef('ticket')
+    ).values('ticket').annotate(total=Sum('horas_hombre')).values('total')
+
+    historial_qs = completados.select_related('ticket').annotate(
+        hh_reales=Subquery(hh_subquery)
+    ).order_by('-fecha_registro')[:8]
+
     context = {
         'pendientes': pendientes.order_by('-urgencia', '-created_at'),
         'pendientes_count': pendientes.count(),
         'completados_count': completados.count(),
         'no_reparados_count': no_reparados.count(),
         'hh_total': SesionTrabajo.objects.filter(tecnico=user).aggregate(t=Sum('horas_hombre'))['t'] or 0,
-        'historial': completados.select_related('ticket').order_by('-fecha_registro')[:8],
+        'historial': historial_qs,
         'inasistencias': Inasistencia.objects.filter(usuario=user).order_by('-fecha_desde')[:5],
         'inasistencia_activa': inasistencia_activa,
+        'today': hoy,
     }
     return render(request, 'app/mantencion/dashboard.html', context)
 
@@ -620,12 +631,16 @@ def crear_ticket(request):
 
 @login_required
 def mis_tickets(request):
-    tickets = Ticket.objects.filter(creado_por=request.user, deleted_at__isnull=True).order_by('-created_at')
+    qs = Ticket.objects.filter(creado_por=request.user, deleted_at__isnull=True).order_by('-created_at')
     estado = request.GET.get('estado')
     if estado:
-        tickets = tickets.filter(estado__codigo=estado)
+        qs = qs.filter(estado__codigo=estado)
+    paginator = Paginator(qs, 20)
+    page = request.GET.get('page', 1)
+    tickets_page = paginator.get_page(page)
     return render(request, 'app/mis_tickets.html', {
-        'tickets': tickets,
+        'tickets': tickets_page,
+        'page_obj': tickets_page,
         'estados': EstadoCatalogo.objects.filter(entidad='ticket').order_by('orden').values_list('codigo', 'nombre_display'),
         'estado_filtro': estado,
     })
@@ -642,13 +657,19 @@ def detalle_ticket(request, pk):
     if es_operativo:
         logs = ticket.logs.select_related('usuario').order_by('created_at')
     else:
-        ESTADOS_PUBLICOS = {'enviado', 'en_validacion', 'en_mantencion', 'reparado', 'pausado', 'no_reparado', 'cerrado'}
         logs = ticket.logs.filter(es_interno=False).select_related('usuario').order_by('created_at')
+
+    sesiones = ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio')
+    todos_mat = MaterialUtilizado.objects.filter(
+        sesion_trabajo__ticket=ticket
+    ).select_related('material', 'sesion_trabajo').order_by('sesion_trabajo__inicio')
 
     return render(request, 'app/shared/ticket_detalle.html', {
         'ticket': ticket,
         'logs': logs,
         'es_operativo': es_operativo,
+        'sesiones': sesiones,
+        'todos_materiales_sesiones': todos_mat,
     })
 
 
@@ -769,8 +790,12 @@ def gestor_tickets(request):
             Q(ubicacion__edificio__icontains=busqueda) | Q(ubicacion__sala__icontains=busqueda)
         )
 
+    paginator = Paginator(qs, 25)
+    page = request.GET.get('page', 1)
+    tickets_page = paginator.get_page(page)
     return render(request, 'app/ticket.html', {
-        'tickets': qs,
+        'tickets': tickets_page,
+        'page_obj': tickets_page,
         'estados': EstadoCatalogo.objects.filter(entidad='ticket').order_by('orden').values_list('codigo', 'nombre_display'),
         'urgencias': Ticket.URGENCIA_CHOICES,
         'categorias': CategoriaTicket.objects.filter(activo=True).values_list('codigo', 'nombre_display'),

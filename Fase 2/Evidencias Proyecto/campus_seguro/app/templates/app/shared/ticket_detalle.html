@@ -1,6 +1,10 @@
 {% extends 'app/base.html' %}
 {% block title %}Ticket #{{ ticket.pk }} · Trazabilidad{% endblock %}
-
+{% block breadcrumb %}
+  <span class="sep">›</span>
+  {% if request.user.rol == 'gestor' %}<a href="{% url 'app:gestor_tickets' %}">Tickets</a>{% else %}<a href="{% url 'app:mis_tickets' %}">Mis Tickets</a>{% endif %}
+  <span class="sep">›</span> #{{ ticket.pk }}
+{% endblock %}
 {% block content %}
 <div class="topbar">
   <div>
@@ -721,133 +725,60 @@
     {% if request.user.rol != 'usuario' %}
 
     <!-- Registro de mantención -->
-    {% if ticket.mantencion %} {% with r=ticket.mantencion %}
-    <div
-      class="card"
-      style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)"
-    >
-      <div class="form-section-title" style="color: var(--accent-green)">
-        ✓ Registro de reparación
-      </div>
+    {% if ticket.mantencion %}{% with r=ticket.mantencion %}
+    <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
+      <div class="form-section-title" style="color: var(--accent-green)">✓ Registro de reparación</div>
       <div style="font-size: 13px; margin-bottom: 10px">
         <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
         <div style="font-weight: 500">{{ r.tecnico.get_full_name }}</div>
-      </div>
-      {% if r.fecha_inicio %}
-      <div style="font-size: 13px; margin-bottom: 10px">
-        <div style="color: var(--text-muted); font-size: 11px">PERÍODO</div>
-        <div>
-          {{ r.fecha_inicio|date:"d/m H:i" }} → {{r.fecha_finalizacion|date:"d/m H:i"|default:'—'}}
-        </div>
-        {% if r.tiempo_total_minutos %}
-        <div style="color: var(--accent-blue); font-size: 12px">
-          {{ r.tiempo_total_minutos }} min totales
-        </div>
-        {% endif %}
-      </div>
-      {% endif %} {% if r.horas_hombre %}
-      <div style="font-size: 13px; margin-bottom: 10px">
-        <div style="color: var(--text-muted); font-size: 11px">
-          HORAS HOMBRE
-        </div>
-        <div style="font-weight: 700; font-size: 18px">
-          {{ r.horas_hombre }} hrs
-        </div>
-      </div>
-      {% endif %}
-      <div style="font-size: 13px; margin-bottom: 10px">
-        <div style="color: var(--text-muted); font-size: 11px">
-          TRABAJO REALIZADO
-        </div>
-        <div style="color: var(--text-secondary); line-height: 1.5">
-          {{ r.descripcion_trabajo }}
-        </div>
       </div>
       {% if r.causa_raiz %}
       <div style="font-size: 13px; margin-bottom: 10px">
         <div style="color: var(--text-muted); font-size: 11px">CAUSA RAÍZ</div>
         <div style="color: var(--text-secondary)">{{ r.causa_raiz }}</div>
       </div>
-      {% endif %} {% if r.herramientas_utilizadas %}
-      <div style="font-size: 13px; margin-bottom: 10px">
-        <div style="color: var(--text-muted); font-size: 11px">
-          HERRAMIENTAS
-        </div>
-        <div style="color: var(--text-secondary)">
-          {{ r.herramientas_utilizadas }}
-        </div>
-      </div>
       {% endif %}
-      <div
-        style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px"
-      >
-        {% if r.personal_adicional_requerido %}<span
-          style="
-            font-size: 11px;
-            background: rgba(244, 197, 66, 0.15);
-            color: var(--accent-yellow);
-            padding: 2px 8px;
-            border-radius: 4px;
-          "
-          >Personal adicional</span
-        >{% endif %} {% if r.requiere_nivel_mayor %}<span
-          style="
-            font-size: 11px;
-            background: rgba(245, 54, 92, 0.15);
-            color: var(--accent-red);
-            padding: 2px 8px;
-            border-radius: 4px;
-          "
-          >Requiere nivel mayor</span
-        >{% endif %}
-      </div>
-      {% if r.observaciones %}
-      <div
-        style="
-          font-size: 12px;
-          background: var(--bg-700);
-          border-radius: 6px;
-          padding: 10px;
-          color: var(--text-secondary);
-        "
-      >
-        <strong style="color: var(--text-muted); font-size: 10px"
-          >OBSERVACIONES:</strong
-        ><br />{{ r.observaciones }}
+      <!-- Resumen de jornadas desde SesionTrabajo -->
+      {% if sesiones %}
+      <div style="font-size: 13px; margin-bottom: 6px">
+        <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px">JORNADAS DE TRABAJO ({{ sesiones|length }})</div>
+        {% for s in sesiones %}
+        <div style="padding: 8px 10px; background: var(--bg-700); border-radius: 6px; margin-bottom: 6px; font-size: 12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="color:var(--text-secondary);">{{ s.inicio|date:"d/m/Y" }}</span>
+            {% if s.horas_hombre %}<span style="color:var(--accent-blue); font-weight:600;">{{ s.horas_hombre }} h</span>{% endif %}
+          </div>
+          <div style="color:var(--text-primary);">{{ s.descripcion_avance|truncatechars:80 }}</div>
+          {% if s.personal_adicional_requerido or s.requiere_nivel_mayor %}
+          <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">
+            {% if s.personal_adicional_requerido %}<span style="font-size:10px;background:rgba(244,197,66,.15);color:var(--accent-yellow);padding:1px 6px;border-radius:4px;">Personal adicional</span>{% endif %}
+            {% if s.requiere_nivel_mayor %}<span style="font-size:10px;background:rgba(245,54,92,.15);color:var(--accent-red);padding:1px 6px;border-radius:4px;">Nivel mayor</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
       </div>
       {% endif %}
     </div>
 
-    <!-- Materiales utilizados -->
-    {% if r.materiales_utilizados.exists %}
+    <!-- Materiales — ahora desde SesionTrabajo -->
+    {% if todos_materiales_sesiones %}
     <div class="card" style="margin-bottom: 18px">
-      <div class="form-section-title"> Materiales consumidos</div>
-      {% for mat in r.materiales_utilizados.all %}
-      <div
-        style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 0;
-          border-bottom: 1px solid var(--border);
-          font-size: 13px;
-        "
-      >
+      <div class="form-section-title">Materiales consumidos</div>
+      {% for mat in todos_materiales_sesiones %}
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;">
         <div>
           <div style="font-weight: 500">{{ mat.material.nombre }}</div>
-          {% if mat.observacion %}
-          <div style="font-size: 11px; color: var(--text-muted)">
-            {{ mat.observacion }}
-          </div>
-          {% endif %}
+          <div style="font-size:11px; color:var(--text-muted);">{{ mat.sesion_trabajo.inicio|date:"d/m" }}</div>
         </div>
         <div style="font-weight: 700; color: var(--accent-blue)">
-          {{ mat.cantidad }} {{ mat.material.unidad }}
+          {{ mat.cantidad_utilizada }} {{ mat.material.unidad_medida }}
         </div>
       </div>
       {% endfor %}
     </div>
-    {% endif %} {% endwith %} {% endif %}
+    {% endif %}
+    {% endwith %}{% endif %}
 
     <!-- Registro no reparable -->
     {% if ticket.no_reparable %} {% with nr=ticket.no_reparable %}

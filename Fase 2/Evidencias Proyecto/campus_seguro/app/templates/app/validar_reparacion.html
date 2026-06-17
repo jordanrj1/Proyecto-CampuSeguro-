@@ -1,6 +1,6 @@
 {% extends 'app/base.html' %}
 {% block title %}Validar Reparación #{{ ticket.id }}{% endblock %}
-
+{% block breadcrumb %}<span class="sep">›</span> <a href="{% url 'app:gestor_tickets' %}">Tickets</a> <span class="sep">›</span> Validar Reparación #{{ ticket.id }}{% endblock %}
 {% block content %}
 <div class="topbar">
   <div>

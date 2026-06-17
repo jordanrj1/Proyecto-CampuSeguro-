@@ -66,7 +66,7 @@
 
 <!-- Trabajos asignados -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🔧 Mis trabajos asignados</div>
+  <div class="card-title">Mis trabajos asignados</div>
   {% if pendientes %} {% for ticket in pendientes %}
   <div
     style="
@@ -246,7 +246,7 @@
 
 <!-- Historial reciente de reparaciones -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">📋 Historial de reparaciones</div>
+  <div class="card-title">Historial de reparaciones</div>
   {% if historial %}
   <div class="table-wrap">
     <table>
@@ -273,7 +273,7 @@
             {{ r.ticket.created_at|date:"d/m/Y H:i" }}
           </td>
           <td style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
-            {{ r.ticket.obtener_tiempo_estimado|default:'0.0' }} hrs
+            {% if r.hh_reales %}{{ r.hh_reales }} hrs{% else %}—{% endif %}
           </td>
 
           <td style="font-size: 12px; color: var(--text-secondary)">
@@ -309,7 +309,7 @@
     class="card-title"
     style="display: flex; justify-content: space-between; align-items: center"
   >
-    <span>📅 Mis inasistencias</span>
+    <span>Mis inasistencias</span>
     <a
       href="{% url 'app:registrar_inasistencia' %}"
       class="btn btn-ghost btn-sm"
