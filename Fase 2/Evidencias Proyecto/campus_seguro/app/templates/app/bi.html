@@ -43,21 +43,16 @@
       {% if seccion == 'general' %}Análisis general de tickets
       {% elif seccion == 'guardias' %}Desempeño operativo de guardias
       {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
-      {% else %}Consumo, stock y compras inteligentes{% endif %}
-      · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
+      {% else %}Consumo y compras inteligentes{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
     </div>
   </div>
   <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════
-     BARRA DE FILTROS
-════════════════════════════════════════════════════════════ -->
 <form method="get" style="margin-bottom:14px;">
   <input type="hidden" name="seccion" value="{{ seccion }}">
   <div style="background:var(--bg-850);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;">
 
-    <!-- Período rápido -->
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">PERÍODO</div>
       <div style="display:flex;gap:5px;">
@@ -68,7 +63,6 @@
       </div>
     </div>
 
-    <!-- Fecha personalizada -->
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">FECHA ESPECÍFICA</div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -80,7 +74,6 @@
       </div>
     </div>
 
-    <!-- Filtro trabajador (por sección) -->
     {% if seccion == 'guardias' and guardias %}
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">GUARDIA</div>
@@ -99,7 +92,6 @@
     </div>
     {% endif %}
 
-    <!-- Filtro categoría de material (solo en materiales) -->
     {% if seccion == 'materiales' and categorias_materiales %}
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">CATEGORÍA MATERIAL</div>
@@ -129,7 +121,6 @@
   </div>
 </form>
 
-<!-- Tabs de sección -->
 <div class="bi-tabs">
   <a href="?seccion=general&rango={{ rango }}" class="bi-tab {% if seccion == 'general' %}active{% endif %}">📊 General</a>
   <a href="?seccion=guardias&rango={{ rango }}" class="bi-tab tab-yellow {% if seccion == 'guardias' %}active{% endif %}">🛡️ Guardias</a>
@@ -273,7 +264,6 @@
   </div>
 </div>
 
-<!-- Checklists de riesgo -->
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;">
   <div class="card" style="border-left:3px solid var(--accent-red);display:flex;align-items:center;gap:16px;">
     <div style="font-size:30px;">⚡</div>
@@ -298,7 +288,6 @@
   </div>
 </div>
 
-<!-- Puntaje operativo por guardia -->
 {% if por_guardia %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por guardia
@@ -306,11 +295,9 @@
   </div>
   {% for g in por_guardia %}
   <div style="background:var(--bg-700);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
-    <!-- Score badge -->
     <div class="score-badge {% if g.score >= 75 %}score-high{% elif g.score >= 50 %}score-mid{% else %}score-low{% endif %}">
       {{ g.score }}
     </div>
-    <!-- Info -->
     <div style="flex:1;">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{{ g.guardia__first_name }} {{ g.guardia__last_name }}</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
@@ -335,7 +322,6 @@
           <div style="font-size:10px;color:var(--text-muted);">T. prom.</div>
         </div>
       </div>
-      <!-- Mini barra de actividad relativa -->
       {% if val_total %}
       <div style="margin-top:10px;">
         <div style="height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden;">
@@ -437,7 +423,6 @@
   </div>
 </div>
 
-<!-- Puntaje operativo por técnico -->
 {% if por_tecnico %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por técnico
@@ -476,7 +461,6 @@
           <div style="font-size:10px;color:var(--text-muted);">Con foto</div>
         </div>
       </div>
-      <!-- Barra de actividad relativa -->
       {% if mant_total %}
       <div style="margin-top:10px;">
         <div style="height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden;">
@@ -491,7 +475,6 @@
 </div>
 {% endif %}
 
-<!-- No reparables -->
 {% if nrep_total > 0 %}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card" style="border-left:3px solid var(--accent-red);">
@@ -543,7 +526,7 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'materiales' %}
 
-<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px;">
   <div class="kpi teal">
     <div class="kpi-label">Materiales distintos usados</div>
     <div class="kpi-value">{{ materiales_top|length }}</div>
@@ -554,19 +537,8 @@
     <div class="kpi-value">{{ por_categoria_mat|length }}</div>
     <div class="kpi-sub">tipos de material</div>
   </div>
-  <div class="kpi {% if stock_cero > 0 %}red{% else %}green{% endif %}">
-    <div class="kpi-label">Sin stock (0)</div>
-    <div class="kpi-value">{{ stock_cero }}</div>
-    <div class="kpi-sub">de {{ stock_total_activo }} activos</div>
-  </div>
-  <div class="kpi {% if stock_bajo %}yellow{% else %}green{% endif %}">
-    <div class="kpi-label">Bajo mínimo</div>
-    <div class="kpi-value">{{ stock_bajo|length }}</div>
-    <div class="kpi-sub">requieren reposición</div>
-  </div>
 </div>
 
-<!-- Top global de materiales (compras inteligentes) -->
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">📦 Top global – Compras inteligentes
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">ordenado por cantidad consumida</span>
@@ -618,7 +590,6 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
 
-  <!-- Consumo por categoría de material -->
   <div class="card">
     <div class="card-title">🗂️ Consumo por categoría de material</div>
     {% with max_cat=por_categoria_mat.0.total %}
@@ -644,7 +615,6 @@
     {% endwith %}
   </div>
 
-  <!-- Materiales por tipo de incidente (qué área consume más) -->
   <div class="card">
     <div class="card-title">🏷️ Consumo por tipo de incidente
       <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:4px;">qué categoría de avería consume más</span>
@@ -670,7 +640,6 @@
   </div>
 </div>
 
-<!-- Consumo por técnico -->
 {% if mat_por_tecnico %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">👷 Consumo de materiales por técnico</div>
@@ -678,44 +647,23 @@
     <table>
       <thead><tr><th>Técnico</th><th style="text-align:center;">Mat. distintos</th><th style="text-align:right;">Cantidad total</th></tr></thead>
       <tbody>
-        {% for t in mat_por_tecnico %}
+        {% for m in mat_por_tecnico %}
         <tr>
-          <td style="font-weight:600;">{{ t.registro__tecnico__first_name }} {{ t.registro__tecnico__last_name }}</td>
-          <td style="text-align:center;color:var(--text-secondary);">{{ t.items_distintos }}</td>
-          <td style="text-align:right;font-weight:700;color:var(--accent-teal);">{{ t.cantidad_total|floatformat:1 }}</td>
+            <td>
+                👷 {% if m.nombre %}{{ m.nombre }} {{ m.apellido }}{% else %}Técnico No Asignado{% endif %}
+            </td>
+            <td style="text-align: center;">
+                {{ m.items_distintos }} tipo{{ m.items_distintos|pluralize }}
+            </td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">
+                {{ m.cantidad_total|default:"0" }} u.
+            </td>
         </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-<!-- Stock bajo mínimo -->
-{% if stock_bajo %}
-<div class="card" style="border-left:3px solid var(--accent-red);">
-  <div class="card-title" style="color:var(--accent-red);">⚠ Stock bajo mínimo – Acción de compra requerida</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>Código</th><th>Material</th><th>Categoría</th><th style="text-align:center;">Actual</th><th style="text-align:center;">Mínimo</th><th style="text-align:center;">Déficit</th><th>Estado</th></tr>
-      </thead>
-      <tbody>
-        {% for m in stock_bajo %}
+        {% empty %}
         <tr>
-          <td><span class="id-mono">{{ m.codigo }}</span></td>
-          <td style="font-weight:600;">{{ m.nombre }}</td>
-          <td style="font-size:12px;color:var(--text-secondary);">{{ m.categoria.nombre_display|title }}</td>
-          <td style="text-align:center;font-weight:700;font-family:var(--font-mono);color:{% if m.stock_actual == 0 %}var(--accent-red){% else %}var(--accent-yellow){% endif %};">{{ m.stock_actual }}</td>
-          <td style="text-align:center;font-family:var(--font-mono);color:var(--text-muted);">{{ m.stock_minimo }}</td>
-          <td style="text-align:center;font-weight:700;color:var(--accent-red);">-{{ m.deficit }}</td>
-          <td>
-            {% if m.stock_actual == 0 %}
-            <span style="font-size:11px;background:rgba(245,54,92,0.2);color:var(--accent-red);padding:2px 10px;border-radius:4px;font-weight:600;">Sin stock</span>
-            {% else %}
-            <span style="font-size:11px;background:rgba(244,197,66,0.2);color:var(--accent-yellow);padding:2px 10px;border-radius:4px;font-weight:600;">Crítico</span>
-            {% endif %}
-          </td>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">
+                Sin consumo de materiales registrado en este período.
+            </td>
         </tr>
         {% endfor %}
       </tbody>

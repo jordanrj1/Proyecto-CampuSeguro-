@@ -71,6 +71,7 @@ urlpatterns = [
     path('mantencion/<int:pk>/tomar/', views.tomar_trabajo, name='tomar_trabajo'),
     path('mantencion/<int:pk>/completar/', views.completar_mantencion, name='completar_mantencion'),
     path('mantencion/<int:pk>/no-reparable/', views.marcar_no_reparable, name='no_reparable'),
+    path('mantencion/<int:pk>/estimar/', views.estimar_ticket, name='estimar_ticket'),
 
     # ─ INASISTENCIAS (operativos) ───────────────────
     path('inasistencia/registrar/', views.registrar_inasistencia, name='registrar_inasistencia'),

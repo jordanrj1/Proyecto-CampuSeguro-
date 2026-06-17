@@ -250,11 +250,23 @@ Seguro{% endblock %} {% block content %}
         <strong>{{ t.asignado_a.get_full_name|default:'—' }}</strong>
       </div>
       {% if t.mantencion %}
+      <!-- 🟢 CORREGIDO: Consumimos el tiempo estimado del ticket para el cierre operativo -->
       <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">
-        HH: {{ t.mantencion.horas_hombre|default:'N/A' }} {%if t.mantencion.tiempo_total_minutos%} · Tiempo: {{t.mantencion.tiempo_total_minutos}} min{% endif %} {%if t.mantencion.requiere_nivel_mayor%}<span
-          style="color: var(--accent-yellow); margin-left: 8px"
-          >⚠ Requiere nivel mayor</span
-        >{% endif %}
+        Esfuerzo Estimado: <strong style="color: var(--accent-green)">{{ t.obtener_tiempo_estimado|default:'0.0' }} hrs</strong>
+        
+        <!-- Desplegamos la duración analítica total desde su creación hasta la firma final si existe 'cerrado_at' -->
+        {% if t.cerrado_at %}
+          · Duración: {{ t.created_at|timesince:t.cerrado_at }}
+        {% endif %}
+
+        <!-- Trazabilidad de escalación diaria (Consensuado con el equipo) -->
+        {% if t.sesiones.all %}
+          {% for s in t.sesiones.all %}
+            {% if s.requiere_nivel_mayor and forloop.first %}
+              <span style="color: var(--accent-red); margin-left: 8px; font-weight: 600;">⚠️ Escalado a Especialista</span>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
       </div>
       {% endif %}
     </div>

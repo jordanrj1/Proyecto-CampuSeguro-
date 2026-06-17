@@ -199,34 +199,34 @@ class Command(BaseCommand):
             # Rubro Eléctrico
             {
                 'codigo': 'MAT-ELEC-001', 'nombre': 'Tubo Fluorescente LED 18W',
-                'cat_cod': 'electrico', 'unidad': 'unidad', 'stock': 40,
+                'cat_cod': 'electrico', 'unidad': 'unidad',
                 'permisos': ['Electricista Certificado SEC']
             },
             {
                 'codigo': 'MAT-ELEC-002', 'nombre': 'Cinta Aisladora Negra 20m',
-                'cat_cod': 'electrico', 'unidad': 'rollo', 'stock': 60,
+                'cat_cod': 'electrico', 'unidad': 'rollo',
                 'permisos': ['Electricista Certificado SEC', 'Técnico en Climatización y HVAC'] # Cruzado M:N
             },
             # Rubro Gasfitería
             {
                 'codigo': 'MAT-PLOM-001', 'nombre': 'Tubo PVC Sanitario 40mm x 3m',
-                'cat_cod': 'plomeria', 'unidad': 'unidad', 'stock': 12,
+                'cat_cod': 'plomeria', 'unidad': 'unidad',
                 'permisos': ['Gasfíter Plomero']
             },
             {
                 'codigo': 'MAT-PLOM-002', 'nombre': 'Cinta de Teflón Profesional 3/4',
-                'cat_cod': 'plomeria', 'unidad': 'rollo', 'stock': 45,
+                'cat_cod': 'plomeria', 'unidad': 'rollo',
                 'permisos': ['Gasfíter Plomero', 'Técnico en Climatización y HVAC'] # Cruzado M:N
             },
             # Rubro Ferretería / Cerrajeros / Carpinteros
             {
                 'codigo': 'MAT-FERR-001', 'nombre': 'Cerradura de Pomo para Aula (Chapa)',
-                'cat_cod': 'ferreteria', 'unidad': 'unidad', 'stock': 18,
+                'cat_cod': 'ferreteria', 'unidad': 'unidad',
                 'permisos': ['Cerrajero de Infraestructura']
             },
             {
                 'codigo': 'MAT-FERR-002', 'nombre': 'Tornillo Madera Zincado 1 1/2 (Caja x100)',
-                'cat_cod': 'ferreteria', 'unidad': 'caja', 'stock': 25,
+                'cat_cod': 'ferreteria', 'unidad': 'caja',
                 'permisos': ['Carpintero y Reparador de Mobiliario', 'Cerrajero de Infraestructura'] # Cruzado M:N
             }
         ]
@@ -241,8 +241,6 @@ class Command(BaseCommand):
                     'nombre': mat_data['nombre'],
                     'categoria': instancia_cat, # FK asignada
                     'unidad': mat_data['unidad'],
-                    'stock_actual': mat_data['stock'],
-                    'stock_minimo': 5,
                     'activo': True
                 }
             )

@@ -3,7 +3,6 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 
-
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO GLOBAL DE ESTADOS (normalización – feedback profesora)
 # Tabla 2 del DDL v2.0: reemplaza CHECKs dispersos en 6 entidades
@@ -410,8 +409,6 @@ class Material(models.Model):
     # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real
     categoria = models.ForeignKey(CategoriaMaterial, on_delete=models.PROTECT, related_name='materiales')
     unidad = models.CharField(max_length=20, choices=UNIDAD_CHOICES)
-    stock_actual = models.PositiveIntegerField(default=0)
-    stock_minimo = models.PositiveIntegerField(default=5)
     descripcion = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
     # 🔗 RELACIÓN DE SEGURIDAD: Para filtrar en el formulario del técnico
@@ -428,10 +425,11 @@ class Material(models.Model):
 
     def __str__(self):
         return f"{self.codigo} – {self.nombre}"
-
+    
     @property
-    def bajo_stock(self):
-        return self.stock_actual <= self.stock_minimo
+    def total_utilizado(self):
+        """Calcula el total histórico consumido sumando los registros de MaterialUtilizado"""
+        return sum(consumo.cantidad_utilizada for consumo in self.consumos.all())
 
 class EspecialidadMaterial(models.Model):
     """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""
@@ -544,6 +542,24 @@ class Ticket(models.Model):
         if self.cerrado_at:
             return self.cerrado_at - self.created_at
         return None
+    
+    @property
+    def esta_estimado(self):
+        """Retorna True si el técnico actual ya ingresó las horas estimadas en su asignación."""
+        if not self.asignado_a:
+            return False
+        # Busca la asignación que corresponde al técnico que tiene el ticket actualmente
+        asignacion = self.asignaciones.filter(usuario=self.asignado_a).first()
+        return asignacion.tiempo_estimado is not None if asignacion else False
+
+    @property
+    def obtener_tiempo_estimado(self):
+        """Retorna el valor numérico del tiempo estimado para mostrarlo en la interfaz."""
+        if self.asignado_a:
+            asignacion = self.asignaciones.filter(usuario=self.asignado_a).first()
+            if asignacion:
+                return asignacion.tiempo_estimado
+        return 0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -607,8 +623,13 @@ class AsignacionTicket(models.Model):
         verbose_name='Fecha programada',
         help_text='Fecha en la que se debe realizar la validación o el trabajo asignado'
     )
+    
+    # ⏱️ Nuevos Atributos del Análisis Preliminar / Reasignaciones Estables
+    tiempo_estimado = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Horas estimadas de trabajo real.")
+    diagnostico_preliminar = models.TextField(null=True, blank=True, help_text="Diagnóstico inicial ingresado por el mantenedor.")
 
     class Meta:
+        db_table = 'asignacion_ticket'
         ordering = ['-fecha_asignacion']
 
     def get_estado_display(self):
@@ -617,42 +638,83 @@ class AsignacionTicket(models.Model):
     def __str__(self):
         return f"Ticket #{self.ticket.pk} → {self.usuario} ({self.get_rol_asignacion_display()})"
 
+# ═══════════════════════════════════════════════════════════════
+# SESIONES DE TRABAJO (Cronómetro en tiempo real & Turnos técnicos)
+# Reemplaza la antigua bitácora fija diaria.
+# ═══════════════════════════════════════════════════════════════
+class SesionTrabajo(models.Model):
+    TIPO_CIERRE_CHOICES = [
+        ('fin_turno', 'Fin de turno — continúa mañana'),
+        ('pausa_material', 'Bloqueado — espera material'),
+        ('pausa_tecnica', 'Bloqueado — problema técnico'),
+        ('completado', 'Trabajo completado en esta sesión'),
+    ]
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='sesiones')
+    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='sesiones_trabajo')
+    
+    # Control de tiempos automático
+    inicio = models.DateTimeField(default=timezone.now)
+    fin = models.DateTimeField(null=True, blank=True)  # null = sesión activa ejecutándose en pañol/terreno
+    horas_hombre = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    descripcion_avance = models.TextField()
+    herramientas_utilizadas = models.TextField(blank=True, null=True)
+    
+    personal_adicional_requerido = models.BooleanField(default=False)
+    requiere_nivel_mayor = models.BooleanField(default=False)
+    observaciones = models.TextField(blank=True, null=True) # Notas para el gestor
+    
+    # Métricas de control de carga laboral (Propuesta compañero)
+    tipo_cierre = models.CharField(max_length=50, choices=TIPO_CIERRE_CHOICES, null=True, blank=True)
+    progreso = models.PositiveSmallIntegerField(null=True, blank=True)  # 0 a 100%
+    fecha_estimada_fin = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'sesion_trabajo'
+        ordering = ['-inicio']
+        verbose_name = 'Sesión de Trabajo'
+        verbose_name_plural = 'Sesiones de Trabajo'
+
+    def __str__(self):
+        return f"Sesión #{self.id} - Ticket #{self.ticket.pk} ({self.tecnico.username})"
 
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN + MATERIALES UTILIZADOS
 # ══════════════════════════════════════════════════════════════
 class RegistroMantencion(models.Model):
+    # Relación 1:1 limpia. Almacena solo auditoría y firmas técnicas de fin de ciclo
     ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='mantencion')
-    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    descripcion_trabajo = models.TextField()
-    causa_raiz = models.TextField(blank=True, null=True)
-    horas_hombre = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    foto_final = models.ImageField(upload_to='mantencion/fotos/', null=True, blank=True)
-    observaciones = models.TextField(blank=True, null=True)
-    fecha_inicio = models.DateTimeField(null=True, blank=True)
-    fecha_finalizacion = models.DateTimeField(null=True, blank=True)
-    reparacion_exitosa = models.BooleanField(null=True, default=None)
-    tiempo_total_minutos = models.PositiveIntegerField(null=True, blank=True)
-    herramientas_utilizadas = models.TextField(blank=True, null=True)
-    personal_adicional_requerido = models.BooleanField(default=False)
-    requiere_nivel_mayor = models.BooleanField(default=False)
+    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='cierres_firmados')
+    
+    # Datos exclusivos del cierre definitivo
+    causa_raiz = models.TextField()
+    foto_final = models.ImageField(upload_to='mantencion/fotos/', null=True, blank=True) # Destino Cloudinary Storage
+    
+    # Trazabilidad
+    fecha_registro = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'registro_mantencion'
+        verbose_name = 'Registro de Mantención'
+        verbose_name_plural = 'Registros de Mantenciones'
 
     def __str__(self):
-        return f"Mantención #{self.ticket.pk}"
-
+        return f"Acta de Cierre Técnico - Ticket #{self.ticket.pk}"
 
 class MaterialUtilizado(models.Model):
-    """Cada material consumido en una reparación → para BI y compras inteligentes"""
-    registro = models.ForeignKey(RegistroMantencion, on_delete=models.CASCADE, related_name='materiales_utilizados')
+    """Cada material consumido en una sesión diaria → para BI y compras inteligentes"""
+    sesion_trabajo = models.ForeignKey(SesionTrabajo, on_delete=models.CASCADE, related_name='materiales_utilizados')
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='consumos')
-    cantidad = models.DecimalField(max_digits=8, decimal_places=2)
+    cantidad_utilizada = models.DecimalField(max_digits=8, decimal_places=2) # Usa el nombre de tu diagrama
     observacion = models.CharField(max_length=200, blank=True, null=True)
 
-    def __str__(self):
-        return f"{self.cantidad} {self.material.unidad} de {self.material.nombre}"
+    class Meta:
+        db_table = 'material_utilizado'
 
+    def __str__(self):
+        return f"{self.cantidad_utilizada} {self.material.unidad} de {self.material.nombre}"
 
 # ═══════════════════════════════════════════════════════════════
 # NO REPARABLE
@@ -825,9 +887,8 @@ class HistorialAcciones(models.Model):
 # MATERIALES FALTANTES EN MANTENCIÓN
 # ═══════════════════════════════════════════════════════════════
 class MaterialesFaltantes(models.Model):
-    """Registra materiales que faltaron para completar una reparación."""
-
-    registro_mantencion = models.ForeignKey(RegistroMantencion, on_delete=models.CASCADE, related_name='materiales_faltantes')
+    """Registra materiales que faltaron durante una sesión de trabajo específica."""
+    sesion_trabajo = models.ForeignKey(SesionTrabajo, on_delete=models.CASCADE, related_name='materiales_faltantes')
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='solicitudes')
     cantidad_requerida = models.DecimalField(max_digits=8, decimal_places=2)
     cantidad_recibida = models.DecimalField(max_digits=8, decimal_places=2, default=0)
@@ -841,8 +902,5 @@ class MaterialesFaltantes(models.Model):
     fecha_recepcion = models.DateTimeField(null=True, blank=True)
     observaciones = models.TextField(blank=True, null=True)
 
-    def get_estado_display(self):
-        return self.estado.nombre_display if self.estado_id else ''
-
     def __str__(self):
-        return f"Material faltante: {self.material.nombre} (Ticket #{self.registro_mantencion.ticket.pk})"
+        return f"Material faltante: {self.material.nombre} (Sesión #{self.sesion_trabajo.id})"

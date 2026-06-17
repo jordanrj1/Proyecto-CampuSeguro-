@@ -40,7 +40,7 @@ from functools import wraps
 from django.conf import settings
 
 from .models import (
-    CategoriaMaterial, CategoriaTicket, Especialidad, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    CategoriaMaterial, CategoriaTicket, Especialidad, SesionTrabajo, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -50,7 +50,7 @@ from .forms import (
     TicketForm, ValidacionForm, MantencionForm, MaterialUtilizadoFormSet,
     NoReparableForm, PausaForm, ReactivacionForm, DerivarMantencionForm,
     ReasignarForm, InasistenciaForm, MaterialForm,
-    VincularActivoForm, MaterialFaltanteForm, AsignarRolForm
+    VincularActivoForm, MaterialFaltanteForm, AsignarRolForm, EstimarTicketForm
 )
 
 # Importación condicional del servicio Auth0.
@@ -495,8 +495,8 @@ def dashboard_mantencion(request):
         'pendientes_count': pendientes.count(),
         'completados_count': completados.count(),
         'no_reparados_count': no_reparados.count(),
-        'hh_total': completados.aggregate(t=Sum('horas_hombre'))['t'] or 0,
-        'historial': completados.select_related('ticket').order_by('-created_at')[:8],
+        'hh_total': SesionTrabajo.objects.filter(tecnico=user).aggregate(t=Sum('horas_hombre'))['t'] or 0,
+        'historial': completados.select_related('ticket').order_by('-fecha_registro')[:8],
         'inasistencias': Inasistencia.objects.filter(usuario=user).order_by('-fecha_desde')[:5],
         'inasistencia_activa': inasistencia_activa,
     }
@@ -1443,11 +1443,11 @@ def reset_usuario_gestor(request, pk):
 @rol_requerido('gestor')
 def gestor_operativo(request):
     rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
-        total_trabajos=Count('registromantencion', distinct=True),
+        total_trabajos=Count('cierres_firmados', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
         en_curso=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo='en_mantencion'), distinct=True),
         no_reparados=Count('noreparable', distinct=True),
-        hh_totales=Sum('registromantencion__horas_hombre'),
+        hh_totales=Sum('sesiones_trabajo__horas_hombre'),
     ).order_by('-trabajos_completados')
 
     rendimiento_guardia = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').annotate(
@@ -1568,33 +1568,43 @@ def gestor_bi(request):
         ).values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total')
     )
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🟢 CORRECCIÓN: Filtramos por 'fecha_registro' y cruzamos con 'ticket__sesiones'
+    # ═══════════════════════════════════════════════════════════════
     mant_qs = RegistroMantencion.objects.filter(
-        created_at__date__gte=desde, created_at__date__lte=hasta
+        fecha_registro__date__gte=desde, fecha_registro__date__lte=hasta
     )
     if trabajador_id and seccion in ('mantencion', 'materiales'):
         mant_qs = mant_qs.filter(tecnico_id=trabajador_id)
 
     mant_total = mant_qs.count()
-    _mant_hh = mant_qs.aggregate(t=Sum('horas_hombre'))['t']
-    _mant_hh_prom = mant_qs.aggregate(avg=Avg('horas_hombre'))['avg']
-    _mant_tiempo = mant_qs.aggregate(avg=Avg('tiempo_total_minutos'))['avg']
+    
+    # Agregamos las HH reales consultando las sesiones asociadas a los tickets cerrados
+    _mant_hh = mant_qs.aggregate(t=Sum('ticket__sesiones__horas_hombre'))['t']
+    _mant_hh_prom = mant_qs.aggregate(avg=Avg('ticket__sesiones__horas_hombre'))['avg']
+    
     mant_hh_total = round(float(_mant_hh), 1) if _mant_hh else 0
     mant_hh_prom = round(float(_mant_hh_prom), 1) if _mant_hh_prom else 0
-    mant_tiempo_prom = int(float(_mant_tiempo)) if _mant_tiempo else 0
-    mant_personal_adicional = mant_qs.filter(personal_adicional_requerido=True).count()
-    mant_nivel_mayor = mant_qs.filter(requiere_nivel_mayor=True).count()
+    
+    # El tiempo promedio lo estimamos multiplicando las HH promedio por 60 minutos
+    mant_tiempo_prom = int(mant_hh_prom * 60)
+    
+    # Contamos la presencia de alertas analíticas buscando en las sesiones del periodo
+    mant_personal_adicional = mant_qs.filter(ticket__sesiones__personal_adicional_requerido=True).distinct().count()
+    mant_nivel_mayor = mant_qs.filter(ticket__sesiones__requiere_nivel_mayor=True).distinct().count()
+    
     mant_con_foto = mant_qs.filter(foto_final__isnull=False).exclude(foto_final='').count()
     mant_tasa_foto = round((mant_con_foto / mant_total * 100) if mant_total else 0, 1)
 
+    # 🟢 CORRECCIÓN: Tabla de rendimiento por Técnico adaptada a la subestructura
     por_tecnico = list(
         mant_qs.values('tecnico__id', 'tecnico__first_name', 'tecnico__last_name')
         .annotate(
             total=Count('id'),
-            hh_total=Sum('horas_hombre'),
-            hh_prom=Avg('horas_hombre'),
-            tiempo_prom=Avg('tiempo_total_minutos'),
-            nivel_mayor=Count('id', filter=Q(requiere_nivel_mayor=True)),
-            adicional=Count('id', filter=Q(personal_adicional_requerido=True)),
+            hh_total=Sum('ticket__sesiones__horas_hombre'),
+            hh_prom=Avg('ticket__sesiones__horas_hombre'),
+            nivel_mayor=Count('ticket__sesiones', filter=Q(ticket__sesiones__requiere_nivel_mayor=True), distinct=True),
+            adicional=Count('ticket__sesiones', filter=Q(ticket__sesiones__personal_adicional_requerido=True), distinct=True),
             con_foto=Count('id', filter=Q(foto_final__isnull=False) & ~Q(foto_final='')),
         ).order_by('-total')
     )
@@ -1623,11 +1633,11 @@ def gestor_bi(request):
         t['nrep_count'] = nrep_tec
 
     mat_qs = MaterialUtilizado.objects.filter(
-        registro__created_at__date__gte=desde,
-        registro__created_at__date__lte=hasta,
+        sesion_trabajo__created_at__date__gte=desde,
+        sesion_trabajo__created_at__date__lte=hasta,
     )
     if trabajador_id and seccion == 'materiales':
-        mat_qs = mat_qs.filter(registro__tecnico_id=trabajador_id)
+        mat_qs = mat_qs.filter(sesion_trabajo__tecnico_id=trabajador_id)
     if cat_material and seccion == 'materiales':
         mat_qs = mat_qs.filter(material__categoria__codigo=cat_material)
 
@@ -1635,39 +1645,39 @@ def gestor_bi(request):
         mat_qs.values('material__codigo', 'material__nombre', 'material__unidad')
         .annotate(
             categoria_nombre=F('material__categoria__nombre_display'),
-            total_consumido=Sum('cantidad'),
+            total_consumido=Sum('cantidad_utilizada'),
             veces_usado=Count('id'),
-            en_tickets=Count('registro__ticket', distinct=True),
+            en_tickets=Count('sesion_trabajo__ticket', distinct=True),
         ).order_by('-total_consumido')[:20]
     )
     por_categoria_mat = list(
         mat_qs.values('material__categoria__nombre_display')
-        .annotate(total=Sum('cantidad'), frecuencia=Count('id'), tipos=Count('material', distinct=True))
+        .annotate(total=Sum('cantidad_utilizada'), frecuencia=Count('id'), tipos=Count('material', distinct=True))
         .order_by('-total')
     )
     mat_por_tipo_ticket = list(
-        mat_qs.values('registro__ticket__categoria__nombre_display')
+        mat_qs.values('sesion_trabajo__ticket__categoria__nombre_display')
         .annotate(
-            total_cantidad=Sum('cantidad'),
+            total_cantidad=Sum('cantidad_utilizada'),
             tipos_material=Count('material', distinct=True),
             usos=Count('id'),
         ).order_by('-total_cantidad')
     )
     mat_por_tecnico = list(
-        mat_qs.values('registro__tecnico__first_name', 'registro__tecnico__last_name')
-        .annotate(items_distintos=Count('material', distinct=True), cantidad_total=Sum('cantidad'))
+        mat_qs.values(
+            nombre=F('sesion_trabajo__tecnico__first_name'),
+            apellido=F('sesion_trabajo__tecnico__last_name')
+        )
+        .annotate(
+            items_distintos=Count('material', distinct=True), 
+            cantidad_total=Sum('cantidad_utilizada')
+        )
         .order_by('-cantidad_total')
     )
     # CORREGIDO: Traer el código y el nombre descriptivo real de la tabla maestra
     categorias_materiales = list(
         CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display')
     )
-    stock_bajo = list(
-        Material.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
-        .annotate(deficit=F('stock_minimo') - F('stock_actual')).order_by('stock_actual')
-    )
-    stock_cero = Material.objects.filter(stock_actual=0, activo=True).count()
-    stock_total_activo = Material.objects.filter(activo=True).count()
 
     guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').order_by('first_name')
     tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
@@ -1696,7 +1706,6 @@ def gestor_bi(request):
         'materiales_top': materiales_top, 'por_categoria_mat': por_categoria_mat,
         'mat_por_tipo_ticket': mat_por_tipo_ticket, 'mat_por_tecnico': mat_por_tecnico,
         'categorias_materiales': categorias_materiales, 'cat_material': cat_material, 'cat_material_nombre': cat_material_nombre,
-        'stock_bajo': stock_bajo, 'stock_cero': stock_cero, 'stock_total_activo': stock_total_activo,
     })
 
 
@@ -1774,6 +1783,38 @@ def validar_ticket(request, pk):
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN
 # ═══════════════════════════════════════════════════════════════
+
+@login_required
+@rol_requerido('mantencion')
+def estimar_ticket(request, pk):
+    """Vista para procesar el diagnóstico y tiempo estimado del mantenedor."""
+    ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
+    
+    # Buscamos la asignación de mantención pendiente para este ticket y este técnico
+    asignacion = get_object_or_404(AsignacionTicket, ticket=ticket, usuario=request.user, rol_asignacion='mantencion')
+
+    if request.method == 'POST':
+        form = EstimarTicketForm(request.POST, instance=asignacion)
+        if form.is_valid():
+            form.save()
+            
+            # Guardamos el hito en los logs de auditoría para el BI
+            registrar_log(
+                ticket, request.user, 'Estimación técnica ingresada', 
+                ip=get_client_ip(request), es_interno=True, 
+                detalle=f"Tiempo estimado: {asignacion.tiempo_estimado} hrs. Diagnóstico: {asignacion.diagnostico_preliminar[:150]}..."
+            )
+            
+            messages.success(request, '✓ Estimación registrada con éxito. Ya puedes iniciar el trabajo.')
+            return redirect('app:dashboard')
+    else:
+        form = EstimarTicketForm(instance=asignacion)
+
+    return render(request, 'app/mantencion/estimar.html', {
+        'form': form,
+        'ticket': ticket,
+    })
+
 @login_required
 @rol_requerido('mantencion')
 def tomar_trabajo(request, pk):
@@ -1794,8 +1835,6 @@ def tomar_trabajo(request, pk):
             messages.info(request, 'Este trabajo ya fue iniciado.')
     return redirect('app:dashboard')
 
-
-# Soporte para desbloqueo dinámico de catálogo por especialidad
 @login_required
 @rol_requerido('mantencion')
 def completar_mantencion(request, pk):
@@ -1804,10 +1843,8 @@ def completar_mantencion(request, pk):
         messages.info(request, 'Este ticket ya tiene registro de mantención.')
         return redirect('app:dashboard')
 
-    # Catálogo Completo (Para validación del motor de Django y bypass)
+    # Catálogos para el desvío dinámico por JavaScript
     todos_materiales = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
-    
-    # Catálogo Filtrado por Especialidad (Para la carga inicial del Técnico)
     tecnico = request.user
     especialidades_tecnico = tecnico.especialidades.all()
 
@@ -1819,7 +1856,6 @@ def completar_mantencion(request, pk):
     else:
         materiales_filtrados = todos_materiales
 
-    # Serializamos ambos catálogos a listas limpias de JavaScript
     def serialize_mat(qs):
         return [
             {
@@ -1831,48 +1867,162 @@ def completar_mantencion(request, pk):
     materiales_filtrados_json = json.dumps(serialize_mat(materiales_filtrados))
     todos_materiales_json = json.dumps(serialize_mat(todos_materiales))
 
+    # Inicializamos formularios por defecto para evitar UnboundLocalError en fallos de validación
+    form = MantencionForm(request.POST or None, request.FILES or None if request.method == 'POST' else None)
+    formset = MaterialUtilizadoFormSet(request.POST or None if request.method == 'POST' else None)
+
     if request.method == 'POST':
-        form = MantencionForm(request.POST, request.FILES)
-        formset = MaterialUtilizadoFormSet(request.POST, instance=RegistroMantencion())
+        tipo_rendicion = request.POST.get('tipo_rendicion')
+        ahora = timezone.now()
         
-        # Permitimos que Django acepte cualquier material activo en la validación POST
-        for sub_form in formset:
-            sub_form.fields['material'].queryset = todos_materiales
+        # 🟢 1. CAPTURA OBLIGATORIA DE TEXTOS
+        descripcion_limpia = request.POST.get('descripcion_trabajo', '').strip()
+        herramientas_limpias = request.POST.get('herramientas_utilizadas', '').strip()
+        
+        # 🟢 2. Checkboxes y Observaciones del turno
+        personal_adicional = request.POST.get('personal_adicional_requerido') == 'on'
+        nivel_mayor = request.POST.get('requiere_nivel_mayor') == 'on'
+        observaciones_limpias = request.POST.get('observaciones', '').strip()
 
-        if form.is_valid() and formset.is_valid():
-            fin = timezone.now()
-            registro = form.save(commit=False)
-            registro.ticket = ticket
-            registro.tecnico = request.user
-            registro.fecha_inicio = ticket.inicio_trabajo_at
-            registro.fecha_finalizacion = fin
-            if ticket.inicio_trabajo_at:
-                delta = fin - ticket.inicio_trabajo_at
-                registro.tiempo_total_minutos = int(delta.total_seconds() / 60)
-            registro.save()
+        # Helper local para re-renderizar la pantalla con errores sin perder el estado
+        def responder_con_error(mensaje):
+            messages.error(request, mensaje)
+            logs = ticket.logs.select_related('usuario').order_by('created_at')
+            return render(request, 'app/mantencion/completar.html', {
+                'form': form,
+                'formset': formset,
+                'ticket': ticket,
+                'logs': logs,
+                'materiales_filtrados_json': materiales_filtrados_json,
+                'todos_materiales_json': todos_materiales_json,
+            })
 
-            formset.instance = registro
-            materiales = formset.save()
+        # 🟢 2. GUARDIAS DE VALIDACIÓN CRÍTICA
+        if not descripcion_limpia:
+            return responder_con_error('⚠️ Operación rechazada: Es obligatorio ingresar una descripción del trabajo realizado.')
+            
+        if not herramientas_limpias: # ◄--- NUEVO: Frena el envío si las herramientas van vacías
+            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste en este turno (ej: Ninguna, destornillador, etc).')
+        
+        if not observaciones_limpias:
+            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observación o nota de turno para el gestor.')
+        
+        if len(observaciones_limpias) > 500:
+            return responder_con_error('⚠️ El campo de observaciones no puede superar los 500 caracteres.')
+        
+        # 🟢 AUTOMATIZACIÓN: Cálculo matemático de Horas Hombre reales
+        if ticket.inicio_trabajo_at:
+            delta = ahora - ticket.inicio_trabajo_at
+            horas_hombre_limpio = max(0.1, round(delta.total_seconds() / 3600, 1))
+        else:
+            horas_hombre_limpio = 0.1 # Fallback de resguardo por si el cronómetro no partió bien
+        
+        # ═══════════════════════════════════════════════════════════════
+        # CASO A: EL TÉCNICO SOLO REGISTRA UN AVANCE DIARIO
+        # ═══════════════════════════════════════════════════════════════
+        if tipo_rendicion == 'avance':
+            # Construimos el objeto en memoria (sin impactar la BD todavía)
+            sesion = SesionTrabajo(
+                ticket=ticket,
+                tecnico=request.user,
+                inicio=ticket.inicio_trabajo_at or ahora,
+                fin=ahora,
+                horas_hombre=horas_hombre_limpio,
+                descripcion_avance=descripcion_limpia,
+                herramientas_utilizadas=herramientas_limpias,
+                personal_adicional_requerido=personal_adicional,
+                requiere_nivel_mayor=nivel_mayor,
+                observaciones=observaciones_limpias if observaciones_limpias else 'Sin observaciones',
+                tipo_cierre='fin_turno'
+            )
+            formset = MaterialUtilizadoFormSet(request.POST, instance=sesion)
+            
+            # ✔️ CORREGIDO: Aplicamos el desvío de validación para el catálogo de avance también
+            for sub_form in formset:
+                sub_form.fields['material'].queryset = todos_materiales
+            
+            # 1. Ejecutamos la validación base de Django
+            formset_valido = formset.is_valid()
 
-            ticket.estado = EstadoCatalogo.para('ticket', 'reparado')
-            ticket.save()
+            # 🟢 INTERCEPTOR DE ERRORES DE CANTIDAD O ENTRADA
+            # Si Django detecta que falta la cantidad, que es inválida o cualquier problema,
+            # extraemos el error y lo mandamos al cartel rojo.
+            if not formset_valido:
+                for errors in formset.errors:
+                    for field, error_list in errors.items():
+                        # Traducimos el nombre del campo para el técnico en terreno
+                        campo_nombre = "Cantidad" if field == "cantidad_utilizada" else field
+                        return responder_con_error(f"⚠️ Error en materiales: El campo '{campo_nombre}' tiene un problema: {error_list[0]}")
 
-            registrar_log(ticket, request.user, 'Reparación completada – pendiente cierre por gestor',
-                          estado_anterior='en_mantencion', estado_nuevo='reparado',
-                          ip=get_client_ip(request),
-                          detalle=f'Tiempo total: {registro.tiempo_total_minutos or "N/A"} min | Materiales: {len(materiales)}')
+            if formset.is_valid():
+                sesion.save() # Guardamos la sesión SOLO si los materiales están correctos
+                formset.save()
+                
+                ticket.inicio_trabajo_at = None 
+                ticket.save()
+                
+                registrar_log(ticket, request.user, 'Avance de jornada registrado', ip=get_client_ip(request))
+                messages.success(request, '✓ Avance diario guardado. El ticket sigue activo para tu próximo turno.')
+                return redirect('app:dashboard')
 
-            notificar_gestores('ticket_cerrado', f'Reparación completada #{ticket.pk}',
-                               f'{request.user.get_full_name()} completó la reparación de "{ticket.titulo}". Pendiente cierre por gestor.',
-                               ticket=ticket,
-                               url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk}))
-            messages.success(request, '✓ Reparación registrada. El gestor recibirá notificación para cerrar el ticket.')
-            return redirect('app:dashboard')
+        # ═══════════════════════════════════════════════════════════════
+        # CASO B: EL TÉCNICO TERMINÓ Y CIERRA EL TICKET DEFINITIVAMENTE
+        # ═══════════════════════════════════════════════════════════════
+        elif tipo_rendicion == 'finalizar':
+            # 🟢 NUEVA VALIDACIÓN: Verificar foto obligatoria solo para el cierre definitivo
+            foto = request.FILES.get('foto_final')
+            if not foto:
+                return responder_con_error('⚠️ Operación rechazada: Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.')
+            
+            sesion_final = SesionTrabajo(
+                ticket=ticket,
+                tecnico=request.user,
+                inicio=ticket.inicio_trabajo_at or ahora,
+                fin=ahora,
+                horas_hombre=horas_hombre_limpio,
+                descripcion_avance=descripcion_limpia,
+                herramientas_utilizadas=herramientas_limpias,
+                personal_adicional_requerido=personal_adicional,
+                requiere_nivel_mayor=nivel_mayor,
+                observaciones=observaciones_limpias if observaciones_limpias else 'Sin observaciones',
+                tipo_cierre='completado'
+            )
+            formset = MaterialUtilizadoFormSet(request.POST, instance=sesion_final)
+            
+            for sub_form in formset:
+                sub_form.fields['material'].queryset = todos_materiales
+            
+            formset_valido = formset.is_valid()
+
+            # 🟢 INTERCEPTOR DE ERRORES PARA EL CIERRE
+            if not formset_valido:
+                for errors in formset.errors:
+                    for field, error_list in errors.items():
+                        campo_nombre = "Cantidad" if field == "cantidad_utilizada" else field
+                        return responder_con_error(f"⚠️ Error en materiales: El campo '{campo_nombre}' tiene un problema: {error_list[0]}")
+
+            if formset.is_valid():
+                sesion_final.save() # Guardamos de forma segura tras pasar las validaciones
+                formset.save()
+                
+                registro = form.save(commit=False)
+                registro.ticket = ticket
+                registro.tecnico = request.user
+                registro.foto_final = foto
+                registro.save()
+                
+                ticket.estado = EstadoCatalogo.para('ticket', 'reparado')
+                ticket.sub_estado = None
+                ticket.inicio_trabajo_at = None
+                ticket.save()
+                
+                registrar_log(ticket, request.user, 'Reparación finalizada con éxito', ip=get_client_ip(request))
+                messages.success(request, '✓ ¡Excelente! El ticket ha sido cerrado y enviado al gestor para su revisión final.')
+                return redirect('app:dashboard')
     else:
         form = MantencionForm()
-        formset = MaterialUtilizadoFormSet(instance=RegistroMantencion())
-        
-        # En la carga inicial GET, los selectores cargan únicamente el catálogo filtrado
+        # ✔️ CORREGIDO: El formset inicial se amarra a una SesionTrabajo en blanco
+        formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
         for sub_form in formset:
             sub_form.fields['material'].queryset = materiales_filtrados
 
@@ -1886,7 +2036,6 @@ def completar_mantencion(request, pk):
         'materiales_filtrados_json': materiales_filtrados_json,
         'todos_materiales_json': todos_materiales_json,
     })
-
 
 @login_required
 @rol_requerido('mantencion')
@@ -2125,7 +2274,7 @@ def trazabilidad_ticket(request, pk):
     validacion = getattr(ticket, 'validacion', None)
     mantencion = getattr(ticket, 'mantencion', None)
     no_reparable = getattr(ticket, 'no_reparable', None)
-    materiales = mantencion.materiales_utilizados.select_related('material').all() if mantencion else []
+    materiales = MaterialUtilizado.objects.filter(sesion_trabajo__ticket=ticket).select_related('material')
     return render(request, 'app/mantencion/trazabilidad.html', {
         'ticket': ticket,
         'logs': logs,
@@ -2143,11 +2292,11 @@ def trazabilidad_ticket(request, pk):
 @rol_requerido('mantencion')
 def registrar_material_faltante(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
-    registro = get_object_or_404(RegistroMantencion, ticket=ticket)
+    sesion = SesionTrabajo.objects.filter(ticket=ticket, tecnico=request.user).first()
     form = MaterialFaltanteForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         faltante = form.save(commit=False)
-        faltante.registro_mantencion = registro
+        faltante.sesion_trabajo = sesion
         faltante.save()
         notificar_gestores('general', f'Material faltante – Ticket #{ticket.pk}',
                            f'{request.user.get_full_name()} reportó material faltante: {faltante.material.nombre}',
@@ -2155,7 +2304,7 @@ def registrar_material_faltante(request, pk):
         messages.success(request, '✓ Material faltante registrado. Se notificó al gestor.')
         return redirect('app:dashboard')
     return render(request, 'app/mantencion/material_faltante.html', {
-        'form': form, 'ticket': ticket, 'registro': registro,
+        'form': form, 'ticket': ticket, 'sesion': sesion,
     })
 
 
@@ -2188,12 +2337,11 @@ def dashboard_gestor_bi_v2(request):
     por_urgencia = list(tickets.values('urgencia').annotate(total=Count('id')))
     por_estado = [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id'))]
     por_edificio = list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:8])
-    stock_bajo = Material.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
     trabajadores = Usuario.objects.filter(rol__in=['mantencion', 'guardia'], estado_cuenta__codigo='activa').order_by('first_name')
 
-    registros_qs = RegistroMantencion.objects.filter(created_at__date__gte=desde)
+    sesiones_periodo = SesionTrabajo.objects.filter(created_at__date__gte=desde)
     if trabajador_id:
-        registros_qs = registros_qs.filter(tecnico_id=trabajador_id)
+        sesiones_periodo = sesiones_periodo.filter(tecnico_id=trabajador_id)
 
     return render(request, 'app/dashboard_bi_v2.html', {
         'total_tickets': tickets.count(),
@@ -2204,8 +2352,7 @@ def dashboard_gestor_bi_v2(request):
         'por_urgencia': por_urgencia,
         'por_estado': por_estado,
         'por_edificio': por_edificio,
-        'stock_bajo': stock_bajo,
-        'hh_total': registros_qs.aggregate(t=Sum('horas_hombre'))['t'] or 0,
+        'hh_total': sesiones_periodo.aggregate(t=Sum('horas_hombre'))['t'] or 0,
         'rango': rango,
         'desde': desde,
         'trabajadores': trabajadores,
@@ -2223,16 +2370,13 @@ def reporte_materiales(request):
     consumo = MaterialUtilizado.objects.values(
         'material__codigo', 'material__nombre', 'material__categoria__nombre_display', 'material__unidad'
     ).annotate(
-        total_consumido=Sum('cantidad'),
+        total_consumido=Sum('cantidad_utilizada'),
         veces_usado=Count('id'),
     ).order_by('-total_consumido')
-    stock_bajo = Material.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
     return render(request, 'app/reporte_materiales.html', {
         'materiales': materiales,
         'consumo': consumo,
-        'stock_bajo': stock_bajo,
         'total_materiales': materiales.count(),
-        'total_bajo_stock': stock_bajo.count(),
     })
 
 

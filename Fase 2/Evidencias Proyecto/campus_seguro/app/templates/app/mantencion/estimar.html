@@ -1,0 +1,67 @@
+{% extends 'app/base.html' %}
+{% block title %}Estimar Trabajo - Ticket #{{ ticket.pk }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="page-title">⏱️ Planificación del Trabajo</div>
+    <div class="page-subtitle">Ingresa la estimación inicial antes de activar el cronómetro</div>
+  </div>
+  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver al panel</a>
+</div>
+
+<div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--accent-blue);">
+  <div class="card-title" style="margin-bottom: 8px;">📋 Resumen del Incidente</div>
+  <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
+    {{ ticket.titulo }}
+  </div>
+  <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+    <strong>Ubicación:</strong> 📍 {{ ticket.ubicacion }}
+  </div>
+  <div style="font-size: 13px; color: var(--text-muted); background: var(--bg-700); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+    {{ ticket.descripcion }}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">⚙️ Análisis Técnico Inicial</div>
+  
+  <form method="post" style="display: flex; flex-direction: column; gap: 20px; margin-top: 15px;">
+    {% csrf_token %}
+    
+    <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+      <label for="{{ form.tiempo_estimado.id_for_label }}" style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">
+        {{ form.tiempo_estimado.label }}
+      </label>
+      {{ form.tiempo_estimado }}
+      {% if form.tiempo_estimado.errors %}
+        <div style="color: var(--accent-red); font-size: 12px; font-weight: 600;">
+          {{ form.tiempo_estimado.errors }}
+        </div>
+      {% endif %}
+      <small style="color: var(--text-muted); font-size: 12px;"> Use incrementos de 0.5 horas (ej: 1.5, 2.0, 3.5). </small>
+    </div>
+
+    <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+      <label for="{{ form.diagnostico_preliminar.id_for_label }}" style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">
+        {{ form.diagnostico_preliminar.label }}
+      </label>
+      {{ form.diagnostico_preliminar }}
+      {% if form.diagnostico_preliminar.errors %}
+        <div style="color: var(--accent-red); font-size: 12px; font-weight: 600;">
+          {{ form.diagnostico_preliminar.errors }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 18px;">
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost" style="min-width: 120px; text-align: center;">
+        Cancelar
+      </a>
+      <button type="submit" class="btn btn-primary" style="min-width: 180px;">
+        ✓ Guardar y Desbloquear
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
