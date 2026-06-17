@@ -1213,8 +1213,14 @@ def validar_reparacion(request, pk):
             comentario = request.POST.get('comentario_rechazo', '').strip()
             if not comentario:
                 messages.error(request, 'Debes ingresar el motivo del rechazo.')
-                return render(request, 'app/validar_reparacion.html',
-                              {'ticket': ticket, 'mantencion': mantencion})
+                sesiones = ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio')
+                todos_mat = MaterialUtilizado.objects.filter(
+                    sesion_trabajo__ticket=ticket
+                ).select_related('material', 'sesion_trabajo').order_by('sesion_trabajo__inicio')
+                return render(request, 'app/validar_reparacion.html', {
+                    'ticket': ticket, 'mantencion': mantencion,
+                    'sesiones': sesiones, 'todos_materiales_sesiones': todos_mat,
+                })
             estado_anterior = ticket.estado.codigo
             ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
             ticket.save()
@@ -1231,8 +1237,14 @@ def validar_reparacion(request, pk):
             messages.warning(request, '⚠ Reparación rechazada. Ticket devuelto a mantención.')
             return redirect('app:gestor_tickets')
 
-    return render(request, 'app/validar_reparacion.html',
-                  {'ticket': ticket, 'mantencion': mantencion})
+    sesiones = ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio')
+    todos_mat = MaterialUtilizado.objects.filter(
+        sesion_trabajo__ticket=ticket
+    ).select_related('material', 'sesion_trabajo').order_by('sesion_trabajo__inicio')
+    return render(request, 'app/validar_reparacion.html', {
+        'ticket': ticket, 'mantencion': mantencion,
+        'sesiones': sesiones, 'todos_materiales_sesiones': todos_mat,
+    })
 
 
 # ── Gestor: Gestión de cuentas ─────────────────────
@@ -1962,6 +1974,26 @@ def completar_mantencion(request, pk):
                 ticket.save()
                 
                 registrar_log(ticket, request.user, 'Avance de jornada registrado', ip=get_client_ip(request))
+
+                # Alerta al gestor si el técnico reporta bloqueo externo
+                alertas = []
+                if personal_adicional:
+                    alertas.append('personal técnico adicional')
+                if nivel_mayor:
+                    alertas.append('intervención de nivel mayor')
+                if alertas:
+                    motivo_alerta = ' y '.join(alertas)
+                    notificar_gestores(
+                        'general',
+                        f'⚠ Ticket #{ticket.pk} requiere atención del gestor',
+                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" '
+                        f'pero indica que requiere {motivo_alerta}. '
+                        f'El ticket sigue activo. Considera pausar o reasignar.',
+                        ticket=ticket,
+                        prioridad='alta',
+                        url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+                    )
+
                 messages.success(request, '✓ Avance diario guardado. El ticket sigue activo para tu próximo turno.')
                 return redirect('app:dashboard')
 

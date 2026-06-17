@@ -28,25 +28,31 @@
       <div><strong style="color:var(--text-muted)">Reportado:</strong> <span class="id-mono">{{ ticket.created_at|date:"d/m/Y H:i" }}</span></div>
       {% if mantencion %}
       <div><strong style="color:var(--text-muted)">Técnico:</strong> {{ mantencion.tecnico.get_full_name }}</div>
-      <div><strong style="color:var(--text-muted)">Trabajo realizado:</strong> {{ mantencion.descripcion_trabajo|truncatechars:120 }}</div>
-      {% if mantencion.horas_hombre %}
-      <div><strong style="color:var(--text-muted)">Horas hombre:</strong> {{ mantencion.horas_hombre }} h</div>
       {% endif %}
-      {% endif %}
+      {% with sesion_final=sesiones|last %}
+        {% if sesion_final %}
+        <div><strong style="color:var(--text-muted)">Trabajo realizado:</strong> {{ sesion_final.descripcion_avance|truncatechars:120 }}</div>
+        {% if sesion_final.horas_hombre %}
+        <div><strong style="color:var(--text-muted)">Horas hombre (última sesión):</strong> {{ sesion_final.horas_hombre }} h</div>
+        {% endif %}
+        {% endif %}
+      {% endwith %}
     </div>
   </div>
 
+  <!-- Materiales: todos los consumidos en todas las sesiones -->
   <div class="card">
     <div class="form-section-title">📦 Materiales utilizados</div>
-    {% if mantencion and mantencion.materiales_utilizados.all %}
+    {% if todos_materiales_sesiones %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Material</th><th>Cantidad</th></tr></thead>
+        <thead><tr><th>Material</th><th>Cantidad</th><th>Jornada</th></tr></thead>
         <tbody>
-          {% for m in mantencion.materiales_utilizados.all %}
+          {% for fila in todos_materiales_sesiones %}
           <tr>
-            <td>{{ m.material.nombre }}</td>
-            <td>{{ m.cantidad }} {{ m.material.unidad_medida }}</td>
+            <td>{{ fila.material.nombre }}</td>
+            <td>{{ fila.cantidad_utilizada }} {{ fila.material.unidad_medida }}</td>
+            <td style="font-size:11px;color:var(--text-muted);">{{ fila.sesion_trabajo.inicio|date:"d/m" }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -57,6 +63,44 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Historial de sesiones -->
+{% if sesiones %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="form-section-title">🗂 Historial de jornadas ({{ sesiones|length }} sesión{% if sesiones|length != 1 %}es{% endif %})</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+    {% for sesion in sesiones %}
+    <div style="padding:12px 14px;background:var(--bg-700);border-radius:8px;border:1px solid var(--border);{% if sesion.tipo_cierre == 'completado' %}border-left:3px solid var(--accent-green);{% elif sesion.personal_adicional_requerido or sesion.requiere_nivel_mayor %}border-left:3px solid var(--accent-yellow);{% else %}border-left:3px solid var(--border);{% endif %}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text-secondary);">
+          {{ sesion.inicio|date:"d/m/Y" }}
+          {% if sesion.horas_hombre %}— {{ sesion.horas_hombre }} h{% endif %}
+        </span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:12px;
+          {% if sesion.tipo_cierre == 'completado' %}background:rgba(39,174,96,.15);color:var(--accent-green);
+          {% elif sesion.tipo_cierre == 'fin_turno' %}background:rgba(99,179,237,.1);color:var(--accent-blue);
+          {% else %}background:rgba(245,54,92,.1);color:var(--accent-red);{% endif %}">
+          {{ sesion.get_tipo_cierre_display }}
+        </span>
+      </div>
+      <div style="font-size:13px;color:var(--text-main);margin-bottom:4px;">{{ sesion.descripcion_avance }}</div>
+      {% if sesion.herramientas_utilizadas %}
+      <div style="font-size:12px;color:var(--text-muted);">🔧 {{ sesion.herramientas_utilizadas }}</div>
+      {% endif %}
+      {% if sesion.observaciones %}
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">📝 {{ sesion.observaciones }}</div>
+      {% endif %}
+      {% if sesion.personal_adicional_requerido %}
+      <div style="font-size:11px;color:var(--accent-yellow);margin-top:4px;font-weight:600;">⚠ Técnico indicó que requería personal adicional</div>
+      {% endif %}
+      {% if sesion.requiere_nivel_mayor %}
+      <div style="font-size:11px;color:var(--accent-yellow);margin-top:4px;font-weight:600;">⚠ Técnico indicó que requería intervención de nivel mayor</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <!-- Comparación fotos ANTES / DESPUÉS -->
 <div class="card" style="margin-bottom:18px;">
