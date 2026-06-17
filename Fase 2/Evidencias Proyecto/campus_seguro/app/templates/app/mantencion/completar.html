@@ -45,35 +45,35 @@
   {% endif %}
 </div>
 
-{% if logs %}
-<div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🕐 Historial del ticket</div>
-  <div style="position: relative; padding-left: 22px">
-    <div style="position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--border);"></div>
-    {% for log in logs %}
-    <div style="position: relative; margin-bottom: 12px">
-      <div style="position: absolute; left: -18px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue); border: 2px solid var(--bg-850);"></div>
-      <div style="font-size: 11px; color: var(--text-muted)">
-        {{ log.created_at|date:"d/m/Y H:i" }} · {{log.usuario.get_full_name|default:'Sistema'}}
-      </div>
-      <div style="font-size: 13px; font-weight: 500">{{ log.accion }}</div>
-      {% if log.detalle %}
-      <div style="font-size: 12px; color: var(--text-secondary)">
-        {{ log.detalle|truncatechars:100 }}
-      </div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 <form method="post" enctype="multipart/form-data" id="form-reparacion">
-  {% csrf_token %} {% if form.non_field_errors %}
-  <div style="background: rgba(245, 54, 92, 0.1); border: 1px solid var(--accent-red); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: var(--accent-red);">
-    {{ form.non_field_errors }}
+  {% csrf_token %} 
+  
+  <div class="card" style="margin-bottom: 18px; border-left: 4px solid var(--accent-blue);">
+    <div class="form-section-title">🎯 ¿Qué acción vas a registrar en este turno?</div>
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+      
+      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-800); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
+        <input type="radio" name="tipo_rendicion" value="avance" checked style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-blue);">
+        <div>
+          <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">⏱️ Registrar avance del día</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+            Guarda las horas trabajadas hoy y los materiales consumidos. El ticket seguirá abierto.
+          </div>
+        </div>
+      </label>
+
+      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-800); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
+        <input type="radio" name="tipo_rendicion" value="finalizar" style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-green);">
+        <div>
+          <div style="font-weight: 700; font-size: 14px; color: var(--accent-green);">🏁 Finalizar y cerrar ticket</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+            El trabajo está 100% terminado. Requiere causa raíz y foto de evidencia.
+          </div>
+        </div>
+      </label>
+
+    </div>
   </div>
-  {% endif %}
 
   <div class="card" style="margin-bottom: 18px">
     <div class="form-section-title">🔧 Detalle de la reparación</div>
@@ -82,20 +82,17 @@
       <textarea name="descripcion_trabajo" class="form-control" rows="4" placeholder="Describe paso a paso lo que realizaste: qué revisaste, qué encontraste, cómo lo solucionaste…">
 {{ form.descripcion_trabajo.value|default:'' }}</textarea>
     </div>
-    <div style="margin-bottom: 14px">
+    <div style="margin-bottom: 14px" id="bloque-causa-raiz">
       <label class="form-label">Causa raíz identificada</label>
       <textarea name="causa_raiz" class="form-control" rows="3" placeholder="¿Cuál fue el origen del problema? Sirve para prevención futura.">
 {{ form.causa_raiz.value|default:'' }}</textarea>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
       <div>
-        <label class="form-label">Horas hombre consumidas</label>
-        <input type="number" name="horas_hombre" class="form-control" step="0.5" min="0" placeholder="Ej: 2.5" value="{{ form.horas_hombre.value|default:'' }}" />
-        {% if ticket.inicio_trabajo_at %}
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
-          Inicio registrado: {{ ticket.inicio_trabajo_at|date:"H:i" }}
+        <label class="form-label">Horas hombre acumuladas en este turno</label>
+        <div class="form-control" style="background: var(--bg-700); color: var(--accent-green); font-weight: 700;">
+          ⏱️ Se calcularán automáticamente al guardar
         </div>
-        {% endif %}
       </div>
       <div>
         <label class="form-label">Herramientas utilizadas</label>
@@ -126,7 +123,7 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom: 18px">
+  <div class="card" style="margin-bottom: 18px" id="bloque-foto-final">
     <div class="form-section-title">📷 Foto del trabajo terminado</div>
     <div style="border: 2px dashed var(--border-strong); border-radius: 10px; padding: 24px; text-align: center; position: relative; cursor: pointer;" onmouseover="this.style.borderColor = 'var(--accent-green)'" onmouseout="this.style.borderColor = 'var(--border-strong)'">
       <input type="file" name="foto_final" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" onchange="previewFinal(this)" />
@@ -163,7 +160,7 @@
         </div>
         <div>
           {% if forloop.first %}<label class="form-label" style="margin-bottom: 4px">Cantidad</label>{% endif %}
-          <input type="number" name="{{ mat_form.cantidad.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad.value|default:'' }}" />
+          <input type="number" name="{{ mat_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad_utilizada.value|default:'' }}" />
         </div>
         <div>
           {% if forloop.first %}<label class="form-label" style="margin-bottom: 4px">Observación</label>{% endif %} 
@@ -184,14 +181,37 @@
     </button>
   </div>
 
-  <div style="display: flex; justify-content: space-between; align-items: center">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
     <a href="{% url 'app:no_reparable' ticket.pk %}" class="btn btn-ghost" style="border-color: var(--accent-red); color: var(--accent-red)">✗ No pude repararlo</a>
     <div style="display: flex; gap: 10px">
       <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
-      <button type="submit" class="btn btn-primary">✓ Reparación completada →</button>
+      <button type="submit" id="btn-submit-reparacion" class="btn btn-primary">✓ Registrar Avance Diario →</button>
     </div>
   </div>
 </form>
+
+{% if logs %}
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">🕐 Historial del ticket</div>
+  <div style="position: relative; padding-left: 22px">
+    <div style="position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--border);"></div>
+    {% for log in logs %}
+    <div style="position: relative; margin-bottom: 12px">
+      <div style="position: absolute; left: -18px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue); border: 2px solid var(--bg-850);"></div>
+      <div style="font-size: 11px; color: var(--text-muted)">
+        {{ log.created_at|date:"d/m/Y H:i" }} · {{log.usuario.get_full_name|default:'Sistema'}}
+      </div>
+      <div style="font-size: 13px; font-weight: 500">{{ log.accion }}</div>
+      {% if log.detalle %}
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        {{ log.detalle|truncatechars:100 }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <script>
   // Inyectamos de forma segura las matrices JSON desde Django hacia variables JavaScript
@@ -338,5 +358,49 @@
     container.appendChild(newRow);
     totalInput.value = idx + 1;
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // LÓGICA DINÁMICA: Mostrar/Ocultar campos según Tipo de Rendición
+  // ═══════════════════════════════════════════════════════════════
+  function alternarCamposFormulario() {
+    const tipoSeleccionado = document.querySelector('input[name="tipo_rendicion"]:checked').value;
+    const bloqueCausaRaiz = document.getElementById("bloque-causa-raiz");
+    const bloqueFotoFinal = document.getElementById("bloque-foto-final");
+    const btnSubmit = document.getElementById("btn-submit-reparacion");
+
+    const fotoTitle = bloqueFotoFinal ? bloqueFotoFinal.querySelector(".form-section-title") : null;
+
+    if (tipoSeleccionado === "avance") {
+      // Ocultamos lo que pertenece solo al Acta de Cierre Final
+      if (bloqueCausaRaiz) bloqueCausaRaiz.style.display = "none";
+      if (bloqueFotoFinal) bloqueFotoFinal.style.display = "none";
+      
+      // Adaptamos el botón de acción
+      btnSubmit.innerHTML = "✓ Registrar Avance Diario →";
+      btnSubmit.style.background = "var(--accent-blue)";
+      btnSubmit.style.borderColor = "var(--accent-blue)";
+    } else {
+      // Mostramos todo para el Acta de Cierre Final
+      if (bloqueCausaRaiz) bloqueCausaRaiz.style.display = "block";
+      if (bloqueFotoFinal) bloqueFotoFinal.style.display = "block";
+
+      if (fotoTitle) {
+        fotoTitle.innerHTML = "📷 Foto del trabajo terminado *";
+      }
+      
+      // Adaptamos el botón de acción a color de cierre (Verde)
+      btnSubmit.innerHTML = "🏁 Finalizar y Cerrar Ticket →";
+      btnSubmit.style.background = "var(--accent-green)";
+      btnSubmit.style.borderColor = "var(--accent-green)";
+    }
+  }
+
+  // Escuchar los cambios en los radio buttons
+  document.querySelectorAll('input[name="tipo_rendicion"]').forEach(radio => {
+    radio.addEventListener("change", alternarCamposFormulario);
+  });
+
+  // Ejecutar una vez al cargar la página para fijar el estado inicial (Avance)
+  alternarCamposFormulario();
 </script>
 {% endblock %}

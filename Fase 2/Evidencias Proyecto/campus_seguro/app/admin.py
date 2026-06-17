@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import (
     CategoriaMaterial, CategoriaTicket, Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
-    ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
+    SesionTrabajo, ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, TransicionEstado,
     Especialidad, EspecialidadUsuario, EspecialidadMaterial,
@@ -28,6 +28,14 @@ class MaterialUtilizadoInline(admin.TabularInline):
     """Muestra los materiales gastados directamente dentro de la ficha de mantención"""
     model = MaterialUtilizado
     extra = 1
+
+@admin.register(SesionTrabajo)
+class SesionTrabajoAdmin(admin.ModelAdmin):
+    """Historial analítico de las sesiones cronometradas de los técnicos."""
+    list_display = ('id', 'ticket', 'tecnico', 'inicio', 'fin', 'horas_hombre', 'tipo_cierre', 'progreso')
+    list_filter = ('personal_adicional_requerido', 'requiere_nivel_mayor', 'tipo_cierre', 'created_at')
+    search_fields = ('ticket__titulo', 'tecnico__username', 'descripcion_avance')
+    inlines = [MaterialUtilizadoInline]
 
 # ═══════════════════════════════════════════════════════════════
 # REGISTROS DE ADMINISTRACIÓN PRINCIPALES
@@ -69,11 +77,10 @@ class MaterialAdmin(admin.ModelAdmin):
 
 @admin.register(RegistroMantencion)
 class RegistroMantencionAdmin(admin.ModelAdmin):
-    """Ficha operativa de la reparación. Integra sus materiales de forma anidada"""
-    list_display = ('ticket', 'tecnico', 'tiempo_total_minutos', 'horas_hombre', 'created_at')
-    list_filter = ('personal_adicional_requerido', 'requiere_nivel_mayor')
-    search_fields = ('ticket__titulo', 'tecnico__username', 'descripcion_trabajo', 'causa_raiz')
-    inlines = [MaterialUtilizadoInline]  # 👈 Vinculación directa del consumo de pañol
+    """Ficha operativa de la reparación final (Acta de Cierre)."""
+    list_display = ('id', 'ticket', 'tecnico', 'causa_raiz', 'fecha_registro')
+    list_filter = ('fecha_registro', 'tecnico')
+    search_fields = ('ticket__titulo', 'tecnico__username', 'causa_raiz')
 
 # ═══════════════════════════════════════════════════════════════
 # REGISTRO DE TABLAS MAESTRAS DE CATEGORÍAS (3FN)

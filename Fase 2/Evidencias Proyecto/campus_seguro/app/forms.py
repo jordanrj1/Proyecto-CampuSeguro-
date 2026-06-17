@@ -3,7 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from .models import (
-    Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
+    AsignacionTicket, SesionTrabajo, Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
     MaterialUtilizado, Material, NoReparable, Inasistencia, MaterialesFaltantes,
     EstadoCatalogo
 )
@@ -380,32 +380,28 @@ class ValidacionForm(forms.ModelForm):
 class MantencionForm(forms.ModelForm):
     class Meta:
         model = RegistroMantencion
-        fields = ['descripcion_trabajo', 'causa_raiz', 'horas_hombre', 'foto_final',
-                  'herramientas_utilizadas', 'personal_adicional_requerido', 'requiere_nivel_mayor', 'observaciones']
+        # 🟢 CORRECCIÓN: Dejamos solo los dos campos que sobrevivieron en el modelo
+        fields = ['causa_raiz', 'foto_final'] 
         widgets = {
-            'descripcion_trabajo': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Describe paso a paso lo realizado...'}),
             'causa_raiz': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Origen del problema (para prevención)'}),
-            'observaciones': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Notas adicionales'}),
-            'horas_hombre': forms.NumberInput(attrs={'step': '0.5', 'min': '0', 'placeholder': '2.5'}),
-            'herramientas_utilizadas': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Herramientas usadas'}),
         }
 
 
 class MaterialUtilizadoForm(forms.ModelForm):
     class Meta:
         model = MaterialUtilizado
-        fields = ['material', 'cantidad', 'observacion']
+        fields = ['material', 'cantidad_utilizada', 'observacion']
         widgets = {
             'material': forms.Select(attrs={'class': 'form-control'}),
-            'cantidad': forms.NumberInput(attrs={'step': '1', 'min': '1', 'placeholder': 'Cant.'}),
+            'cantidad_utilizada': forms.NumberInput(attrs={'step': '1', 'min': '1', 'placeholder': 'Cant.'}),
             'observacion': forms.TextInput(attrs={'placeholder': 'Observación (opcional)'}),
         }
 
 
 MaterialUtilizadoFormSet = inlineformset_factory(
-    RegistroMantencion, MaterialUtilizado,
+    SesionTrabajo, MaterialUtilizado,
     form=MaterialUtilizadoForm,
-    fields=['material', 'cantidad', 'observacion'],
+    fields=['material', 'cantidad_utilizada', 'observacion'],
     extra=1, can_delete=True,
 )
 
@@ -527,3 +523,43 @@ class MaterialFaltanteForm(forms.ModelForm):
             'cantidad_requerida': forms.NumberInput(attrs={'step': '0.1', 'min': '0.1', 'placeholder': 'Cantidad necesaria'}),
             'observaciones': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Notas adicionales'}),
         }
+
+class EstimarTicketForm(forms.ModelForm):
+    class Meta:
+        model = AsignacionTicket
+        fields = ['tiempo_estimado', 'diagnostico_preliminar']
+        widgets = {
+            'tiempo_estimado': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.5', 
+                'min': '0.5', 
+                'placeholder': 'Ej: 2.5'
+            }),
+            'diagnostico_preliminar': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'rows': 4, 
+                'placeholder': 'Escribe un análisis inicial de la falla y qué herramientas podrías necesitar...'
+            }),
+        }
+        labels = {
+            'tiempo_estimado': 'Tiempo Estimado de Trabajo (en Horas)',
+            'diagnostico_preliminar': 'Diagnóstico Preliminar / Análisis Técnico Inicial',
+        }
+    
+    # 🟢 CORRECCIÓN: Forzamos la validación obligatoria en este formulario específico
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Hacemos que ambos campos sean 100% obligatorios
+        self.fields['tiempo_estimado'].required = True
+        self.fields['diagnostico_preliminar'].required = True
+        
+        # Opcional: Le añadimos un asterisco visual a los labels para avisarle al usuario
+        self.fields['tiempo_estimado'].label = 'Tiempo Estimado de Trabajo (en Horas) *'
+        self.fields['diagnostico_preliminar'].label = 'Diagnóstico Preliminar / Análisis Técnico Inicial *'
+
+    # 🟢 EXTRA: Validación avanzada de reglas de negocio
+    def clean_tiempo_estimado(self):
+        tiempo = self.cleaned_data.get('tiempo_estimado')
+        if tiempo and tiempo <= 0:
+            raise ValidationError('El tiempo estimado debe ser mayor a 0 horas.')
+        return tiempo
