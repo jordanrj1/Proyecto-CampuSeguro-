@@ -1388,7 +1388,7 @@ def reset_usuario_gestor(request, pk):
 @rol_requerido('gestor')
 def gestor_operativo(request):
     rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
-        total_trabajos=Count('registromantencion', distinct=True),
+        total_trabajos=Count('cierres_firmados', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
         en_curso=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo='en_mantencion'), distinct=True),
         no_reparados=Count('noreparable', distinct=True),
@@ -1513,33 +1513,43 @@ def gestor_bi(request):
         ).values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total')
     )
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🟢 CORRECCIÓN: Filtramos por 'fecha_registro' y cruzamos con 'ticket__sesiones'
+    # ═══════════════════════════════════════════════════════════════
     mant_qs = RegistroMantencion.objects.filter(
-        created_at__date__gte=desde, created_at__date__lte=hasta
+        fecha_registro__date__gte=desde, fecha_registro__date__lte=hasta
     )
     if trabajador_id and seccion in ('mantencion', 'materiales'):
         mant_qs = mant_qs.filter(tecnico_id=trabajador_id)
 
     mant_total = mant_qs.count()
-    _mant_hh = mant_qs.aggregate(t=Sum('horas_hombre'))['t']
-    _mant_hh_prom = mant_qs.aggregate(avg=Avg('horas_hombre'))['avg']
-    _mant_tiempo = mant_qs.aggregate(avg=Avg('tiempo_total_minutos'))['avg']
+    
+    # Agregamos las HH reales consultando las sesiones asociadas a los tickets cerrados
+    _mant_hh = mant_qs.aggregate(t=Sum('ticket__sesiones__horas_hombre'))['t']
+    _mant_hh_prom = mant_qs.aggregate(avg=Avg('ticket__sesiones__horas_hombre'))['avg']
+    
     mant_hh_total = round(float(_mant_hh), 1) if _mant_hh else 0
     mant_hh_prom = round(float(_mant_hh_prom), 1) if _mant_hh_prom else 0
-    mant_tiempo_prom = int(float(_mant_tiempo)) if _mant_tiempo else 0
-    mant_personal_adicional = mant_qs.filter(personal_adicional_requerido=True).count()
-    mant_nivel_mayor = mant_qs.filter(requiere_nivel_mayor=True).count()
+    
+    # El tiempo promedio lo estimamos multiplicando las HH promedio por 60 minutos
+    mant_tiempo_prom = int(mant_hh_prom * 60)
+    
+    # Contamos la presencia de alertas analíticas buscando en las sesiones del periodo
+    mant_personal_adicional = mant_qs.filter(ticket__sesiones__personal_adicional_requerido=True).distinct().count()
+    mant_nivel_mayor = mant_qs.filter(ticket__sesiones__requiere_nivel_mayor=True).distinct().count()
+    
     mant_con_foto = mant_qs.filter(foto_final__isnull=False).exclude(foto_final='').count()
     mant_tasa_foto = round((mant_con_foto / mant_total * 100) if mant_total else 0, 1)
 
+    # 🟢 CORRECCIÓN: Tabla de rendimiento por Técnico adaptada a la subestructura
     por_tecnico = list(
         mant_qs.values('tecnico__id', 'tecnico__first_name', 'tecnico__last_name')
         .annotate(
             total=Count('id'),
-            hh_total=Sum('horas_hombre'),
-            hh_prom=Avg('horas_hombre'),
-            tiempo_prom=Avg('tiempo_total_minutos'),
-            nivel_mayor=Count('id', filter=Q(requiere_nivel_mayor=True)),
-            adicional=Count('id', filter=Q(personal_adicional_requerido=True)),
+            hh_total=Sum('ticket__sesiones__horas_hombre'),
+            hh_prom=Avg('ticket__sesiones__horas_hombre'),
+            nivel_mayor=Count('ticket__sesiones', filter=Q(ticket__sesiones__requiere_nivel_mayor=True), distinct=True),
+            adicional=Count('ticket__sesiones', filter=Q(ticket__sesiones__personal_adicional_requerido=True), distinct=True),
             con_foto=Count('id', filter=Q(foto_final__isnull=False) & ~Q(foto_final='')),
         ).order_by('-total')
     )
@@ -1599,8 +1609,14 @@ def gestor_bi(request):
         ).order_by('-total_cantidad')
     )
     mat_por_tecnico = list(
-        mat_qs.values('sesion_trabajo__tecnico__first_name', 'sesion_trabajo__tecnico__last_name')
-        .annotate(items_distintos=Count('material', distinct=True), cantidad_total=Sum('cantidad_utilizada'))
+        mat_qs.values(
+            nombre=F('sesion_trabajo__tecnico__first_name'),
+            apellido=F('sesion_trabajo__tecnico__last_name')
+        )
+        .annotate(
+            items_distintos=Count('material', distinct=True), 
+            cantidad_total=Sum('cantidad_utilizada')
+        )
         .order_by('-cantidad_total')
     )
     # CORREGIDO: Traer el código y el nombre descriptivo real de la tabla maestra
