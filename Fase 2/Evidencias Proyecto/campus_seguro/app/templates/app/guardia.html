@@ -118,7 +118,7 @@
 {% if mis_revisiones %}
 <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-blue)">
   <div class="card-title" style="color: var(--accent-blue)">
-    Mis Revisiones Asignadas
+    <i class="fa-solid fa-clipboard-list"></i> Mis Revisiones Asignadas
   </div>
   <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
     Tickets que te fueron asignados específicamente para validar en terreno.
@@ -195,7 +195,7 @@
         href="{% url 'app:validar_ticket' asignacion.ticket.id %}"
         class="btn btn-primary btn-sm"
         style="text-align: center"
-        >🛡️ Ir a Validar</a
+        ><i class="fa-solid fa-shield-halved"></i> Ir a Validar</
       >
     </div>
   </div>
@@ -204,7 +204,7 @@
 {% endif %}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">Validaciones pendientes</div>
+  <div class="card-title"><i class="fa-solid fa-hourglass-half" style="color:var(--accent-yellow);"></i> Validaciones pendientes</div>
   {% if pendientes %}
   <div class="table-wrap">
     <table>
@@ -241,7 +241,7 @@
             <a
               href="{% url 'app:validar_ticket' t.id %}"
               class="btn btn-primary btn-sm"
-              >🛡️ Validar</a
+              ><i class="fa-solid fa-shield-halved"></i> Validar</
             >
           </td>
         </tr>
@@ -251,7 +251,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="icon">✓</div>
+    <div class="icon"><i class="fa-solid fa-circle-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
     <div class="label">No hay validaciones pendientes</div>
     <div class="sub">Sin alertas activas en este momento.</div>
   </div>
@@ -260,7 +260,7 @@
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
   <div class="card">
-    <div class="card-title">Mis validaciones recientes</div>
+    <div class="card-title"><i class="fa-solid fa-check-double" style="color:var(--accent-green);"></i> Mis validaciones recientes</div>
     {% if mis_validaciones %}
     <div class="table-wrap">
       <table>
@@ -307,7 +307,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Mis inasistencias</div>
+    <div class="card-title"><i class="fa-solid fa-calendar-xmark" style="color:var(--text-muted);"></i> Mis inasistencias</div>
     {% if inasistencias %} {% for i in inasistencias %}
     <div
       style="

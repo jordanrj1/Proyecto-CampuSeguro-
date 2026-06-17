@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Campus Seguro · ERP{% endblock %}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 <style>
 :root {
   --bg-900: #0a0c12;
@@ -92,7 +93,7 @@ a { color: inherit; text-decoration: none; }
   content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
   background: var(--accent-blue); border-radius: 0 2px 2px 0;
 }
-.nav-item .icon { width: 18px; text-align: center; font-size: 15px; }
+.nav-item .icon { width: 20px; text-align: center; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nav-item .badge-mini {
   margin-left: auto; background: var(--accent-red); color: #fff;
   font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 700;
@@ -346,7 +347,7 @@ select { cursor: pointer; }
   <aside class="sidebar">
     <!-- Logo + nombre del sistema -->
     <div class="sb-brand">
-      <div class="logo">🛡️</div>
+      <div class="logo"><i class="fa-solid fa-shield-halved" style="color:#fff;font-size:17px;"></i></div>
       <div>
         <div class="name">Campus Seguro</div>
         <div class="sub">ERP · v2.0</div>
@@ -368,10 +369,10 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Principal</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-          <span class="icon">▦</span> Dashboard
+          <span class="icon"><i class="fa-solid fa-gauge-high"></i></span> Dashboard
         </a>
         <a href="{% url 'app:notificaciones' %}" class="nav-item {% if request.resolver_match.url_name == 'notificaciones' %}active{% endif %}">
-          <span class="icon">🔔</span> Notificaciones
+          <span class="icon"><i class="fa-solid fa-bell"></i></span> Notificaciones
           {% if notif_no_leidas_count %}<span class="badge-mini">{{ notif_no_leidas_count }}</span>{% endif %}
         </a>
       </div>
@@ -380,10 +381,10 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Mis Tickets</div>
         <a href="{% url 'app:mis_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'mis_tickets' %}active{% endif %}">
-          <span class="icon">◈</span> Ver mis tickets
+          <span class="icon"><i class="fa-solid fa-ticket"></i></span> Ver mis tickets
         </a>
         <a href="{% url 'app:crear_ticket' %}" class="nav-item {% if request.resolver_match.url_name == 'crear_ticket' %}active{% endif %}">
-          <span class="icon">+</span> Crear ticket
+          <span class="icon"><i class="fa-solid fa-plus"></i></span> Crear ticket
         </a>
       </div>
       {% endif %}
@@ -392,28 +393,28 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Gestión Operativa</div>
         <a href="{% url 'app:gestor_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_tickets' %}active{% endif %}">
-          <span class="icon">≡</span> Todos los Tickets
+          <span class="icon"><i class="fa-solid fa-table-list"></i></span> Todos los Tickets
         </a>
         <a href="{% url 'app:gestor_operativo' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_operativo' %}active{% endif %}">
-          <span class="icon">◉</span> Rendimiento Trabajadores
+          <span class="icon"><i class="fa-solid fa-chart-bar"></i></span> Rendimiento Trabajadores
         </a>
         <a href="{% url 'app:gestor_bi' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_bi' %}active{% endif %}">
-          <span class="icon">↗</span> Business Intelligence
+          <span class="icon"><i class="fa-solid fa-chart-line"></i></span> Business Intelligence
         </a>
       </div>
       <div class="nav-section">
         <div class="nav-label">Administración</div>
         <a href="{% url 'app:gestor_solicitudes_cuenta' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_solicitudes_cuenta' %}active{% endif %}">
-          <span class="icon">◻</span> Solicitudes de Cuenta
+          <span class="icon"><i class="fa-solid fa-user-clock"></i></span> Solicitudes de Cuenta
         </a>
         <a href="{% url 'app:gestor_usuarios' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_usuarios' %}active{% endif %}">
-          <span class="icon">◯</span> Usuarios
+          <span class="icon"><i class="fa-solid fa-users"></i></span> Usuarios
         </a>
         <a href="{% url 'app:gestor_inasistencias' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_inasistencias' %}active{% endif %}">
-          <span class="icon">◷</span> Inasistencias
+          <span class="icon"><i class="fa-solid fa-calendar-xmark"></i></span> Inasistencias
         </a>
         <a href="{% url 'app:materiales_listado' %}" class="nav-item {% if request.resolver_match.url_name == 'materiales_listado' %}active{% endif %}">
-          <span class="icon">▣</span> Materiales
+          <span class="icon"><i class="fa-solid fa-boxes-stacked"></i></span> Materiales
         </a>
       </div>
       {% endif %}
@@ -422,10 +423,10 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Guardia</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-          <span class="icon">◈</span> Validaciones Pendientes
+          <span class="icon"><i class="fa-solid fa-shield-halved"></i></span> Validaciones Pendientes
         </a>
         <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item {% if request.resolver_match.url_name == 'registrar_inasistencia' %}active{% endif %}">
-          <span class="icon">◷</span> Registrar Inasistencia
+          <span class="icon"><i class="fa-solid fa-calendar-xmark"></i></span> Registrar Inasistencia
         </a>
       </div>
       {% endif %}
@@ -434,10 +435,10 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Mantención</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-          <span class="icon">⊙</span> Mis Trabajos
+          <span class="icon"><i class="fa-solid fa-wrench"></i></span> Mis Trabajos
         </a>
         <a href="{% url 'app:registrar_inasistencia' %}" class="nav-item {% if request.resolver_match.url_name == 'registrar_inasistencia' %}active{% endif %}">
-          <span class="icon">◷</span> Registrar Inasistencia
+          <span class="icon"><i class="fa-solid fa-calendar-xmark"></i></span> Registrar Inasistencia
         </a>
       </div>
       {% endif %}
@@ -445,7 +446,7 @@ select { cursor: pointer; }
       <div class="nav-section">
         <div class="nav-label">Cuenta</div>
         <a href="{% url 'app:mi_perfil' %}" class="nav-item {% if request.resolver_match.url_name == 'mi_perfil' %}active{% endif %}">
-          <span class="icon">◌</span> Mi Perfil
+          <span class="icon"><i class="fa-solid fa-circle-user"></i></span> Mi Perfil
         </a>
       </div>
     </nav>
@@ -453,7 +454,7 @@ select { cursor: pointer; }
     <!-- Cerrar sesión al pie -->
     <div class="sb-footer">
       <button onclick="document.getElementById('modal-logout').style.display='flex'" class="sb-logout">
-        <span style="font-size:14px;">⏏</span>
+        <i class="fa-solid fa-right-from-bracket" style="font-size:14px;"></i>
         <span>Cerrar sesión</span>
       </button>
     </div>
@@ -462,7 +463,7 @@ select { cursor: pointer; }
   <!-- Modal confirmación de logout -->
   <div id="modal-logout" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:var(--bg-800);border:1px solid var(--border-strong);border-radius:16px;padding:32px 36px;max-width:380px;width:90%;text-align:center;box-shadow:var(--shadow-lg);">
-      <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+      <div style="font-size:36px;margin-bottom:12px;color:var(--accent-red);"><i class="fa-solid fa-right-from-bracket"></i></div>
       <div style="font-size:17px;font-weight:700;margin-bottom:8px;">¿Cerrar sesión?</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;">Tu sesión se cerrará y deberás iniciar sesión nuevamente.</div>
       <div style="display:flex;gap:12px;justify-content:center;">
