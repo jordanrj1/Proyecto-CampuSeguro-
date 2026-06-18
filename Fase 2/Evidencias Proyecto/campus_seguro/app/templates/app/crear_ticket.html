@@ -53,9 +53,10 @@
             <h5 class="mb-0">📍 ¿Dónde ocurrió?</h5>
           </div>
           <div class="card-body">
-            <div class="row">
-              <!-- Edificio -->
-              <div class="col-md-4 mb-3">
+            
+            <div class="form-grid" style="gap: 10px 16px;">
+              
+              <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
                 <label for="edificio" class="form-label">Edificio *</label>
                 <select class="form-select" id="edificio" name="edificio" required>
                   <option value="">Seleccionar edificio…</option>
@@ -66,8 +67,7 @@
                 <small class="form-text text-muted">Selecciona el edificio primero.</small>
               </div>
 
-              <!-- Piso -->
-              <div class="col-md-4 mb-3">
+              <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
                 <label for="piso" class="form-label">Piso *</label>
                 <select class="form-select" id="piso" name="piso" required disabled>
                   <option value="">Primero selecciona edificio…</option>
@@ -75,24 +75,29 @@
                 <small class="form-text text-muted">Pisos disponibles en el edificio.</small>
               </div>
 
-              <!-- Sala -->
-              <div class="col-md-4 mb-3">
-                <label for="sala" class="form-label">Sala *</label>
-                <select class="form-select" id="sala" name="sala" required disabled>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="tipo_ubicacion" class="form-label">Tipo de Ubicación *</label>
+                <select class="form-select" id="tipo_ubicacion" name="tipo_ubicacion" required disabled>
                   <option value="">Primero selecciona piso…</option>
                 </select>
-                <small class="form-text text-muted">Salas disponibles en el piso.</small>
+                <small class="form-text text-muted">Filtrar por tipo de zona.</small>
               </div>
-            </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="sala" class="form-label">Sala / Zona *</label>
+                <select class="form-select" id="sala" name="sala" required disabled>
+                  <option value="">Primero selecciona tipo…</option>
+                </select>
+                <small class="form-text text-muted">Espacios disponibles en el tipo seleccionado.</small>
+              </div>
+              
+            </div> <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
             
-            <!-- Campo oculto para guardar el ID de ubicación final -->
-            <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
-            
-            <div id="ubicacion-info" class="alert alert-info mt-2" style="display:none;">
+            <div id="ubicacion-info" class="alert alert-info mt-3" style="display:none; margin-bottom: 0;">
               <strong>Ubicación seleccionada:</strong> <span id="ubicacion-texto"></span>
             </div>
             
-            <div class="alert alert-warning mt-3" role="alert">
+            <div class="alert alert-warning mt-3" role="alert" style="margin-bottom: 0;">
               <small>
                 <strong>💡 Nota:</strong> Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
               </small>
@@ -336,18 +341,20 @@ const ubicacionesData = {{ ubicaciones_json|safe }};
 // Elementos del DOM
 const edificioSelect = document.getElementById('edificio');
 const pisoSelect = document.getElementById('piso');
+const tipoSelect = document.getElementById('tipo_ubicacion'); // <-- Capturamos el nuevo select
 const salaSelect = document.getElementById('sala');
 const ubicacionIdInput = document.getElementById('ubicacion_id');
 const ubicacionInfo = document.getElementById('ubicacion-info');
 const ubicacionTexto = document.getElementById('ubicacion-texto');
 
-// Cargar pisos cuando se selecciona edificio
+// 1. Cargar pisos cuando se selecciona edificio
 edificioSelect.addEventListener('change', function() {
   const edificioSeleccionado = this.value;
   
-  // Resetear selects dependientes
   pisoSelect.innerHTML = '<option value="">Cargando pisos…</option>';
-  salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  tipoSelect.disabled = true;
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
   salaSelect.disabled = true;
   ubicacionIdInput.value = '';
   ubicacionInfo.style.display = 'none';
@@ -358,14 +365,12 @@ edificioSelect.addEventListener('change', function() {
     return;
   }
   
-  // Obtener pisos únicos del edificio seleccionado
   const pisosDisponibles = [...new Set(
     ubicacionesData
       .filter(u => u.edificio === edificioSeleccionado)
       .map(u => u.piso)
   )].sort((a, b) => parseInt(a) - parseInt(b));
   
-  // Llenar select de pisos
   pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
   pisosDisponibles.forEach(piso => {
     const option = document.createElement('option');
@@ -377,53 +382,86 @@ edificioSelect.addEventListener('change', function() {
   pisoSelect.disabled = false;
 });
 
-// Cargar salas cuando se selecciona piso
+// 2. Cargar TIPOS DE UBICACIÓN cuando se selecciona un piso (LÓGICA NUEVA)
 pisoSelect.addEventListener('change', function() {
   const edificioSeleccionado = edificioSelect.value;
   const pisoSeleccionado = this.value;
   
-  // Resetear select de salas
-  salaSelect.innerHTML = '<option value="">Cargando salas…</option>';
+  tipoSelect.innerHTML = '<option value="">Cargando tipos…</option>';
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
+  salaSelect.disabled = true;
   ubicacionIdInput.value = '';
   ubicacionInfo.style.display = 'none';
   
   if (!pisoSeleccionado) {
-    salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    tipoSelect.disabled = true;
+    return;
+  }
+  
+  // Extraemos los tipos de ubicación únicos disponibles para ese edificio y piso concretos
+  const tiposDisponibles = [...new Set(
+    ubicacionesData
+      .filter(u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado)
+      .map(u => u.tipo)
+  )].sort();
+  
+  tipoSelect.innerHTML = '<option value="">Seleccionar tipo…</option>';
+  tiposDisponibles.forEach(tipo => {
+    const option = document.createElement('option');
+    option.value = tipo;
+    option.textContent = tipo; // Ej: "Aula", "Baño", "Escalera"
+    tipoSelect.appendChild(option);
+  });
+  
+  tipoSelect.disabled = false;
+});
+
+// 3. Cargar SALAS específicas filtradas por Edificio + Piso + Tipo
+tipoSelect.addEventListener('change', function() {
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = pisoSelect.value;
+  const tipoSeleccionado = this.value;
+  
+  salaSelect.innerHTML = '<option value="">Cargando espacios…</option>';
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+  
+  if (!tipoSeleccionado) {
+    salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
     salaSelect.disabled = true;
     return;
   }
   
-  // Obtener salas del edificio y piso seleccionados
+  // Filtramos la data real cruzando los 3 criterios
   const salasDisponibles = ubicacionesData.filter(
-    u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado
+    u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado && u.tipo === tipoSeleccionado
   );
   
-  // Llenar select de salas
-  salaSelect.innerHTML = '<option value="">Seleccionar sala…</option>';
+  salaSelect.innerHTML = '<option value="">Seleccionar espacio…</option>';
   salasDisponibles.forEach(ubicacion => {
     const option = document.createElement('option');
     option.value = ubicacion.id;
-    option.textContent = `${ubicacion.sala} (${ubicacion.tipo})`;
+    option.textContent = ubicacion.sala; // Ej: "E002" o "Escalera General P2"
     option.dataset.sala = ubicacion.sala;
-    option.dataset.tipo = ubicacion.tipo;
     salaSelect.appendChild(option);
   });
   
   salaSelect.disabled = false;
 });
 
-// Actualizar información cuando se selecciona sala
+// 4. Actualizar banner informativo final al seleccionar la sala concreta
 salaSelect.addEventListener('change', function() {
   const selectedOption = this.options[this.selectedIndex];
   
   if (this.value) {
     const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
     const piso = pisoSelect.options[pisoSelect.selectedIndex].text;
+    const tipo = tipoSelect.options[tipoSelect.selectedIndex].text;
     const sala = selectedOption.dataset.sala;
-    const tipo = selectedOption.dataset.tipo;
     
     ubicacionIdInput.value = this.value;
-    ubicacionTexto.textContent = `${edificio} → ${piso} → ${sala} (${tipo})`;
+    ubicacionTexto.textContent = `${edificio} → ${piso} → ${tipo} → ${sala}`;
     ubicacionInfo.style.display = 'block';
   } else {
     ubicacionIdInput.value = '';
@@ -431,15 +469,7 @@ salaSelect.addEventListener('change', function() {
   }
 });
 
-// Validación antes de enviar el formulario
-document.querySelector('form').addEventListener('submit', function(e) {
-  if (!ubicacionIdInput.value) {
-    e.preventDefault();
-    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Sala)');
-    edificioSelect.focus();
-  }
-});
-// Prevenir doble envío del formulario
+// 5. Prevenir doble envío y validar la selección jerárquica total
 let formSubmitted = false;
 
 document.querySelector('form').addEventListener('submit', function(e) {
@@ -449,17 +479,15 @@ document.querySelector('form').addEventListener('submit', function(e) {
     return false;
   }
   
-  // Validar ubicación
   if (!ubicacionIdInput.value) {
     e.preventDefault();
-    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Sala)');
+    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Tipo → Sala)');
     edificioSelect.focus();
     return false;
   }
   
   formSubmitted = true;
   
-  // Deshabilitar botón de envío
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
   submitBtn.innerHTML = 'Enviando... <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';

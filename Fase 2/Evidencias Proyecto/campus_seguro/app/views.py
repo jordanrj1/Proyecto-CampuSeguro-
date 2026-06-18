@@ -41,7 +41,7 @@ from functools import wraps
 from django.conf import settings
 
 from .models import (
-    CategoriaMaterial, CategoriaTicket, Especialidad, SesionTrabajo, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    CategoriaMaterial, CategoriaTicket, Especialidad, Sede, SesionTrabajo, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -116,16 +116,16 @@ def _preparar_contexto_ubicaciones():
     - edificios: lista de nombres de edificios únicos
     - ubicaciones_json: JSON con todas las ubicaciones para filtrado en cascada
     """
-    ubicaciones = Ubicacion.objects.all().order_by('sede', 'edificio', 'piso', 'sala')
-    edificios = Ubicacion.objects.values_list('edificio', flat=True).distinct().order_by('edificio')
+    ubicaciones = Ubicacion.objects.all().order_by('piso__edificio__sede__nombre', 'piso__edificio__nombre', 'piso__numero', 'sala')
+    edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
     
     ubicaciones_json = json.dumps([
         {
             'id': u.id,
-            'edificio': u.edificio,
-            'piso': u.piso,
+            'edificio': u.piso.edificio.nombre,
+            'piso': u.piso.numero,
             'sala': u.sala,
-            'tipo': u.get_tipo_display()
+            'tipo': u.tipo.nombre_display
         }
         for u in ubicaciones
     ])
@@ -276,7 +276,10 @@ def registro_view(request):
         )
         return redirect('app:login')
 
-    return render(request, 'app/registro.html', {'form': form})
+    return render(request, 'app/registro.html', {
+        'form': form,
+        'sedes': Sede.objects.all().order_by('nombre'),
+        })
 
 
 def olvide_contrasena_view(request):
@@ -423,7 +426,7 @@ def dashboard_gestor(request):
         'reparados_pendientes': reparados_pendientes.order_by('-created_at'),
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
-        'por_edificio': list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:6]),
+        'por_edificio': list(tickets.values(edificio=F('ubicacion__piso__edificio__nombre')).annotate(total=Count('id')).order_by('-total')[:6]),
         'por_categoria': list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total')),
         'por_estado': [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id'))],
         'solicitudes_cuenta': Usuario.objects.filter(estado_cuenta__codigo='pendiente').count(),
@@ -686,7 +689,10 @@ def editar_ticket(request, pk):
         registrar_log(ticket, request.user, 'Ticket editado', ip=get_client_ip(request))
         messages.success(request, '✓ Ticket actualizado.')
         return redirect('app:detalle_ticket', pk=pk)
-    return render(request, 'app/editar_ticket.html', {'form': form, 'ticket': ticket})
+    
+    ubicaciones = Ubicacion.objects.select_related('piso__edificio', 'tipo').all()
+    
+    return render(request, 'app/editar_ticket.html', {'form': form, 'ticket': ticket, 'ubicaciones': ubicaciones})
 
 
 @login_required
@@ -787,7 +793,7 @@ def gestor_tickets(request):
     if busqueda:
         qs = qs.filter(
             Q(titulo__icontains=busqueda) | Q(descripcion__icontains=busqueda) |
-            Q(ubicacion__edificio__icontains=busqueda) | Q(ubicacion__sala__icontains=busqueda)
+            Q(ubicacion__piso__edificio__nombre__icontains=busqueda) | Q(ubicacion__sala__icontains=busqueda)
         )
 
     paginator = Paginator(qs, 25)
@@ -1298,6 +1304,7 @@ def aprobar_cuenta(request, pk):
                 return render(request, 'app/revisar_cuenta.html', {
                     'cuenta': user,
                     'form_rol': form_rol,
+                    'especialidades': Especialidad.objects.all().order_by('nombre')
                 })
 
             rol_asignado = form_rol.cleaned_data['rol']
@@ -1312,6 +1319,7 @@ def aprobar_cuenta(request, pk):
             user.rol = rol_asignado
             user.estado_cuenta = EstadoCatalogo.para('cuenta', 'activa')
             user.is_active = True
+            user.activo = True
             user.fecha_aprobacion = timezone.now()
             user.aprobado_por = request.user
             user.save()
@@ -1550,11 +1558,11 @@ def gestor_bi(request):
     por_categoria = list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total'))
     por_urgencia = list(tickets.values('urgencia').annotate(total=Count('id')))
     por_estado = [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id')).order_by('-total')]
-    por_edificio = list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:8])
+    por_edificio = list(tickets.values(edificio=F('ubicacion__piso__edificio__nombre')).annotate(total=Count('id')).order_by('-total')[:8])
     reincidencia = list(
         tickets.values(
-            edificio=F('ubicacion__edificio'),
-            piso=F('ubicacion__piso'),
+            edificio=F('ubicacion__piso__edificio__nombre'),
+            piso=F('ubicacion__piso__numero'),
             sala=F('ubicacion__sala'),
         ).annotate(total=Count('id')).filter(total__gt=1).order_by('-total')[:8]
     )
@@ -2398,7 +2406,7 @@ def dashboard_gestor_bi_v2(request):
     por_categoria = list(tickets.values('categoria__nombre_display').annotate(total=Count('id')).order_by('-total'))
     por_urgencia = list(tickets.values('urgencia').annotate(total=Count('id')))
     por_estado = [{'estado': i['estado__codigo'], 'total': i['total']} for i in tickets.values('estado__codigo').annotate(total=Count('id'))]
-    por_edificio = list(tickets.values(edificio=F('ubicacion__edificio')).annotate(total=Count('id')).order_by('-total')[:8])
+    por_edificio = list(tickets.values(edificio=F('ubicacion__piso__edificio__nombre')).annotate(total=Count('id')).order_by('-total')[:8])
     trabajadores = Usuario.objects.filter(rol__in=['mantencion', 'guardia'], estado_cuenta__codigo='activa').order_by('first_name')
 
     sesiones_periodo = SesionTrabajo.objects.filter(created_at__date__gte=desde)

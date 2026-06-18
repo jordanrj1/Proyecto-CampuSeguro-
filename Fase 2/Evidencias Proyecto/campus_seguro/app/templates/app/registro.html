@@ -238,8 +238,14 @@ body::before {
         </div>
         <div class="form-group">
           <label class="form-label">Sede</label>
-          <input type="text" name="sede" placeholder="Ej: Sede Concepción"
-                 value="{{ form.sede.value|default:'' }}">
+          <select name="sede">
+            <option value="">Seleccionar sede...</option>
+            {% for s in sedes %}
+              <option value="{{ s.id }}" {% if form.sede.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>
+                {{ s.nombre }}
+              </option>
+            {% endfor %}
+          </select>
         </div>
       </div>
 
