@@ -140,8 +140,7 @@
             TIPO DE ESPACIO
           </div>
           <div>
-            {{ ticket.ubicacion.get_tipo_display|default:'—' }}{%if ticket.ubicacion.capacidad%} ({{ ticket.ubicacion.capacidad }}
-            personas){% endif %}
+            {{ ticket.ubicacion.tipo.nombre_display|default:'—' }}{% if ticket.ubicacion.capacidad %} ({{ ticket.ubicacion.capacidad }} personas){% endif %}
           </div>
         </div>
         <div>

@@ -120,7 +120,6 @@ class RegistroUsuarioForm(forms.ModelForm):
             'rut': forms.TextInput(attrs={'placeholder': '12.345.678-9'}),
             'correo_institucional': forms.EmailInput(attrs={'placeholder': 'tu.correo@duoc.cl'}),
             'telefono': forms.TextInput(attrs={'placeholder': '+56 9 1234 5678'}),
-            'sede': forms.TextInput(attrs={'placeholder': 'Ej: Sede Concepción'}),
             'carrera': forms.TextInput(attrs={'placeholder': 'Ej: Ingeniería en Informática'}),
         }
 

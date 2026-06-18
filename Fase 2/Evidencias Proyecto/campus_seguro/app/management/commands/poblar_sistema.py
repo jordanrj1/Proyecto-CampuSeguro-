@@ -5,15 +5,18 @@
 #
 # PROPÓSITO:
 #   Puebla de forma centralizada todas las tablas maestras relacionales:
-#   Catálogo de Estados de Entidades, Categorías de Tickets, Categorías 
-#   de Materiales, Especialidades Técnicas e Insumos base del pañol.
+#   Catálogo de Estados, Categorías de Tickets y Materiales, Especialidades
+#   Técnicas, Insumos del pañol e Infraestructura Geográfica (Sede, Edificios, Pisos y Salas).
 #
 # USO:
 #   python manage.py poblar_sistema
 # ═══════════════════════════════════════════════════════════════
 
 from django.core.management.base import BaseCommand
-from app.models import EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, Material, EspecialidadMaterial, Ubicacion
+from app.models import (
+    EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, 
+    Material, EspecialidadMaterial, Sede, Edificio, Piso, TipoUbicacion, Ubicacion
+)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -24,9 +27,9 @@ ESTADOS_INICIALES = [
     dict(entidad='ticket', codigo='enviado',       nombre_display='Enviado',       es_inicial=True,  es_final=False, orden=1,  color_hex='#6c757d'),
     dict(entidad='ticket', codigo='en_proceso',    nombre_display='En Proceso',    es_inicial=False, es_final=False, orden=2,  color_hex='#007bff'),
     dict(entidad='ticket', codigo='en_validacion', nombre_display='En Validación', es_inicial=False, es_final=False, orden=3,  color_hex='#fd7e14'),
-    dict(entidad='ticket', codigo='validado',      nombre_display='Validado',      es_inicial=False, es_final=False, orden=4,  color_hex='#20c997'),
+    dict(entidad='ticket', codigo='validado',       nombre_display='Validado',       es_inicial=False, es_final=False, orden=4,  color_hex='#20c997'),
     dict(entidad='ticket', codigo='en_mantencion', nombre_display='En Mantención', es_inicial=False, es_final=False, orden=5,  color_hex='#17a2b8'),
-    dict(entidad='ticket', codigo='reparado',      nombre_display='Reparado',      es_inicial=False, es_final=False, orden=6,  color_hex='#28a745'),
+    dict(entidad='ticket', codigo='reparado',       nombre_display='Reparado',       es_inicial=False, es_final=False, orden=6,  color_hex='#28a745'),
     dict(entidad='ticket', codigo='pausado',       nombre_display='Pausado',       es_inicial=False, es_final=False, orden=7,  color_hex='#ffc107'),
     dict(entidad='ticket', codigo='no_reparado',   nombre_display='No Reparado',   es_inicial=False, es_final=True,  orden=8,  color_hex='#dc3545'),
     dict(entidad='ticket', codigo='cerrado',       nombre_display='Cerrado',       es_inicial=False, es_final=True,  orden=9,  color_hex='#343a40'),
@@ -84,7 +87,7 @@ ESTADOS_INICIALES = [
 
 
 class Command(BaseCommand):
-    help = 'Puebla las tablas maestras de estados, categorías, especialidades y materiales con el catálogo institucional base.'
+    help = 'Puebla las tablas maestras de estados, categorías, especialidades, materiales e infraestructura del campus.'
 
     def handle(self, *args, **options):
         self.stdout.write('')
@@ -226,7 +229,7 @@ class Command(BaseCommand):
             {
                 'codigo': 'MAT-ELEC-002', 'nombre': 'Cinta Aisladora Negra 20m',
                 'cat_cod': 'electrico', 'unidad': 'rollo',
-                'permisos': ['Electricista Certificado SEC', 'Técnico en Climatización y HVAC'] # Cruzado M:N
+                'permisos': ['Electricista Certificado SEC', 'Técnico en Climatización y HVAC']
             },
             # Rubro Gasfitería
             {
@@ -237,7 +240,7 @@ class Command(BaseCommand):
             {
                 'codigo': 'MAT-PLOM-002', 'nombre': 'Cinta de Teflón Profesional 3/4',
                 'cat_cod': 'plomeria', 'unidad': 'rollo',
-                'permisos': ['Gasfíter Plomero', 'Técnico en Climatización y HVAC'] # Cruzado M:N
+                'permisos': ['Gasfíter Plomero', 'Técnico en Climatización y HVAC']
             },
             # Rubro Ferretería / Cerrajeros / Carpinteros
             {
@@ -248,7 +251,7 @@ class Command(BaseCommand):
             {
                 'codigo': 'MAT-FERR-002', 'nombre': 'Tornillo Madera Zincado 1 1/2 (Caja x100)',
                 'cat_cod': 'ferreteria', 'unidad': 'caja',
-                'permisos': ['Carpintero y Reparador de Mobiliario', 'Cerrajero de Infraestructura'] # Cruzado M:N
+                'permisos': ['Carpintero y Reparador de Mobiliario', 'Cerrajero de Infraestructura']
             }
         ]
 
@@ -260,7 +263,7 @@ class Command(BaseCommand):
                 codigo=mat_data['codigo'],
                 defaults={
                     'nombre': mat_data['nombre'],
-                    'categoria': instancia_cat, # FK asignada
+                    'categoria': instancia_cat,
                     'unidad': mat_data['unidad'],
                     'activo': True
                 }
@@ -271,7 +274,6 @@ class Command(BaseCommand):
             else:
                 omitidos += 1
 
-            # Mapeo de la tabla de quiebre (EspecialidadMaterial)
             for nombre_esp in mat_data['permisos']:
                 instancia_esp = esp_objetos[nombre_esp]
                 _, creada_union = EspecialidadMaterial.objects.get_or_create(
@@ -282,12 +284,78 @@ class Command(BaseCommand):
                     uniones_creadas += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 6. SEMBRADO: UBICACIONES DEL CAMPUS (Edificio E y H)
+        # 6. SEMBRADO: INFRAESTRUCTURA GEOGRÁFICA Y DE UBICACIONES (NUEVO)
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Ubicaciones del Campus...'))
-        ubicaciones_nuevas = Ubicacion.crear_default_campus()
-        self.stdout.write(self.style.SUCCESS(f'   [✓] Ubicaciones creadas: {ubicaciones_nuevas}'))
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Infraestructura de Sede, Edificios, Pisos y Salas...'))
+        
+        # Sede
+        sede_institucional, _ = Sede.objects.get_or_create(nombre='Sede San Andrés de Concepción')
+        
+        # Catálogo Maestro de Tipos de Ubicación
+        tipos_dict = {
+            'aula': 'Aula', 'laboratorio': 'Laboratorio', 'taller': 'Taller',
+            'baño': 'Baño', 'pasillo': 'Pasillo', 'escalera': 'Escalera',
+            'ascensor': 'Ascensor', 'casino': 'Casino', 'oficina': 'Oficina',
+            'area_comun': 'Área Común', 'otro': 'Otro',
+        }
+        tipos_maestros = {}
+        for cod, nom in tipos_dict.items():
+            tipo_obj, _ = TipoUbicacion.objects.get_or_create(codigo=cod, defaults={'nombre_display': nom})
+            tipos_maestros[cod] = tipo_obj
+        
+        edificios_config = {
+            'E': {'pisos': range(1, 6), 'salas_por_piso': 16, 'banos_por_piso': {2: 1}},
+            'H': {'pisos': range(1, 9), 'salas_por_piso': 16, 'banos_por_piso': {p: 1 for p in range(1, 9)}}
+        }
+        
+        ubicaciones_count = 0
+        for letra, config in edificios_config.items():
+            edificio_obj, _ = Edificio.objects.get_or_create(sede=sede_institucional, nombre=f"Edificio {letra}")
+            
+            for num_piso in config['pisos']:
+                piso_obj, _ = Piso.objects.get_or_create(edificio=edificio_obj, numero=str(num_piso))
+                
+                # Aulas tradicionales
+                for num_sala in range(1, config['salas_por_piso'] + 1):
+                    _, creada = Ubicacion.objects.get_or_create(
+                        piso=piso_obj, sala=f"{letra}{num_sala:03d}",
+                        defaults={'tipo': tipos_maestros['aula'], 'capacidad': 30}
+                    )
+                    if creada: ubicaciones_count += 1
+                
+                # Baños según configuración
+                if num_piso in config['banos_por_piso']:
+                    for num_bano in range(1, config['banos_por_piso'][num_piso] + 1):
+                        _, creada = Ubicacion.objects.get_or_create(
+                            piso=piso_obj, sala=f"Baño P{num_piso}",
+                            defaults={'tipo': tipos_maestros['baño'], 'capacidad': None}
+                        )
+                        if creada: ubicaciones_count += 1
+                
+                # Zonas comunes del piso (Pasillos, Escaleras y Ascensores)
+                zonas_especiales = [
+                    ('pasillo', f"Pasillo General P{num_piso}"),
+                    ('escalera', f"Escalera General P{num_piso}"),
+                    ('ascensor', f"Ascensor Principal P{num_piso}")
+                ]
+                for codigo_tipo, nombre_zona in zonas_especiales:
+                    _, creada = Ubicacion.objects.get_or_create(
+                        piso=piso_obj, sala=nombre_zona,
+                        defaults={'tipo': tipos_maestros[codigo_tipo], 'capacidad': None}
+                    )
+                    if creada: ubicaciones_count += 1
+                
+                # Casino Central (Únicamente Edificio E - Piso 1)
+                if letra == 'E' and num_piso == 1:
+                    _, creada = Ubicacion.objects.get_or_create(
+                        piso=piso_obj, sala="Casino Central",
+                        defaults={'tipo': tipos_maestros['casino'], 'capacidad': 150}
+                    )
+                    if creada: ubicaciones_count += 1
+
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Sembradas exitosamente {ubicaciones_count} salas/zonas en la Sede San Andrés.'))
+        creados += ubicaciones_count
 
         # ── Resumen de ejecución ──────────────────────────────────────
         self.stdout.write('')

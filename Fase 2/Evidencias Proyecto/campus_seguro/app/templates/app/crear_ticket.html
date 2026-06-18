@@ -5,8 +5,8 @@
 {% block content %}
 <div class="topbar">
   <div>
-    <div class="page-title">Reportar Incidente</div>
-    <div class="page-subtitle">Completa todos los campos para que el equipo pueda actuar rápido</div>
+    <h2 class="page-title">Reportar Incidente</h2>
+    <p class="text-muted">Completa todos los campos para que el equipo pueda actuar rápido</p>
   </div>
   <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">← Cancelar</a>
 </div>
@@ -20,7 +20,6 @@
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
 
-  <!-- SECCIÓN 1: ¿Qué ocurrió? -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">
       <i class="fa-solid fa-pen-to-square" style="color:var(--accent-blue);"></i> ¿Qué ocurrió?
@@ -38,13 +37,13 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 2: ¿Dónde ocurrió? -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">
       <i class="fa-solid fa-location-dot" style="color:var(--accent-blue);"></i> ¿Dónde ocurrió?
     </div>
-    <div class="form-grid-3">
-      <div class="form-group">
+    <div class="form-grid" style="gap: 10px 16px;">
+      
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
         <label class="form-label" for="edificio">Edificio *</label>
         <select id="edificio" name="edificio" required>
           <option value="">Seleccionar edificio…</option>
@@ -53,33 +52,45 @@
           {% endfor %}
         </select>
       </div>
-      <div class="form-group">
+
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
         <label class="form-label" for="piso">Piso *</label>
         <select id="piso" name="piso" required disabled>
           <option value="">Primero selecciona edificio…</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="sala">Sala *</label>
-        <select id="sala" name="sala" required disabled>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="tipo_ubicacion">Tipo de Ubicación *</label>
+        <select id="tipo_ubicacion" name="tipo_ubicacion" required disabled>
           <option value="">Primero selecciona piso…</option>
         </select>
       </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="sala">Sala / Zona *</label>
+        <select id="sala" name="sala" required disabled>
+          <option value="">Primero selecciona tipo…</option>
+        </select>
+      </div>
+
     </div>
+
     <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
+
     <div id="ubicacion-info" style="display:none; margin-top:10px; padding:10px 14px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:var(--radius-sm); font-size:13px;">
       <i class="fa-solid fa-circle-check" style="color:var(--accent-blue);"></i>
       <strong>Ubicación seleccionada:</strong> <span id="ubicacion-texto"></span>
     </div>
+
     <div style="margin-top:10px; padding:10px 14px; background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.2); border-radius:var(--radius-sm);">
       <small style="color:var(--text-secondary);">
         <i class="fa-solid fa-circle-info" style="color:var(--accent-yellow);"></i>
-        Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
+        Si la sala no aparece in la lista, el administrador debe crearla en el panel de administración.
       </small>
     </div>
   </div>
 
-  <!-- SECCIÓN 3: Clasificación -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">
       <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> Clasificación del problema
@@ -100,11 +111,13 @@
         <label class="form-label" for="urgencia">Urgencia *</label>
         <select id="urgencia" name="urgencia" required>
           <option value="" {% if not form.urgencia.value %}selected{% endif %}>Seleccionar…</option>
-          {% for val, label in urgencias %}
+          {% for val, label in form.fields.urgencia.choices %}
+            {% if val %}
             <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
           {% endfor %}
         </select>
-        <div class="form-help">
+        <div class="form-help" style="margin-top: 6px;">
           <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
           Crítica = riesgo inmediato para personas o clases en curso.
         </div>
@@ -112,7 +125,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 4: Impacto y riesgos -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">
       <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-yellow);"></i> Impacto y riesgos asociados
@@ -153,7 +165,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 5: Evidencia fotográfica -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-title">
       <i class="fa-solid fa-camera" style="color:var(--accent-blue);"></i> Evidencia fotográfica *
@@ -201,7 +212,7 @@
 </style>
 
 <script>
-// ── VISTA PREVIA IMAGEN ──────────────────────────────────────────
+// ── CONTROL DE CARGA DE IMÁGENES ─────────────────────────────────
 const uploadArea = document.getElementById('uploadArea');
 const fileInput  = document.getElementById('foto_evidencia');
 const emptyState = document.getElementById('emptyState');
@@ -237,62 +248,115 @@ function removeImage(e) {
   emptyState.style.display = 'block'; imageState.style.display = 'none';
 }
 
-// ── CASCADA EDIFICIO → PISO → SALA ──────────────────────────────
+// ── CASCADA LIMPIA DE 4 NIVELES (RESOLUCIÓN DE CONFLICTO) ────────
 const ubicacionesData  = {{ ubicaciones_json|safe }};
 const edificioSelect   = document.getElementById('edificio');
 const pisoSelect       = document.getElementById('piso');
+const tipoSelect       = document.getElementById('tipo_ubicacion');
 const salaSelect       = document.getElementById('sala');
 const ubicacionIdInput = document.getElementById('ubicacion_id');
 const ubicacionInfo    = document.getElementById('ubicacion-info');
 const ubicacionTexto   = document.getElementById('ubicacion-texto');
 
+// 1. Cargar Pisos
 edificioSelect.addEventListener('change', function() {
-  const edificio = this.value;
+  const edificioSeleccionado = this.value;
   pisoSelect.innerHTML = '<option value="">Cargando pisos…</option>';
-  salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  tipoSelect.disabled = true;
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
   salaSelect.disabled = true;
   ubicacionIdInput.value = '';
   ubicacionInfo.style.display = 'none';
-  if (!edificio) {
+
+  if (!edificioSeleccionado) {
     pisoSelect.innerHTML = '<option value="">Primero selecciona edificio…</option>';
     pisoSelect.disabled = true;
     return;
   }
-  const pisos = [...new Set(ubicacionesData.filter(u => u.edificio === edificio).map(u => u.piso))].sort((a, b) => parseInt(a) - parseInt(b));
+
+  const pisosDisponibles = [...new Set(
+    ubicacionesData.filter(u => u.edificio === edificioSeleccionado).map(u => u.piso)
+  )].sort((a, b) => parseInt(a) - parseInt(b));
+
   pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
-  pisos.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = `Piso ${p}`; pisoSelect.appendChild(o); });
+  pisosDisponibles.forEach(p => { 
+    const o = document.createElement('option'); 
+    o.value = p; o.textContent = `Piso ${p}`; 
+    pisoSelect.appendChild(o); 
+  });
   pisoSelect.disabled = false;
 });
 
+// 2. Cargar Tipos de Ubicación
 pisoSelect.addEventListener('change', function() {
-  const edificio = edificioSelect.value;
-  const piso = this.value;
-  salaSelect.innerHTML = '<option value="">Cargando salas…</option>';
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = this.value;
+
+  tipoSelect.innerHTML = '<option value="">Cargando tipos…</option>';
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
+  salaSelect.disabled = true;
   ubicacionIdInput.value = '';
   ubicacionInfo.style.display = 'none';
-  if (!piso) {
-    salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+
+  if (!pisoSeleccionado) {
+    tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    tipoSelect.disabled = true;
+    return;
+  }
+
+  const tiposDisponibles = [...new Set(
+    ubicacionesData.filter(u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado).map(u => u.tipo)
+  )].sort();
+
+  tipoSelect.innerHTML = '<option value="">Seleccionar tipo…</option>';
+  tiposDisponibles.forEach(tipo => {
+    const option = document.createElement('option');
+    option.value = tipo; option.textContent = tipo;
+    tipoSelect.appendChild(option);
+  });
+  tipoSelect.disabled = false;
+});
+
+// 3. Cargar Salas específicas
+tipoSelect.addEventListener('change', function() {
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = pisoSelect.value;
+  const tipoSeleccionado = this.value;
+
+  salaSelect.innerHTML = '<option value="">Cargando espacios…</option>';
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+
+  if (!tipoSeleccionado) {
+    salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
     salaSelect.disabled = true;
     return;
   }
-  const salas = ubicacionesData.filter(u => u.edificio === edificio && u.piso === piso);
-  salaSelect.innerHTML = '<option value="">Seleccionar sala…</option>';
-  salas.forEach(u => {
-    const o = document.createElement('option');
-    o.value = u.id; o.textContent = `${u.sala} (${u.tipo})`;
-    o.dataset.sala = u.sala; o.dataset.tipo = u.tipo;
-    salaSelect.appendChild(o);
+
+  const salasDisponibles = ubicacionesData.filter(
+    u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado && u.tipo === tipoSeleccionado
+  );
+
+  salaSelect.innerHTML = '<option value="">Seleccionar espacio…</option>';
+  salasDisponibles.forEach(ubicacion => {
+    const option = document.createElement('option');
+    option.value = ubicacion.id; option.textContent = ubicacion.sala;
+    option.dataset.sala = ubicacion.sala;
+    salaSelect.appendChild(option);
   });
   salaSelect.disabled = false;
 });
 
+// 4. Banner final
 salaSelect.addEventListener('change', function() {
   const opt = this.options[this.selectedIndex];
   if (this.value) {
     ubicacionIdInput.value = this.value;
     const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
     const piso     = pisoSelect.options[pisoSelect.selectedIndex].text;
-    ubicacionTexto.textContent = `${edificio} → ${piso} → ${opt.dataset.sala} (${opt.dataset.tipo})`;
+    const tipo     = tipoSelect.options[tipoSelect.selectedIndex].text;
+    ubicacionTexto.textContent = `${edificio} → ${piso} → ${tipo} → ${opt.dataset.sala}`;
     ubicacionInfo.style.display = 'block';
   } else {
     ubicacionIdInput.value = '';
@@ -300,12 +364,12 @@ salaSelect.addEventListener('change', function() {
   }
 });
 
-// ── VALIDACIÓN + ANTI DOBLE ENVÍO ───────────────────────────────
+// 5. Anti-Doble Envío unificado
 let formSubmitted = false;
 document.querySelector('form').addEventListener('submit', function(e) {
   if (!ubicacionIdInput.value) {
     e.preventDefault();
-    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Sala)');
+    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Tipo → Sala)');
     edificioSelect.focus();
     return false;
   }

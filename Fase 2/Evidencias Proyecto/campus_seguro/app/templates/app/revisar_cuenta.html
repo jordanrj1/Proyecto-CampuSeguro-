@@ -162,6 +162,22 @@
       <form method="post" id="formDecision">
         {% csrf_token %}
 
+        <input type="hidden" name="accion" id="id_accion" value="">
+
+        {# ── BLOQUE DE ERRORES CORREGIDO (Pegar aquí) ── #}
+        {% if form_rol.errors %}
+        <div class="alert alert-error" style="margin-bottom: 16px; background: rgba(245,54,92,0.08); border-left: 3px solid var(--accent-red); padding: 12px; border-radius: 8px;">
+          <strong style="color: var(--accent-red); font-size: 13px; display: block; margin-bottom: 4px;">⚠️ Error al procesar la solicitud:</strong>
+          <ul style="margin: 0; padding-left: 20px; color: var(--text-primary); font-size: 12.5px;">
+            {% for field, errors in form_rol.errors.items %}
+              {% for error in errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
         {# ── Selector de rol (requerido para aprobar) ── #}
         <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label" style="font-weight:700;font-size:13px;">
@@ -253,13 +269,13 @@
         </div>
         {% endif %}
 
-        {# ── Botones de acción ── #}
+        {# ── Botones de acción actualizados ── #}
+        {# ── Botones de acción corregidos ── #}
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-          <button type="submit" name="accion" value="aprobar" class="btn btn-success btn-full">
+          <button type="button" class="btn btn-success btn-full" onclick="enviarDecision('aprobar', this)">
             ✓ Aprobar y asignar rol
           </button>
-          <button type="submit" name="accion" value="rechazar" class="btn btn-danger btn-full"
-                  onclick="return confirm('¿Confirmas el rechazo de esta solicitud?')">
+          <button type="button" class="btn btn-danger btn-full" onclick="enviarDecision('rechazar', this)">
             ✗ Rechazar solicitud
           </button>
         </div>
@@ -332,5 +348,37 @@ radioButtons.forEach(radio => {
 
 // Evaluación de inicio por si carga por defecto algún valor
 document.addEventListener('DOMContentLoaded', manejarCambioRol);
+
+// FUNCIÓN CORREGIDA: Envío seguro sin errores de referencia
+function enviarDecision(accion, boton) {
+  const form = document.getElementById('formDecision');
+  const idAccion = document.getElementById('id_accion');
+  const selectEsp = document.getElementById('id_especialidad');
+  const radioSeleccionado = document.querySelector('input[name="rol"]:checked');
+
+  // 1. Confirmación de rechazo
+  if (accion === 'rechazar') {
+    if (!confirm('¿Confirmas el rechazo de esta solicitud?')) return;
+  }
+
+  // 2. Validación de especialidad para mantención
+  if (accion === 'aprobar' && radioSeleccionado && radioSeleccionado.value === 'mantencion' && !selectEsp.value) {
+    alert('⚠️ Por favor, seleccione una especialidad técnica para el mantenedor antes de aprobar.');
+    selectEsp.focus();
+    return;
+  }
+
+  // 3. Asignamos la acción al campo oculto
+  idAccion.value = accion;
+
+  // 4. Deshabilitar el botón de forma segura usando el parámetro
+  if (boton) {
+    boton.disabled = true;
+    boton.innerHTML = 'Procesando...';
+  }
+
+  // 5. Enviar el formulario directamente a Django
+  form.submit();
+}
 </script>
 {% endblock %}

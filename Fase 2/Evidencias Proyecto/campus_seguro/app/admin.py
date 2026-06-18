@@ -7,7 +7,7 @@ from .models import (
     SesionTrabajo, ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, TransicionEstado,
-    Especialidad, EspecialidadUsuario, EspecialidadMaterial,
+    Especialidad, EspecialidadUsuario, EspecialidadMaterial
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ class MaterialUtilizadoInline(admin.TabularInline):
 
 
 # ═══════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DEL CAMPUS — Ubicacion
+# CONFIGURACIÓN DEL CAMPUS — Ubicacion (CORREGIDA)
 # ═══════════════════════════════════════════════════════════════
 
 @admin.register(Ubicacion)
@@ -40,20 +40,46 @@ class UbicacionAdmin(admin.ModelAdmin):
     El administrador es el único responsable de crear, editar y dar de baja ubicaciones.
     Desde aquí se controla qué salas, pisos y edificios son seleccionables al crear tickets.
     """
-    list_display   = ('edificio', 'piso', 'sala', 'tipo', 'sede', 'capacidad', 'id_sap')
-    list_filter    = ('edificio', 'tipo', 'sede')
-    search_fields  = ('sala', 'edificio', 'sede', 'id_sap')
-    ordering       = ('edificio', 'piso', 'sala')
+    # ✓ list_display usa funciones personalizadas para mostrar las relaciones
+    list_display   = ('get_sede', 'get_edificio', 'get_piso', 'sala', 'get_tipo', 'capacidad', 'id_sap')
+    
+    # ✓ list_filter cruza las ForeignKeys usando dobles guiones bajos (__)
+    list_filter    = ('piso__edificio__sede', 'piso__edificio', 'tipo')
+    
+    # ✓ search_fields ahora busca dentro de los nombres de los modelos relacionados
+    search_fields  = ('sala', 'piso__edificio__nombre', 'piso__edificio__sede__nombre', 'id_sap')
+    
+    # ✓ ordering organiza de forma jerárquica cruzando las tablas relacionales
+    ordering       = ('piso__edificio__sede__nombre', 'piso__edificio__nombre', 'piso__numero', 'sala')
     list_per_page  = 50
+    
+    # ✓ Simplificado para contener solo los campos reales que se editan en este modelo
     fieldsets = (
         ('Identificación del espacio', {
-            'fields': ('sede', 'edificio', 'piso', 'sala'),
+            'fields': ('piso', 'sala'),
         }),
         ('Características', {
             'fields': ('tipo', 'capacidad', 'id_sap'),
             'description': 'id_sap es opcional. Se usa para integración con SAP.',
         }),
     )
+
+    # ── Métodos para extraer los textos relacionales de la infraestructura ──
+    @admin.display(ordering='piso__edificio__sede__nombre', description='Sede')
+    def get_sede(self, obj):
+        return obj.piso.edificio.sede.nombre if obj.piso and obj.piso.edificio and obj.piso.edificio.sede else '—'
+
+    @admin.display(ordering='piso__edificio__nombre', description='Edificio')
+    def get_edificio(self, obj):
+        return obj.piso.edificio.nombre if obj.piso and obj.piso.edificio else '—'
+
+    @admin.display(ordering='piso__numero', description='Piso')
+    def get_piso(self, obj):
+        return f"Piso {obj.piso.numero}" if obj.piso else '—'
+
+    @admin.display(ordering='tipo__nombre_display', description='Tipo')
+    def get_tipo(self, obj):
+        return obj.tipo.nombre_display if obj.tipo else '—'
 
     # ── Botón extra en el listado ────────────────────────────────
     change_list_template = 'admin/app/ubicacion/change_list.html'
@@ -117,8 +143,16 @@ class EstadoCatalogoAdmin(admin.ModelAdmin):
 
 @admin.register(TransicionEstado)
 class TransicionEstadoAdmin(admin.ModelAdmin):
-    list_display = ('estado_origen', 'estado_destino', 'rol_requerido', 'activo')
+    list_display = ('get_origen_display', 'get_destino_display', 'rol_requerido', 'activo')
     list_filter  = ('rol_requerido', 'activo')
+
+    def get_origen_display(self, obj):
+        return f"[{obj.estado_origen.entidad.upper()}] {obj.estado_origen.nombre_display}" if obj.estado_origen else '—'
+    get_origen_display.short_description = 'Estado Origen'
+
+    def get_destino_display(self, obj):
+        return f"[{obj.get_estado_destino_display()}]" if obj.estado_destino else '—'
+    get_destino_display.short_description = 'Estado Destino'
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -177,7 +211,7 @@ class TokenRecuperacionAdmin(admin.ModelAdmin):
 class TicketAdmin(admin.ModelAdmin):
     list_display   = ('id', 'titulo', 'estado', 'urgencia', 'categoria', 'creado_por', 'asignado_a', 'created_at')
     list_filter    = ('estado', 'urgencia', 'categoria')
-    search_fields  = ('titulo', 'descripcion', 'ubicacion__edificio', 'ubicacion__sala')
+    search_fields  = ('titulo', 'descripcion', 'ubicacion__piso__edificio__nombre', 'ubicacion__sala')
     readonly_fields = ('created_at', 'updated_at', 'cerrado_at')
 
 

@@ -116,6 +116,193 @@ class CategoriaMaterial(models.Model):
         return self.nombre_display
 
 # ═══════════════════════════════════════════════════════════════
+# ESTRUCTURA GEOGRÁFICA Y DE INFRAESTRUCTURA NORMALIZADA
+# Reemplaza el antiguo catálogo plano hardcodeado
+# ═══════════════════════════════════════════════════════════════
+
+class Sede(models.Model):
+    """Sedes de la institución (ej: Sede Principal, Sede Norte, etc.)"""
+    nombre = models.CharField(max_length=100, unique=True)
+    direccion = models.CharField(max_length=250, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Sede'
+        verbose_name_plural = 'Sedes'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Edificio(models.Model):
+    """Edificios pertenecientes a una Sede específica"""
+    sede = models.ForeignKey(Sede, on_delete=models.CASCADE, related_name='edificios')
+    nombre = models.CharField(max_length=100) # Ej: "Edificio E", "Edificio H"
+
+    class Meta:
+        verbose_name = 'Edificio'
+        verbose_name_plural = 'Edificios'
+        unique_together = ('sede', 'nombre')
+
+    def __str__(self):
+        return f"{self.nombre} ({self.sede.nombre})"
+
+
+class Piso(models.Model):
+    """Pisos o niveles pertenecientes a un Edificio"""
+    edificio = models.ForeignKey(Edificio, on_delete=models.CASCADE, related_name='pisos')
+    numero = models.CharField(max_length=10) # Ej: "1", "2", "Subterráneo"
+
+    class Meta:
+        verbose_name = 'Piso'
+        verbose_name_plural = 'Pisos'
+        unique_together = ('edificio', 'numero')
+
+    def __str__(self):
+        return f"Piso {self.numero} – {self.edificio.nombre}"
+
+
+class TipoUbicacion(models.Model):
+    """Categorías de salas (Aula, Laboratorio, Baño, Pasillo, etc.)"""
+    codigo = models.CharField(max_length=30, unique=True) # Ej: "aula", "baño"
+    nombre_display = models.CharField(max_length=100)      # Ej: "Aula", "Baño"
+
+    class Meta:
+        verbose_name = 'Tipo de Ubicación'
+        verbose_name_plural = 'Tipos de Ubicaciones'
+
+    def __str__(self):
+        return self.nombre_display
+
+
+class Ubicacion(models.Model):
+    """La unidad mínima espacial (Sala, Laboratorio o Baño concreto)"""
+    piso = models.ForeignKey(Piso, on_delete=models.CASCADE, related_name='ubicaciones')
+    tipo = models.ForeignKey(TipoUbicacion, on_delete=models.PROTECT, related_name='ubicaciones')
+    sala = models.CharField(max_length=50) # Ej: "E001", "Baño P2"
+    id_sap = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    capacidad = models.PositiveIntegerField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('piso', 'sala')
+        ordering = ['piso__edificio__sede', 'piso__edificio', 'piso__numero', 'sala']
+        verbose_name = 'Ubicación'
+        verbose_name_plural = 'Ubicaciones'
+
+    def __str__(self):
+        # Mantiene la estética original conservando la compatibilidad de tus mensajes anteriores
+        return f"{self.piso.edificio.sede.nombre} – {self.piso.edificio.nombre} P{self.piso.numero} {self.sala}"
+
+    @classmethod
+    def crear_default_campus(cls):
+        """
+        Crea la estructura relacional por defecto para el Campus Seguro,
+        vinculando toda la infraestructura a la Sede San Andrés de Concepción.
+        Incluye aulas, baños, pasillos, escaleras, ascensores y el casino central.
+        """
+        print("🏗️  Creando ubicaciones normalizadas del Campus Seguro...")
+        
+        # 1. Crear o recuperar la Sede
+        sede_institucional, _ = Sede.objects.get_or_create(nombre='Sede San Andrés de Concepción')
+        
+        # 2. Catálogo Maestro de Tipos de Ubicación (AÑADIDOS: ascensor y casino)
+        tipos_dict = {
+            'aula': 'Aula',
+            'laboratorio': 'Laboratorio',
+            'taller': 'Taller',
+            'baño': 'Baño',
+            'pasillo': 'Pasillo',
+            'escalera': 'Escalera',
+            'ascensor': 'Ascensor',  # <-- Nuevo Tipo
+            'casino': 'Casino',      # <-- Nuevo Tipo
+            'oficina': 'Oficina',
+            'area_comun': 'Área Común',
+            'otro': 'Otro',
+        }
+        tipos_maestros = {}
+        for cod, nom in tipos_dict.items():
+            tipo_obj, _ = TipoUbicacion.objects.get_or_create(codigo=cod, defaults={'nombre_display': nom})
+            tipos_maestros[cod] = tipo_obj
+        
+        # Configuración física de los edificios E y H
+        edificios_config = {
+            'E': {
+                'pisos': range(1, 6),  # Pisos 1 al 5
+                'salas_por_piso': 16,
+                'banos_por_piso': {2: 1},
+            },
+            'H': {
+                'pisos': range(1, 9),  # Pisos 1 al 8
+                'salas_por_piso': 16,
+                'banos_por_piso': {p: 1 for p in range(1, 9)},
+            }
+        }
+        
+        total_creadas = 0
+        
+        for letra, config in edificios_config.items():
+            edificio_obj, _ = Edificio.objects.get_or_create(
+                sede=sede_institucional, 
+                nombre=f"Edificio {letra}"
+            )
+            
+            for num_piso in config['pisos']:
+                piso_obj, _ = Piso.objects.get_or_create(
+                    edificio=edificio_obj, 
+                    numero=str(num_piso)
+                )
+                
+                # 4. Crear Aulas
+                for num_sala in range(1, config['salas_por_piso'] + 1):
+                    nombre_sala = f"{letra}{num_sala:03d}"
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala=nombre_sala,
+                        defaults={'tipo': tipos_maestros['aula'], 'capacidad': 30}
+                    )
+                    if creada: total_creadas += 1
+                
+                # 5. Crear Baños
+                if num_piso in config['banos_por_piso']:
+                    num_banos = config['banos_por_piso'][num_piso]
+                    for num_bano in range(1, num_banos + 1):
+                        _, creada = cls.objects.get_or_create(
+                            piso=piso_obj,
+                            sala=f"Baño P{num_piso}",
+                            defaults={'tipo': tipos_maestros['baño'], 'capacidad': None}
+                        )
+                        if creada: total_creadas += 1
+                
+                # 6. Crear Zonas de Tránsito (AÑADIDO: ascensor por cada piso)
+                zonas_especiales = [
+                    ('pasillo', f"Pasillo General P{num_piso}"),
+                    ('escalera', f"Escalera General P{num_piso}"),
+                    ('ascensor', f"Ascensor Principal P{num_piso}")  # <-- Se creará en cada piso
+                ]
+                
+                for codigo_tipo, nombre_zona in zonas_especiales:
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala=nombre_zona,
+                        defaults={'tipo': tipos_maestros[codigo_tipo], 'capacidad': None}
+                    )
+                    if creada: total_creadas += 1
+                
+                # 7. LÓGICA EXCLUSIVA: Crear el Casino Central solo en el Edificio E - Piso 1
+                if letra == 'E' and num_piso == 1:
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala="Casino Central",
+                        defaults={
+                            'tipo': tipos_maestros['casino'], 
+                            'capacidad': 150  # El casino sí tiene aforo/capacidad estimada
+                        }
+                    )
+                    if creada: total_creadas += 1
+                            
+        print(f"✨ ¡Estructura relacional sembrada con Ascensores y Casino! Total: {total_creadas}")
+        return total_creadas
+
+# ═══════════════════════════════════════════════════════════════
 # USUARIO PERSONALIZADO (registro institucional)
 # ══════════════════════════════════════════════════════════════
 class UsuarioManager(UserManager):
@@ -159,7 +346,7 @@ class Usuario(AbstractUser):
     vinculo = models.CharField(max_length=20, choices=VINCULO_CHOICES, blank=True, null=True)
     carrera = models.CharField(max_length=100, blank=True, null=True)
     jornada = models.CharField(max_length=15, choices=JORNADA_CHOICES, blank=True, null=True)
-    sede = models.CharField(max_length=100, blank=True, null=True)
+    sede = models.ForeignKey(Sede, on_delete=models.SET_NULL, blank=True, null=True, related_name='estudiantes_funcionarios')
     departamento = models.CharField(max_length=100, blank=True, null=True)
 
     # Datos operativos (guardia / mantención)
@@ -265,130 +452,6 @@ class TokenRecuperacion(models.Model):
     @property
     def es_valido(self):
         return not self.usado and timezone.now() < self.expira_en
-
-
-# ═══════════════════════════════════════════════════════════════
-# UBICACIÓN (catálogo SAP)
-# ═══════════════════════════════════════════════════════════════
-class Ubicacion(models.Model):
-    TIPO_CHOICES = [
-        ('aula', 'Aula'),
-        ('laboratorio', 'Laboratorio'),
-        ('taller', 'Taller'),
-        ('baño', 'Baño'),
-        ('pasillo', 'Pasillo'),
-        ('oficina', 'Oficina'),
-        ('area_comun', 'Área Común'),
-        ('otro', 'Otro'),
-    ]
-    sede = models.CharField(max_length=100)
-    edificio = models.CharField(max_length=100)
-    piso = models.CharField(max_length=10)
-    sala = models.CharField(max_length=50)
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    id_sap = models.CharField(max_length=50, unique=True, blank=True, null=True)
-    capacidad = models.PositiveIntegerField(blank=True, null=True)
-
-    class Meta:
-        unique_together = ('sede', 'edificio', 'piso', 'sala')
-        ordering = ['sede', 'edificio', 'piso', 'sala']
-
-    def __str__(self):
-        return f"{self.sede} – {self.edificio} P{self.piso} {self.sala}"
-
-    @classmethod
-    def crear_default_campus(cls):
-        """
-        Crea las ubicaciones por defecto del campus:
-        - Edificio E: Pisos 1-5, 16 salas por piso, solo Piso 2 tiene baño
-        - Edificio H: Pisos 1-8, 16 salas por piso + 1 baño por piso
-        
-        Uso:
-            from app.models import Ubicacion
-            Ubicacion.crear_default_campus()
-        """
-        print("🏗️  Creando ubicaciones del Campus Seguro...")
-        
-        # Configuración de edificios
-        edificios_config = {
-            'E': {
-                'pisos': range(1, 6),  # Pisos 1 al 5
-                'salas_por_piso': 16,
-                'banos_por_piso': {2: 1},  # Solo Piso 2 tiene 1 baño
-            },
-            'H': {
-                'pisos': range(1, 9),  # Pisos 1 al 8
-                'salas_por_piso': 16,
-                'banos_por_piso': {p: 1 for p in range(1, 9)},  # Todos los pisos tienen 1 baño
-            }
-        }
-        
-        total_creadas = 0
-        total_omitidas = 0
-        
-        for edificio, config in edificios_config.items():
-            print(f"\n📍 Procesando Edificio {edificio}...")
-            
-            for piso in config['pisos']:
-                # Crear salas (E001, E002, ... H001, H002, ...)
-                for num_sala in range(1, config['salas_por_piso'] + 1):
-                    nombre_sala = f"{edificio}{num_sala:03d}"  # Ej: E001, E016, H001
-                    
-                    ubicacion, creada = cls.objects.get_or_create(
-                        sede='Sede Principal',
-                        edificio=f"Edificio {edificio}",
-                        piso=str(piso),
-                        sala=nombre_sala,
-                        defaults={
-                            'tipo': 'aula',
-                            'capacidad': 30,
-                        }
-                    )
-                    
-                    if creada:
-                        total_creadas += 1
-                    else:
-                        total_omitidas += 1
-                
-                # Crear baños según configuración
-                if piso in config['banos_por_piso']:
-                    num_banos = config['banos_por_piso'][piso]
-                    for num_bano in range(1, num_banos + 1):
-                        nombre_bano = f"Baño P{piso}"
-                        
-                        ubicacion, creada = cls.objects.get_or_create(
-                            sede='Sede Principal',
-                            edificio=f"Edificio {edificio}",
-                            piso=str(piso),
-                            sala=nombre_bano,
-                            defaults={
-                                'tipo': 'baño',
-                                'capacidad': None,
-                            }
-                        )
-                        
-                        if creada:
-                            total_creadas += 1
-                        else:
-                            total_omitidas += 1
-        
-        print(f"\n✅ Total de ubicaciones creadas: {total_creadas}")
-        print(f"️  Ubicaciones ya existentes (omitidas): {total_omitidas}")
-        
-        # Mostrar resumen
-        print("\n📊 Resumen:")
-        print(f"  - Edificio E: {cls.objects.filter(edificio='Edificio E').count()} ubicaciones")
-        print(f"  - Edificio H: {cls.objects.filter(edificio='Edificio H').count()} ubicaciones")
-        
-        # Mostrar ejemplo de ubicaciones creadas
-        print("\n🔍 Ejemplos de ubicaciones:")
-        for u in cls.objects.filter(edificio='Edificio E', piso='2')[:3]:
-            print(f"  - {u.edificio} - Piso {u.piso} - {u.sala} ({u.get_tipo_display()})")
-        
-        print("\n✨ ¡Ubicaciones creadas exitosamente!")
-        
-        return total_creadas
-
 
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO DE MATERIALES (BI compras inteligentes)
