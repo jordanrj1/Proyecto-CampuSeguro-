@@ -14,7 +14,6 @@
   <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
 </div>
 
-<!-- Estado general -->
 <div
   style="
     display: flex;
@@ -81,9 +80,7 @@
     margin-bottom: 18px;
   "
 >
-  <!-- Columna principal: info + timeline -->
   <div>
-    <!-- Información del incidente -->
     <div class="card" style="margin-bottom: 18px">
       <div class="form-section-title"> Información del incidente</div>
       <div
@@ -234,14 +231,9 @@
       {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- STEPPER DE PROGRESO DEL TICKET (tipo delivery) -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="card" style="margin-bottom: 18px">
-      <div class="form-section-title">🕐 Progreso del ticket</div>
-
+      <div class="form-section-title"> Relevancia y Progreso</div>
       <div style="position: relative; padding: 30px 10px 20px;">
-        <!-- Línea de fondo (gris) -->
         <div
           style="
             position: absolute;
@@ -253,8 +245,6 @@
             z-index: 0;
           "
         ></div>
-
-        <!-- Línea de progreso (verde) - se muestra hasta el paso actual -->
         <div
           style="
             position: absolute;
@@ -267,8 +257,6 @@
             transition: width 0.5s ease;
           "
         ></div>
-
-        <!-- Contenedor de pasos -->
         <div
           style="
             display: flex;
@@ -277,7 +265,6 @@
             z-index: 2;
           "
         >
-          <!-- PASO 1: CREADO (se pone rojo si está cancelado) -->
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -308,7 +295,6 @@
             </div>
           </div>
 
-          <!-- PASO 2: VALIDACIÓN -->
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -343,7 +329,6 @@
             {% endif %}
           </div>
 
-          <!-- PASO 3: MANTENCIÓN -->
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -378,7 +363,6 @@
             {% endif %}
           </div>
 
-          <!-- PASO 4: REPARADO / NO REPARABLE -->
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -413,7 +397,6 @@
             {% endif %}
           </div>
 
-          <!-- PASO 5: CERRADO -->
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -451,7 +434,6 @@
       </div>
     </div>
 
-    <!-- Galería de evidencia fotográfica (solo roles autorizados) -->
     {% if request.user.rol != 'usuario' %} {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
     <div class="card" style="margin-bottom: 18px">
       <div class="form-section-title">
@@ -541,7 +523,7 @@
                 margin-bottom: 3px;
               "
             >
-              ️ VALIDACIÓN GUARDIA
+               VALIDACIÓN GUARDIA
             </div>
             <div style="font-size: 12px; color: var(--text-secondary)">
               {{ ticket.validacion.guardia.get_full_name }}
@@ -637,7 +619,7 @@
     </div>
     {% endif %} {% endif %}
 
-    <!-- Timeline de auditoría completo -->
+    {% if request.user.rol != 'usuario' %}
     <div class="card" style="margin-bottom: 18px">
       <div class="form-section-title"> Historial detallado</div>
       {% if logs %}
@@ -653,7 +635,7 @@
           "
         ></div>
         {% for log in logs %}
-        <div style="position: relative; margin-bottom: 16px">
+        <div style="position: relative; margin-bottom: 22px">
           <div
             style="position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;
             background:{% if 'cerrado' in log.accion|lower or 'completado' in log.accion|lower %}var(--accent-green)
@@ -667,7 +649,7 @@
             style="
               font-size: 11px;
               color: var(--text-muted);
-              margin-bottom: 2px;
+              margin-bottom: 3px;
             "
           >
             {{ log.created_at|date:"d/m/Y H:i" }} {% if log.usuario %} ·
@@ -684,27 +666,109 @@
               >{{ log.estado_anterior }} → {{ log.estado_nuevo }}</span
             >{% endif %}
           </div>
-          <div
-            style="
-              font-size: 13px;
-              font-weight: 600;
-              color: var(--text-primary);
-            "
-          >
-            {{ log.accion }}
+          
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
+              {{ log.accion }}
+            </div>
+            
+            {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+            <button type="button" class="btn-ver-historial" onclick="abrirModalHistorial('{{ log.pk }}')">
+              Ver bitácora
+            </button>
+            {% endif %}
           </div>
-          {% if log.detalle %}
+
+          {% if log.detalle and log.accion != "Avance de jornada registrado" and log.accion != "Reparación finalizada con éxito" %}
           <div
             style="
               font-size: 12px;
               color: var(--text-secondary);
-              margin-top: 3px;
+              margin-top: 4px;
               line-height: 1.5;
             "
           >
             {{ log.detalle }}
           </div>
           {% endif %}
+
+          {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+          <div id="payload-log-{{ log.pk }}" style="display: none;">
+            <div class="data-titulo">{{ log.accion }}</div>
+            <div class="data-meta">Registrado por: {{ log.usuario.get_full_name|default:'Sistema' }} · El {{ log.created_at|date:"d/m/Y H:i" }}</div>
+            
+            <div class="data-cuerpo">
+              {% for sesion in sesiones %}
+                {% if sesion.tecnico == log.usuario and sesion.fin|date:"d/m/Y H:i" == log.created_at|date:"d/m/Y H:i" %}
+                  
+                  <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                    <div style="margin-bottom: 10px;">
+                      <span style="color: var(--text-muted); font-size: 11px; display: block;">DESCRIPCIÓN DEL TURNO</span>
+                      <strong style="color: #fff; font-size: 13px; white-space: pre-wrap;">{{ sesion.descripcion_avance }}</strong>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px;">
+                      <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
+                      <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TURNO</span><br>{{ sesion.horas_hombre }} hrs</div>
+                    </div>
+
+                    <div>
+                      <span style="color: var(--text-muted); font-size: 11px; display: block;">NOTAS DE BITÁCORA</span>
+                      <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">{{ sesion.observaciones }}</p>
+                    </div>
+                  </div>
+
+                  {% if log.accion == "Reparación finalizada con éxito" and ticket.mantencion %}
+                  <div style="margin-top: 14px; background: rgba(46, 125, 50, 0.05); padding: 12px; border-radius: 6px; border: 1px solid rgba(76, 175, 80, 0.2);">
+                    <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 8px;">CIERRE</span>
+                    
+                    {% if ticket.mantencion.causa_raiz %}
+                    <div style="margin-bottom: 8px;">
+                      <span style="color: var(--text-muted); font-size: 11px; display: block;">CAUSA RAÍZ DETECTADA</span>
+                      <p style="margin: 0; font-size: 12px; color: #fff; font-weight: 500;">{{ ticket.mantencion.causa_raiz }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if ticket.mantencion.foto_final %}
+                    <div style="margin-top: 12px; border-top: 1px solid rgba(76, 175, 80, 0.15); padding-top: 8px;">
+                      <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 6px;">EVIDENCIA VISUAL DE LA SOLUCIÓN</span>
+                      <img src="{{ ticket.mantencion.foto_final.url }}" alt="Evidencia de Cierre" 
+                          style="width: 100%; height: 180px; object-fit: contain; background-color: rgba(0, 0, 0, 0.5); border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.2);">
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+
+                  {% if sesion.materiales_utilizados.all %}
+                  <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+                    <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">MATERIALES UTILIZADOS EN ESTE TURNO:</span>
+                    <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                      <thead>
+                        <tr style="color: var(--text-muted); text-align: left; border-bottom: 1px solid var(--border);">
+                          <th style="padding-bottom: 4px;">Material</th>
+                          <th style="padding-bottom: 4px; text-align: right;">Cantidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for mat in sesion.materiales_utilizados.all %}
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                          <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
+                          <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  {% else %}
+                    <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">ℹ️ No se retiraron materiales de pañol en este turno.</div>
+                  {% endif %}
+
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
         </div>
         {% endfor %}
       </div>
@@ -715,16 +779,12 @@
       </div>
       {% endif %}
     </div>
+    {% endif %}
   </div>
 
-  <!-- Columna lateral: reparación / no-reparable / materiales -->
   <div>
-    <!-- ══════════════════════════════════════════════════════════════ -->
-    <!-- SOLO VISIBLE PARA ROLES OPERATIVOS (no usuario base) -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
     {% if request.user.rol != 'usuario' %}
 
-    <!-- Registro de mantención -->
     {% if ticket.mantencion %}{% with r=ticket.mantencion %}
     <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
       <div class="form-section-title" style="color: var(--accent-green)">✓ Registro de reparación</div>
@@ -738,7 +798,6 @@
         <div style="color: var(--text-secondary)">{{ r.causa_raiz }}</div>
       </div>
       {% endif %}
-      <!-- Resumen de jornadas desde SesionTrabajo -->
       {% if sesiones %}
       <div style="font-size: 13px; margin-bottom: 6px">
         <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px">JORNADAS DE TRABAJO ({{ sesiones|length }})</div>
@@ -761,7 +820,6 @@
       {% endif %}
     </div>
 
-    <!-- Materiales — ahora desde SesionTrabajo -->
     {% if todos_materiales_sesiones %}
     <div class="card" style="margin-bottom: 18px">
       <div class="form-section-title">Materiales consumidos</div>
@@ -772,15 +830,14 @@
           <div style="font-size:11px; color:var(--text-muted);">{{ mat.sesion_trabajo.inicio|date:"d/m" }}</div>
         </div>
         <div style="font-weight: 700; color: var(--accent-blue)">
-          {{ mat.cantidad_utilizada }} {{ mat.material.unidad_medida }}
+          {{ mat.cantidad_utilizada }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}
         </div>
       </div>
       {% endfor %}
     </div>
     {% endif %}
-    {% endwith %}{% endif %}
+    {% endwith % constituency %}{% endif %}
 
-    <!-- Registro no reparable -->
     {% if ticket.no_reparable %} {% with nr=ticket.no_reparable %}
     <div
       class="card"
@@ -862,11 +919,7 @@
     {% endwith %} {% endif %}
 
     {% endif %}
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- FIN DEL BLOQUE SOLO ROLES OPERATIVOS -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
 
-    <!-- Acciones del usuario creador (Cancelar Ticket) -->
     {% if request.user == ticket.creado_por and ticket.estado.codigo == 'enviado' %}
     <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)">
       <div class="form-section-title" style="color: var(--accent-red)">
@@ -881,7 +934,6 @@
     </div>
     {% endif %}
 
-    <!-- Acciones del gestor (solo si es gestor) -->
     {% if request.user.rol == 'gestor' %}
     <div class="card">
       <div class="form-section-title">⚡ Acciones</div>
@@ -927,4 +979,83 @@
     {% endif %}
   </div>
 </div>
+
+<div id="modalHistorial" class="modal-backdrop" onclick="cerrarModalHistorialExterno(event)">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modalTitulo" style="margin: 0; font-size: 15px; font-weight: 600;">Detalle</h3>
+      <button class="modal-close-btn" onclick="cerrarModalHistorial()">&times;</button>
+    </div>
+    <div class="modal-meta" id="modalMeta">Meta data</div>
+    <div class="modal-body" id="modalCuerpo"></div>
+  </div>
+</div>
+
+<style>
+  .btn-ver-historial {
+    background: rgba(var(--accent-blue-rgb, 59, 130, 246), 0.1);
+    border: 1px solid rgba(var(--accent-blue-rgb, 59, 130, 246), 0.3);
+    color: var(--accent-blue, #60a5fa);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .btn-ver-historial:hover {
+    background: var(--accent-blue, #3b82f6);
+    border-color: var(--accent-blue, #3b82f6);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-backdrop {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.7); z-index: 2000; justify-content: center; align-items: center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-card {
+    background: #1e1e24; border: 1px solid var(--border); width: 90%; max-width: 550px;
+    border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    animation: modalAnim 0.15s ease-out;
+  }
+  .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; }
+  .modal-close-btn:hover { color: var(--accent-red); }
+  .modal-meta { padding: 6px 18px; background: rgba(255,255,255,0.01); font-size: 11px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  .modal-body { padding: 18px; max-height: 450px; overflow-y: auto; }
+  @keyframes modalAnim { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
+
+<script>
+  function abrirModalHistorial(logId) {
+    const payload = document.getElementById(`payload-log-${logId}`);
+    if (!payload) return;
+
+    const tituloHtml = payload.querySelector('.data-titulo').innerHTML;
+    const metaHtml = payload.querySelector('.data-meta').innerHTML;
+    const cuerpoHtml = payload.querySelector('.data-cuerpo').innerHTML;
+
+    document.getElementById('modalTitulo').innerHTML = tituloHtml;
+    document.getElementById('modalMeta').innerHTML = metaHtml;
+    document.getElementById('modalCuerpo').innerHTML = cuerpoHtml;
+
+    document.getElementById('modalHistorial').style.display = 'flex';
+  }
+
+  function cerrarModalHistorial() {
+    document.getElementById('modalHistorial').style.display = 'none';
+  }
+
+  function cerrarModalHistorialExterno(event) {
+    if (event.target.id === 'modalHistorial') {
+      cerrarModalHistorial();
+    }
+  }
+</script>
 {% endblock %}
