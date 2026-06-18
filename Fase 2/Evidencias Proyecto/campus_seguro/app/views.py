@@ -2331,7 +2331,10 @@ def trazabilidad_ticket(request, pk):
     validacion = getattr(ticket, 'validacion', None)
     mantencion = getattr(ticket, 'mantencion', None)
     no_reparable = getattr(ticket, 'no_reparable', None)
-    materiales = MaterialUtilizado.objects.filter(sesion_trabajo__ticket=ticket).select_related('material')
+    sesiones = ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio')
+    materiales = MaterialUtilizado.objects.filter(sesion_trabajo__ticket=ticket).select_related('material', 'sesion_trabajo')
+    total_horas_hombre = ticket.sesiones.aggregate(total=Sum('horas_hombre'))['total'] or 0
+    
     return render(request, 'app/mantencion/trazabilidad.html', {
         'ticket': ticket,
         'logs': logs,
@@ -2339,6 +2342,8 @@ def trazabilidad_ticket(request, pk):
         'mantencion': mantencion,
         'no_reparable': no_reparable,
         'materiales': materiales,
+        'sesiones': sesiones,
+        'total_horas_hombre': round(float(total_horas_hombre), 1),
     })
 
 
