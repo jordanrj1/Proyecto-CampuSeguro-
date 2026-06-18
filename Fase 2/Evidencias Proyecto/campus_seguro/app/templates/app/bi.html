@@ -32,6 +32,12 @@
 .score-mid { background:rgba(244,197,66,0.2); color:var(--accent-yellow); border:2px solid var(--accent-yellow); }
 .score-low { background:rgba(245,54,92,0.2); color:var(--accent-red); border:2px solid var(--accent-red); }
 .filter-chip { display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:3px 10px; border-radius:12px; background:rgba(74,143,255,0.12); color:var(--accent-blue); border:1px solid rgba(74,143,255,0.3); }
+.bi-tag { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:4px; letter-spacing:.4px; text-transform:uppercase; opacity:.75; }
+.bi-tag-source { background:rgba(255,255,255,.06); color:var(--text-muted); border:1px solid rgba(255,255,255,.1); }
+.bi-tag-formula { background:rgba(74,143,255,.1); color:var(--accent-blue); border:1px solid rgba(74,143,255,.2); }
+.bi-tag-alert  { background:rgba(245,54,92,.1);  color:var(--accent-red);  border:1px solid rgba(245,54,92,.2); }
+.bi-tag-perf   { background:rgba(45,206,137,.1); color:var(--accent-green);border:1px solid rgba(45,206,137,.2); }
+.section-eyebrow { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
 </style>
 {% endblock %}
 
@@ -134,6 +140,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'general' %}
 
+<div class="section-eyebrow">
+  <span>Volumen y cierre</span>
+  <span class="bi-tag bi-tag-source">fuente: Ticket</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi blue">
     <div class="kpi-label">Tickets en período</div>
@@ -143,12 +153,12 @@
   <div class="kpi {% if tasa_cierre >= 70 %}green{% elif tasa_cierre >= 40 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Tasa de cierre</div>
     <div class="kpi-value">{{ tasa_cierre }}%</div>
-    <div class="kpi-sub">{{ cerrados_periodo }} cerrados</div>
+    <div class="kpi-sub">{{ cerrados_periodo }} cerrados · <span class="bi-tag bi-tag-formula">cerrados ÷ total</span></div>
   </div>
   <div class="kpi yellow">
     <div class="kpi-label">Afectan clases</div>
     <div class="kpi-value">{{ afectan_clase }}</div>
-    <div class="kpi-sub">{{ porc_impacto }}% del total</div>
+    <div class="kpi-sub">{{ porc_impacto }}% del total · <span class="bi-tag bi-tag-alert">impacto académico</span></div>
   </div>
   <div class="kpi red">
     <div class="kpi-label">Riesgos detectados</div>
@@ -206,9 +216,13 @@
 </div>
 {% endif %}
 
+<div class="section-eyebrow" style="margin-top:6px;">
+  <span>Distribución de tickets</span>
+  <span class="bi-tag bi-tag-source">fuente: Ticket → CategoriaTicket · EstadoCatalogo</span>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px;">
   <div class="card">
-    <div class="card-title">🏷️ Por categoría</div>
+    <div class="card-title">🏷️ Por categoría <span class="bi-tag bi-tag-source" style="margin-left:6px;">tipo de problema</span></div>
     {% for c in por_categoria %}
     <div class="stat-row">
       <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
@@ -222,7 +236,7 @@
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">⚡ Por urgencia</div>
+    <div class="card-title">⚡ Por urgencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">declarada por usuario</span></div>
     {% for u in por_urgencia %}
     <div class="stat-row">
       <span class="urgencia-{{ u.urgencia }}" style="font-size:13px;">{{ u.urgencia|title }}</span>
@@ -236,7 +250,7 @@
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Por estado</div>
+    <div class="card-title">📊 Por estado <span class="bi-tag bi-tag-source" style="margin-left:6px;">flujo actual</span></div>
     {% for e in por_estado %}
     <div class="stat-row">
       <span style="font-size:12px;color:var(--text-secondary);">{{ e.estado|title }}</span>
@@ -248,7 +262,7 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card">
-    <div class="card-title">🔁 Ubicaciones con reincidencia</div>
+    <div class="card-title">🔁 Ubicaciones con reincidencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">+1 ticket misma sala</span></div>
     {% if reincidencia %}
     <div class="table-wrap">
       <table>
@@ -267,7 +281,7 @@
     {% else %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin reincidencias en el período</div>{% endif %}
   </div>
   <div class="card">
-    <div class="card-title">🏢 Carga por edificio</div>
+    <div class="card-title">🏢 Carga por edificio <span class="bi-tag bi-tag-source" style="margin-left:6px;">Ticket → Ubicacion</span></div>
     {% for b in por_edificio %}
     <div class="stat-row">
       <span style="font-size:13px;">{{ b.edificio }}</span>
@@ -290,6 +304,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'guardias' %}
 
+<div class="section-eyebrow">
+  <span>Desempeño de validación en terreno</span>
+  <span class="bi-tag bi-tag-source">fuente: ValidacionGuardia</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi blue">
     <div class="kpi-label">Total validaciones</div>
@@ -299,17 +317,17 @@
   <div class="kpi {% if val_tasa_validez >= 80 %}green{% elif val_tasa_validez >= 50 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Precisión de detección</div>
     <div class="kpi-value">{{ val_tasa_validez }}%</div>
-    <div class="kpi-sub">{{ val_validas }} válidas · {{ val_invalidas }} falsas</div>
+    <div class="kpi-sub">{{ val_validas }} válidas · {{ val_invalidas }} falsas · <span class="bi-tag bi-tag-formula">válidas ÷ total</span></div>
   </div>
   <div class="kpi teal">
     <div class="kpi-label">Tiempo prom. respuesta</div>
     <div class="kpi-value" style="font-size:22px;">{{ val_tiempo_prom }}<span style="font-size:13px;font-weight:400;"> min</span></div>
-    <div class="kpi-sub">en terreno</div>
+    <div class="kpi-sub">en terreno · <span class="bi-tag bi-tag-source">tiempo_validacion_minutos</span></div>
   </div>
   <div class="kpi {% if val_tasa_foto >= 80 %}green{% elif val_tasa_foto >= 50 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Calidad documental</div>
     <div class="kpi-value">{{ val_tasa_foto }}%</div>
-    <div class="kpi-sub">{{ val_con_foto }} con foto evidencia</div>
+    <div class="kpi-sub">{{ val_con_foto }} con foto · <span class="bi-tag bi-tag-formula">con foto ÷ total</span></div>
   </div>
 </div>
 
@@ -341,6 +359,7 @@
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por guardia
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Precisión 35% · Documentación 30% · Actividad 20% · Detección de riesgos 15%</span>
+    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
   </div>
   {% for g in por_guardia %}
   <div style="background:var(--bg-700);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
@@ -387,7 +406,7 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card">
-    <div class="card-title">📋 Tipos de incidente más validados</div>
+    <div class="card-title">📋 Tipos de incidente más validados <span class="bi-tag bi-tag-source" style="margin-left:6px;">Ticket → CategoriaTicket</span></div>
     {% for c in val_por_categoria %}
     <div class="stat-row">
       <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
@@ -396,7 +415,7 @@
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Resultado de validaciones</div>
+    <div class="card-title">📊 Resultado de validaciones <span class="bi-tag bi-tag-source" style="margin-left:6px;">campo resultado</span></div>
     <div style="display:flex;gap:20px;justify-content:center;padding:20px 0;">
       <div style="text-align:center;">
         <div style="font-size:42px;font-weight:800;color:var(--accent-green);font-family:var(--font-mono);">{{ val_validas }}</div>
@@ -427,6 +446,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'mantencion' %}
 
+<div class="section-eyebrow">
+  <span>Rendimiento del equipo técnico</span>
+  <span class="bi-tag bi-tag-source">fuente: RegistroMantencion · SesionTrabajo · NoReparable</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi green">
     <div class="kpi-label">Trabajos completados</div>
@@ -436,17 +459,17 @@
   <div class="kpi teal">
     <div class="kpi-label">HH totales</div>
     <div class="kpi-value">{{ mant_hh_total }}</div>
-    <div class="kpi-sub">horas hombre consumidas</div>
+    <div class="kpi-sub">horas hombre · <span class="bi-tag bi-tag-source">SesionTrabajo</span></div>
   </div>
   <div class="kpi blue">
     <div class="kpi-label">HH promedio / trabajo</div>
     <div class="kpi-value" style="font-size:22px;">{{ mant_hh_prom }}<span style="font-size:13px;font-weight:400;"> hrs</span></div>
-    <div class="kpi-sub">esfuerzo promedio</div>
+    <div class="kpi-sub">esfuerzo promedio · <span class="bi-tag bi-tag-formula">HH ÷ trabajos</span></div>
   </div>
   <div class="kpi {% if tasa_nrep >= 30 %}red{% elif tasa_nrep >= 15 %}yellow{% else %}green{% endif %}">
     <div class="kpi-label">Tasa no-reparación</div>
     <div class="kpi-value">{{ tasa_nrep }}%</div>
-    <div class="kpi-sub">{{ nrep_total }} no reparados</div>
+    <div class="kpi-sub">{{ nrep_total }} no reparados · <span class="bi-tag bi-tag-formula">no-rep ÷ total</span></div>
   </div>
 </div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
@@ -476,6 +499,7 @@
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por técnico
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Resolución 40% · Autonomía 25% · Documentación 20% · Actividad 15%</span>
+    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
   </div>
   {% for t in por_tecnico %}
   <div style="background:var(--bg-700);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
@@ -527,7 +551,7 @@
 {% if nrep_total > 0 %}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card" style="border-left:3px solid var(--accent-red);">
-    <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación</div>
+    <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación <span class="bi-tag bi-tag-source" style="margin-left:6px;">NoReparable</span></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
       <div style="background:var(--bg-700);border-radius:8px;padding:12px;text-align:center;">
         <div style="font-size:26px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ nrep_total }}</div>
@@ -547,7 +571,7 @@
     {% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Resolución vs No-reparación por técnico</div>
+    <div class="card-title">📊 Resolución vs No-reparación por técnico <span class="bi-tag bi-tag-formula" style="margin-left:6px;">completados vs no-rep</span></div>
     {% for t in por_tecnico %}
     {% if mant_total %}
     <div style="margin-bottom:14px;">
@@ -575,6 +599,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'materiales' %}
 
+<div class="section-eyebrow">
+  <span>Consumo de inventario por tickets y técnicos</span>
+  <span class="bi-tag bi-tag-source">fuente: MaterialUtilizado → SesionTrabajo → Ticket</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px;">
   <div class="kpi teal">
     <div class="kpi-label">Materiales distintos usados</div>
@@ -591,6 +619,7 @@
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">📦 Top global – Compras inteligentes
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">ordenado por cantidad consumida</span>
+    <span class="bi-tag bi-tag-source" style="margin-left:6px;">MaterialUtilizado</span>
     {% if cat_material %}<span class="filter-chip" style="margin-left:8px;">{{ cat_material|title }}</span>{% endif %}
   </div>
   {% if materiales_top %}
