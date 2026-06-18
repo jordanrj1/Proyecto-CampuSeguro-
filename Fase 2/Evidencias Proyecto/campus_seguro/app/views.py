@@ -464,7 +464,7 @@ def dashboard_gestor(request):
         'riesgos_por_edificio': list(
             tickets.filter(
                 Q(riesgo_electrico=True) | Q(riesgo_estructural=True) | Q(riesgo_accesibilidad=True)
-            ).values(edificio=F('ubicacion__edificio')).annotate(
+            ).values(edificio=F('ubicacion__piso__edificio__nombre')).annotate(
                 total=Count('id'),
                 electricos=Count('id', filter=Q(riesgo_electrico=True)),
                 estructurales=Count('id', filter=Q(riesgo_estructural=True)),
@@ -1599,12 +1599,12 @@ def gestor_bi(request):
         .values(
             'id', 'titulo', 'urgencia',
             'afecta_clase', 'riesgo_electrico', 'riesgo_estructural', 'riesgo_accesibilidad',
-            edificio=F('ubicacion__edificio'),
-            piso=F('ubicacion__piso'),
+            edificio=F('ubicacion__piso__edificio__nombre'),
+            piso=F('ubicacion__piso__numero'),
             sala=F('ubicacion__sala'),
             estado_cod=F('estado__codigo'),
             categoria_nom=F('categoria__nombre_display'),
-        ).order_by('-urgencia', 'ubicacion__edificio', 'ubicacion__piso')
+        ).order_by('-urgencia', 'ubicacion__piso__edificio__nombre', 'ubicacion__piso__numero')
     )
     cerrados_periodo = tickets.filter(estado__codigo='cerrado').count()
     porc_impacto = round((afectan_clase / total_tickets * 100) if total_tickets else 0, 1)
