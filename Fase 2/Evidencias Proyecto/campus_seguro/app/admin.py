@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.urls import path, reverse
+from django.http import HttpResponseRedirect
 from .models import (
     CategoriaMaterial, CategoriaTicket, Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
     SesionTrabajo, ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
@@ -9,45 +11,137 @@ from .models import (
 )
 
 # ═══════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DE INLINES (Relaciones M:N y Transaccionales)
+# INLINES
 # ═══════════════════════════════════════════════════════════════
 
 class EspecialidadUsuarioInline(admin.TabularInline):
-    """Permite asignar especialidades a un técnico desde el perfil de Usuario"""
     model = EspecialidadUsuario
     extra = 1
 
 
 class EspecialidadMaterialInline(admin.TabularInline):
-    """Permite amarrar especialidades a un insumo desde el perfil de Material"""
     model = EspecialidadMaterial
     extra = 1
 
 
 class MaterialUtilizadoInline(admin.TabularInline):
-    """Muestra los materiales gastados directamente dentro de la ficha de mantención"""
     model = MaterialUtilizado
     extra = 1
 
-@admin.register(SesionTrabajo)
-class SesionTrabajoAdmin(admin.ModelAdmin):
-    """Historial analítico de las sesiones cronometradas de los técnicos."""
-    list_display = ('id', 'ticket', 'tecnico', 'inicio', 'fin', 'horas_hombre', 'tipo_cierre', 'progreso')
-    list_filter = ('personal_adicional_requerido', 'requiere_nivel_mayor', 'tipo_cierre', 'created_at')
-    search_fields = ('ticket__titulo', 'tecnico__username', 'descripcion_avance')
-    inlines = [MaterialUtilizadoInline]
 
 # ═══════════════════════════════════════════════════════════════
-# REGISTROS DE ADMINISTRACIÓN PRINCIPALES
+# CONFIGURACIÓN DEL CAMPUS — Ubicacion
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Ubicacion)
+class UbicacionAdmin(admin.ModelAdmin):
+    """
+    Gestión de espacios físicos del campus.
+    El administrador es el único responsable de crear, editar y dar de baja ubicaciones.
+    Desde aquí se controla qué salas, pisos y edificios son seleccionables al crear tickets.
+    """
+    list_display   = ('edificio', 'piso', 'sala', 'tipo', 'sede', 'capacidad', 'id_sap')
+    list_filter    = ('edificio', 'tipo', 'sede')
+    search_fields  = ('sala', 'edificio', 'sede', 'id_sap')
+    ordering       = ('edificio', 'piso', 'sala')
+    list_per_page  = 50
+    fieldsets = (
+        ('Identificación del espacio', {
+            'fields': ('sede', 'edificio', 'piso', 'sala'),
+        }),
+        ('Características', {
+            'fields': ('tipo', 'capacidad', 'id_sap'),
+            'description': 'id_sap es opcional. Se usa para integración con SAP.',
+        }),
+    )
+
+    # ── Botón extra en el listado ────────────────────────────────
+    change_list_template = 'admin/app/ubicacion/change_list.html'
+
+    def get_urls(self):
+        urls = super().get_urls()
+        extra = [
+            path(
+                'poblar-campus-default/',
+                self.admin_site.admin_view(self._poblar_campus_view),
+                name='app_ubicacion_poblar',
+            ),
+        ]
+        return extra + urls
+
+    def _poblar_campus_view(self, request):
+        """Llama a Ubicacion.crear_default_campus() y redirige de vuelta al listado."""
+        total = Ubicacion.crear_default_campus()
+        if total > 0:
+            self.message_user(request, f'Campus poblado: {total} ubicaciones creadas (Edificio E y H).')
+        else:
+            self.message_user(request, 'Todas las ubicaciones ya estaban creadas — no se duplicaron.', level='WARNING')
+        return HttpResponseRedirect(reverse('admin:app_ubicacion_changelist'))
+
+
+# ═══════════════════════════════════════════════════════════════
+# CATÁLOGOS — CategoriaTicket, CategoriaMaterial, Especialidad
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(CategoriaTicket)
+class CategoriaTicketAdmin(admin.ModelAdmin):
+    list_display  = ('codigo', 'nombre_display', 'activo')
+    search_fields = ('codigo', 'nombre_display')
+    list_filter   = ('activo',)
+
+
+@admin.register(CategoriaMaterial)
+class CategoriaMaterialAdmin(admin.ModelAdmin):
+    list_display  = ('codigo', 'nombre_display', 'activo')
+    search_fields = ('codigo', 'nombre_display')
+    list_filter   = ('activo',)
+
+
+@admin.register(Especialidad)
+class EspecialidadAdmin(admin.ModelAdmin):
+    list_display  = ('nombre', 'descripcion')
+    search_fields = ('nombre',)
+
+
+# ═══════════════════════════════════════════════════════════════
+# MÁQUINA DE ESTADOS — EstadoCatalogo, TransicionEstado
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(EstadoCatalogo)
+class EstadoCatalogoAdmin(admin.ModelAdmin):
+    list_display  = ('entidad', 'codigo', 'nombre_display', 'es_inicial', 'es_final', 'orden', 'activo')
+    list_filter   = ('entidad', 'es_inicial', 'es_final', 'activo')
+    search_fields = ('codigo', 'nombre_display')
+    ordering      = ('entidad', 'orden')
+
+
+@admin.register(TransicionEstado)
+class TransicionEstadoAdmin(admin.ModelAdmin):
+    list_display = ('estado_origen', 'estado_destino', 'rol_requerido', 'activo')
+    list_filter  = ('rol_requerido', 'activo')
+
+
+# ═══════════════════════════════════════════════════════════════
+# INVENTARIO — Material
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Material)
+class MaterialAdmin(admin.ModelAdmin):
+    list_display  = ('codigo', 'nombre', 'categoria', 'unidad', 'activo')
+    list_filter   = ('categoria', 'activo', 'unidad')
+    search_fields = ('codigo', 'nombre')
+    inlines       = [EspecialidadMaterialInline]
+
+
+# ═══════════════════════════════════════════════════════════════
+# USUARIOS
 # ═══════════════════════════════════════════════════════════════
 
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
-    list_display = ('username', 'get_full_name', 'rol', 'estado_cuenta', 'correo_institucional', 'fecha_registro')
-    list_filter = ('rol', 'estado_cuenta', 'vinculo')
+    list_display  = ('username', 'get_full_name', 'rol', 'estado_cuenta', 'correo_institucional', 'fecha_registro')
+    list_filter   = ('rol', 'estado_cuenta', 'vinculo')
     search_fields = ('username', 'first_name', 'last_name', 'correo_institucional', 'rut')
-    
-    # Formulario de EDICIÓN de usuarios existentes
     fieldsets = UserAdmin.fieldsets + (
         ('Datos Institucionales', {
             'fields': ('rol', 'rut', 'telefono', 'correo_institucional',
@@ -55,112 +149,184 @@ class UsuarioAdmin(UserAdmin):
                        'turno', 'estado_cuenta', 'aprobado_por'),
         }),
     )
-
-    # Formulario de CREACIÓN de nuevos usuarios desde el panel
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Datos Institucionales Iniciales', {
             'fields': ('rol', 'rut', 'correo_institucional', 'sede', 'estado_cuenta'),
         }),
     )
-    
     inlines = [EspecialidadUsuarioInline]
 
 
-@admin.register(Material)
-class MaterialAdmin(admin.ModelAdmin):
-    # ✔️ CORREGIDO: Removidas las referencias a stock_actual y stock_minimo
-    list_display = ('codigo', 'nombre', 'categoria', 'unidad', 'activo')
-    list_filter = ('categoria', 'activo', 'unidad')
-    search_fields = ('codigo', 'nombre')
-    inlines = [EspecialidadMaterialInline]
+@admin.register(TokenRecuperacion)
+class TokenRecuperacionAdmin(admin.ModelAdmin):
+    """Solo lectura — los tokens son generados por el sistema, no manualmente."""
+    list_display   = ('usuario', 'creado_en', 'expira_en', 'usado', 'ip_solicitud')
+    list_filter    = ('usado', 'creado_en')
+    search_fields  = ('usuario__username', 'usuario__correo_institucional')
+    readonly_fields = ('usuario', 'token', 'creado_en', 'expira_en', 'ip_solicitud')
 
+    def has_add_permission(self, request):
+        return False
 
-@admin.register(RegistroMantencion)
-class RegistroMantencionAdmin(admin.ModelAdmin):
-    """Ficha operativa de la reparación final (Acta de Cierre)."""
-    list_display = ('id', 'ticket', 'tecnico', 'causa_raiz', 'fecha_registro')
-    list_filter = ('fecha_registro', 'tecnico')
-    search_fields = ('ticket__titulo', 'tecnico__username', 'causa_raiz')
 
 # ═══════════════════════════════════════════════════════════════
-# REGISTRO DE TABLAS MAESTRAS DE CATEGORÍAS (3FN)
-# ═══════════════════════════════════════════════════════════════
-
-@admin.register(CategoriaTicket)
-class CategoriaTicketAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre_display', 'activo')
-    search_fields = ('codigo', 'nombre_display')
-    list_filter = ('activo',)
-
-
-@admin.register(CategoriaMaterial)
-class CategoriaMaterialAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre_display', 'activo')
-    search_fields = ('codigo', 'nombre_display')
-    list_filter = ('activo',)
-
-
-@admin.register(Especialidad)
-class EspecialidadAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'descripcion')
-    search_fields = ('nombre',)
-
-# ═══════════════════════════════════════════════════════════════
-# RESTO DE ENTIDADES DEL SISTEMA
+# TICKETS Y OPERACIONES
 # ═══════════════════════════════════════════════════════════════
 
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
-    list_display = ('id', 'titulo', 'estado', 'urgencia', 'categoria', 'creado_por', 'asignado_a', 'created_at')
-    list_filter = ('estado', 'urgencia', 'categoria')
-    search_fields = ('titulo', 'descripcion', 'ubicacion__edificio', 'ubicacion__sala')
+    list_display   = ('id', 'titulo', 'estado', 'urgencia', 'categoria', 'creado_por', 'asignado_a', 'created_at')
+    list_filter    = ('estado', 'urgencia', 'categoria')
+    search_fields  = ('titulo', 'descripcion', 'ubicacion__edificio', 'ubicacion__sala')
     readonly_fields = ('created_at', 'updated_at', 'cerrado_at')
-
-
-@admin.register(LogAuditoria)
-class LogAuditoriaAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'accion', 'usuario', 'ticket', 'ip_address')
-    list_filter = ('modulo', 'es_interno')
-    readonly_fields = [f.name for f in LogAuditoria._meta.fields]
-    search_fields = ('accion', 'usuario__username')
 
 
 @admin.register(AsignacionTicket)
 class AsignacionTicketAdmin(admin.ModelAdmin):
     list_display = ('ticket', 'usuario', 'rol_asignacion', 'estado', 'asignado_por', 'fecha_asignacion')
-    list_filter = ('rol_asignacion', 'estado')
+    list_filter  = ('rol_asignacion', 'estado')
     search_fields = ('ticket__titulo', 'usuario__username')
+
+
+@admin.register(ValidacionGuardia)
+class ValidacionGuardiaAdmin(admin.ModelAdmin):
+    list_display   = ('ticket', 'guardia', 'resultado', 'checklist_electrico', 'checklist_estructural', 'checklist_accesibilidad', 'created_at')
+    list_filter    = ('resultado', 'created_at')
+    search_fields  = ('ticket__titulo', 'guardia__username', 'comentario')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(NoReparable)
+class NoReparableAdmin(admin.ModelAdmin):
+    list_display   = ('ticket', 'tecnico', 'criticidad', 'requiere_externalizacion', 'costo_estimado_externo', 'created_at')
+    list_filter    = ('criticidad', 'requiere_externalizacion', 'created_at')
+    search_fields  = ('ticket__titulo', 'tecnico__username', 'motivo_tecnico')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+# ═══════════════════════════════════════════════════════════════
+# MANTENCIÓN Y MATERIALES
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(RegistroMantencion)
+class RegistroMantencionAdmin(admin.ModelAdmin):
+    list_display  = ('id', 'ticket', 'tecnico', 'causa_raiz', 'fecha_registro')
+    list_filter   = ('fecha_registro', 'tecnico')
+    search_fields = ('ticket__titulo', 'tecnico__username', 'causa_raiz')
+
+
+@admin.register(SesionTrabajo)
+class SesionTrabajoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ticket', 'tecnico', 'inicio', 'fin', 'horas_hombre', 'tipo_cierre', 'progreso')
+    list_filter  = ('personal_adicional_requerido', 'requiere_nivel_mayor', 'tipo_cierre', 'created_at')
+    search_fields = ('ticket__titulo', 'tecnico__username', 'descripcion_avance')
+    inlines      = [MaterialUtilizadoInline]
+
+
+@admin.register(MaterialUtilizado)
+class MaterialUtilizadoAdmin(admin.ModelAdmin):
+    """
+    Vista global del consumo de materiales en todo el sistema.
+    Permite al admin auditar qué materiales se gastan, en qué sesiones y en qué tickets.
+    """
+    list_display   = ('material', 'cantidad_utilizada', 'sesion_trabajo', 'get_ticket', 'get_tecnico')
+    list_filter    = ('material__categoria', 'sesion_trabajo__created_at')
+    search_fields  = ('material__nombre', 'material__codigo', 'sesion_trabajo__ticket__titulo')
+    readonly_fields = ('sesion_trabajo', 'material', 'cantidad_utilizada', 'observacion')
+
+    @admin.display(description='Ticket')
+    def get_ticket(self, obj):
+        return obj.sesion_trabajo.ticket
+
+    @admin.display(description='Técnico')
+    def get_tecnico(self, obj):
+        return obj.sesion_trabajo.tecnico
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MaterialesFaltantes)
+class MaterialesFaltantesAdmin(admin.ModelAdmin):
+    list_display  = ('sesion_trabajo', 'material', 'cantidad_requerida', 'cantidad_recibida', 'estado', 'fecha_solicitud')
+    list_filter   = ('estado', 'fecha_solicitud')
+    search_fields = ('material__nombre', 'observaciones')
+
+
+# ═══════════════════════════════════════════════════════════════
+# RECURSOS HUMANOS — Inasistencia
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Inasistencia)
+class InasistenciaAdmin(admin.ModelAdmin):
+    list_display   = ('usuario', 'fecha_desde', 'fecha_hasta', 'motivo', 'estado', 'revisado_por', 'created_at')
+    list_filter    = ('motivo', 'estado', 'fecha_desde')
+    search_fields  = ('usuario__first_name', 'usuario__last_name', 'usuario__correo_institucional', 'detalle')
+    readonly_fields = ('created_at',)
+
+
+# ═══════════════════════════════════════════════════════════════
+# NOTIFICACIONES
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Notificacion)
+class NotificacionAdmin(admin.ModelAdmin):
+    list_display   = ('destinatario', 'tipo', 'prioridad', 'titulo', 'leida', 'archivada', 'created_at')
+    list_filter    = ('tipo', 'prioridad', 'leida', 'archivada')
+    search_fields  = ('titulo', 'mensaje', 'destinatario__username')
+    readonly_fields = ('created_at',)
+    actions        = ['marcar_como_leidas', 'archivar_seleccionadas']
+
+    @admin.action(description='Marcar seleccionadas como leídas')
+    def marcar_como_leidas(self, request, queryset):
+        n = queryset.filter(leida=False).update(leida=True)
+        self.message_user(request, f'{n} notificaciones marcadas como leídas.')
+
+    @admin.action(description='Archivar seleccionadas')
+    def archivar_seleccionadas(self, request, queryset):
+        n = queryset.filter(archivada=False).update(archivada=True)
+        self.message_user(request, f'{n} notificaciones archivadas.')
+
+
+# ═══════════════════════════════════════════════════════════════
+# AUDITORÍA — solo lectura
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(LogAuditoria)
+class LogAuditoriaAdmin(admin.ModelAdmin):
+    list_display   = ('created_at', 'accion', 'usuario', 'ticket', 'ip_address')
+    list_filter    = ('modulo', 'es_interno')
+    readonly_fields = [f.name for f in LogAuditoria._meta.fields]
+    search_fields  = ('accion', 'usuario__username')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(HistorialAcciones)
 class HistorialAccionesAdmin(admin.ModelAdmin):
-    list_display = ('ticket', 'usuario', 'tipo_accion', 'estado_anterior', 'estado_nuevo', 'es_global', 'created_at')
-    list_filter = ('tipo_accion', 'es_global')
-    search_fields = ('descripcion', 'usuario__username')
+    list_display   = ('ticket', 'usuario', 'tipo_accion', 'estado_anterior', 'estado_nuevo', 'es_global', 'created_at')
+    list_filter    = ('tipo_accion', 'es_global')
+    search_fields  = ('descripcion', 'usuario__username')
     readonly_fields = ('created_at',)
 
+    def has_add_permission(self, request):
+        return False
 
-@admin.register(EstadoCatalogo)
-class EstadoCatalogoAdmin(admin.ModelAdmin):
-    list_display = ('entidad', 'codigo', 'nombre_display', 'es_inicial', 'es_final', 'orden', 'activo')
-    list_filter = ('entidad', 'es_inicial', 'es_final', 'activo')
-    search_fields = ('codigo', 'nombre_display')
-    ordering = ('entidad', 'orden')
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
-@admin.register(TransicionEstado)
-class TransicionEstadoAdmin(admin.ModelAdmin):
-    list_display = ('estado_origen', 'estado_destino', 'rol_requerido', 'activo')
-    list_filter = ('rol_requerido', 'activo')
+# ═══════════════════════════════════════════════════════════════
+# PERSONALIZACIÓN DEL BACK-OFFICE
+# ═══════════════════════════════════════════════════════════════
 
-
-# Registros planos simplificados de entidades menores (Removidos los modelos anidados)
-admin.site.register([
-    TokenRecuperacion, Ubicacion, ValidacionGuardia,
-    NoReparable, Notificacion, Inasistencia, MaterialesFaltantes,
-])
-
-# Personalización del Back-Office institucional
 admin.site.site_header = 'Campus Seguro – Administración'
-admin.site.site_title = 'Campus Seguro'
+admin.site.site_title  = 'Campus Seguro'
 admin.site.index_title = 'Panel de Administración'

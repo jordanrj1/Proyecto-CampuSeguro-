@@ -647,9 +647,7 @@ def sincronizar_usuario_local(auth0_user_data):
         rol = 'guardia'
     elif 'mantencion' in email_lower or 'mantenimiento' in email_lower:
         rol = 'mantencion'
-    elif 'enc_seguridad' in email_lower:
-        rol = 'enc_seguridad'
-    
+
     logger.info(f"Sincronizando usuario: {email} → rol={rol}")
     
     # Buscar si ya existe por auth0_sub O por email
@@ -757,7 +755,7 @@ def mapear_rol_desde_token(claims):
 
     Retorna:
         str: Rol Campus Seguro. Uno de:
-             'usuario', 'gestor', 'guardia', 'mantencion', 'enc_seguridad'
+             'usuario', 'gestor', 'guardia', 'mantencion'
 
     Mapeo entre roles Auth0 y roles Campus Seguro:
         Auth0 app_metadata.campus_rol   →  Campus Seguro .rol
@@ -765,7 +763,6 @@ def mapear_rol_desde_token(claims):
         'gestor'                        →  'gestor'
         'guardia'                       →  'guardia'
         'mantencion'                    →  'mantencion'
-        'enc_seguridad'                 →  'enc_seguridad'
         cualquier otro / ausente        →  'usuario'
 
     Este mapeo se aplica SOLO al leer el token durante el login.
@@ -775,7 +772,7 @@ def mapear_rol_desde_token(claims):
     namespace = settings.AUTH0_CLAIMS_NAMESPACE
     roles_claim = claims.get(f'{namespace}/roles', [])
 
-    roles_validos = {'gestor', 'guardia', 'mantencion', 'enc_seguridad', 'usuario'}
+    roles_validos = {'gestor', 'guardia', 'mantencion', 'usuario'}
 
     if isinstance(roles_claim, list) and roles_claim:
         for r in roles_claim:

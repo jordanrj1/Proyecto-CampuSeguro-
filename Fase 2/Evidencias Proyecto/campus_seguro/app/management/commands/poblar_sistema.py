@@ -13,7 +13,7 @@
 # ═══════════════════════════════════════════════════════════════
 
 from django.core.management.base import BaseCommand
-from app.models import EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, Material, EspecialidadMaterial
+from app.models import EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, Material, EspecialidadMaterial, Ubicacion
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -59,6 +59,27 @@ ESTADOS_INICIALES = [
     dict(entidad='material_faltante', codigo='solicitado', nombre_display='Solicitado', es_inicial=False, es_final=False, orden=2),
     dict(entidad='material_faltante', codigo='recibido',   nombre_display='Recibido',   es_inicial=False, es_final=True,  orden=3),
     dict(entidad='material_faltante', codigo='cancelado',  nombre_display='Cancelado',  es_inicial=False, es_final=True,  orden=4),
+    # urgencia_ticket — administrable desde admin sin migración
+    dict(entidad='urgencia_ticket', codigo='baja',    nombre_display='Baja',    es_inicial=False, es_final=False, orden=1, color_hex='#28a745'),
+    dict(entidad='urgencia_ticket', codigo='media',   nombre_display='Media',   es_inicial=False, es_final=False, orden=2, color_hex='#ffc107'),
+    dict(entidad='urgencia_ticket', codigo='alta',    nombre_display='Alta',    es_inicial=False, es_final=False, orden=3, color_hex='#fd7e14'),
+    dict(entidad='urgencia_ticket', codigo='critica', nombre_display='Crítica', es_inicial=False, es_final=False, orden=4, color_hex='#dc3545'),
+    # pausa_ticket — razones de pausa administrables desde admin
+    dict(entidad='pausa_ticket', codigo='material',        nombre_display='Aprobación de materiales',    es_inicial=False, es_final=False, orden=1),
+    dict(entidad='pausa_ticket', codigo='personal',        nombre_display='Personal técnico',            es_inicial=False, es_final=False, orden=2),
+    dict(entidad='pausa_ticket', codigo='nivel_mayor',     nombre_display='Peritaje (análisis técnico)', es_inicial=False, es_final=False, orden=3),
+    dict(entidad='pausa_ticket', codigo='externalizacion', nombre_display='Requiere externalización',    es_inicial=False, es_final=False, orden=4),
+    # criticidad — nivel de criticidad de ítems no reparables
+    dict(entidad='criticidad', codigo='baja',    nombre_display='Baja',    es_inicial=False, es_final=False, orden=1, color_hex='#28a745'),
+    dict(entidad='criticidad', codigo='media',   nombre_display='Media',   es_inicial=False, es_final=False, orden=2, color_hex='#ffc107'),
+    dict(entidad='criticidad', codigo='alta',    nombre_display='Alta',    es_inicial=False, es_final=False, orden=3, color_hex='#fd7e14'),
+    dict(entidad='criticidad', codigo='critica', nombre_display='Crítica', es_inicial=False, es_final=False, orden=4, color_hex='#dc3545'),
+    # motivo_inasistencia — motivos de ausencia del personal
+    dict(entidad='motivo_inasistencia', codigo='enfermedad',   nombre_display='Enfermedad',             es_inicial=False, es_final=False, orden=1),
+    dict(entidad='motivo_inasistencia', codigo='permiso',      nombre_display='Permiso Administrativo', es_inicial=False, es_final=False, orden=2),
+    dict(entidad='motivo_inasistencia', codigo='capacitacion', nombre_display='Capacitación',           es_inicial=False, es_final=False, orden=3),
+    dict(entidad='motivo_inasistencia', codigo='vacaciones',   nombre_display='Vacaciones',             es_inicial=False, es_final=False, orden=4),
+    dict(entidad='motivo_inasistencia', codigo='otro',         nombre_display='Otro',                   es_inicial=False, es_final=False, orden=5),
 ]
 
 
@@ -259,6 +280,14 @@ class Command(BaseCommand):
                 )
                 if creada_union:
                     uniones_creadas += 1
+
+        # ═══════════════════════════════════════════════════════════════
+        # 6. SEMBRADO: UBICACIONES DEL CAMPUS (Edificio E y H)
+        # ═══════════════════════════════════════════════════════════════
+        self.stdout.write('')
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Ubicaciones del Campus...'))
+        ubicaciones_nuevas = Ubicacion.crear_default_campus()
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Ubicaciones creadas: {ubicaciones_nuevas}'))
 
         # ── Resumen de ejecución ──────────────────────────────────────
         self.stdout.write('')
