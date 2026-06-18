@@ -781,6 +781,126 @@
 </div>
 {% endif %}
 
+{% with total_riesgos=r_electrico|add:r_estructural|add:r_accesibilidad %}
+<div style="margin-bottom:18px;">
+  <div class="card">
+    <div class="card-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i> Riesgos e impacto activos</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
+      <div style="background:var(--bg-600);border-radius:8px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;">Afectan clases</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent-yellow);">{{ r_afecta_clase }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">tickets abiertos</div>
+      </div>
+      <div style="background:var(--bg-600);border-radius:8px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;"><i class="fa-solid fa-bolt"></i> Riesgo eléctrico</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent-red);">{{ r_electrico }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">tickets abiertos</div>
+      </div>
+      <div style="background:var(--bg-600);border-radius:8px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;"><i class="fa-solid fa-house-crack"></i> Riesgo estructural</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent-red);">{{ r_estructural }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">tickets abiertos</div>
+      </div>
+      <div style="background:var(--bg-600);border-radius:8px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;"><i class="fa-solid fa-wheelchair"></i> Accesibilidad</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent-yellow);">{{ r_accesibilidad }}</div>
+        <div style="font-size:11px;color:var(--text-muted);">tickets abiertos</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Riesgos por edificio</div>
+        {% if riesgos_por_edificio %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Edificio</th>
+                <th style="text-align:center;"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i></th>
+                <th style="text-align:center;"><i class="fa-solid fa-house-crack" style="color:var(--accent-red);"></i></th>
+                <th style="text-align:center;"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i></th>
+                <th style="text-align:center;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in riesgos_por_edificio %}
+              <tr>
+                <td style="font-size:13px;">{{ e.edificio|default:"Sin edificio" }}</td>
+                <td style="text-align:center;font-weight:700;color:var(--accent-yellow);">{% if e.electricos %}{{ e.electricos }}{% else %}—{% endif %}</td>
+                <td style="text-align:center;font-weight:700;color:var(--accent-red);">{% if e.estructurales %}{{ e.estructurales }}{% else %}—{% endif %}</td>
+                <td style="text-align:center;font-weight:700;color:var(--accent-blue);">{% if e.accesibilidad %}{{ e.accesibilidad }}{% else %}—{% endif %}</td>
+                <td style="text-align:center;font-weight:700;">{{ e.total }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin riesgos activos registrados</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Cobertura del guardia sobre riesgos declarados</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          {% with c=cruce_checklist.electrico %}
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:13px;"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i> Eléctrico</span>
+              <span style="font-size:13px;font-weight:700;">
+                {% if c.pct is not None %}{{ c.cubierto }}/{{ c.total }} — {{ c.pct }}%{% else %}<span style="color:var(--text-muted);">sin datos</span>{% endif %}
+              </span>
+            </div>
+            {% if c.pct is not None %}
+            <div style="height:6px;background:var(--bg-600);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:{{ c.pct }}%;background:{% if c.pct >= 80 %}var(--accent-green){% elif c.pct >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};border-radius:3px;transition:width .3s;"></div>
+            </div>
+            {% endif %}
+          </div>
+          {% endwith %}
+          {% with c=cruce_checklist.estructural %}
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:13px;"><i class="fa-solid fa-house-crack" style="color:var(--accent-red);"></i> Estructural</span>
+              <span style="font-size:13px;font-weight:700;">
+                {% if c.pct is not None %}{{ c.cubierto }}/{{ c.total }} — {{ c.pct }}%{% else %}<span style="color:var(--text-muted);">sin datos</span>{% endif %}
+              </span>
+            </div>
+            {% if c.pct is not None %}
+            <div style="height:6px;background:var(--bg-600);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:{{ c.pct }}%;background:{% if c.pct >= 80 %}var(--accent-green){% elif c.pct >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};border-radius:3px;transition:width .3s;"></div>
+            </div>
+            {% endif %}
+          </div>
+          {% endwith %}
+          {% with c=cruce_checklist.accesibilidad %}
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:13px;"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i> Accesibilidad</span>
+              <span style="font-size:13px;font-weight:700;">
+                {% if c.pct is not None %}{{ c.cubierto }}/{{ c.total }} — {{ c.pct }}%{% else %}<span style="color:var(--text-muted);">sin datos</span>{% endif %}
+              </span>
+            </div>
+            {% if c.pct is not None %}
+            <div style="height:6px;background:var(--bg-600);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:{{ c.pct }}%;background:{% if c.pct >= 80 %}var(--accent-green){% elif c.pct >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};border-radius:3px;transition:width .3s;"></div>
+            </div>
+            {% endif %}
+          </div>
+          {% endwith %}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+            % de tickets con ese riesgo declarado donde el guardia marcó el checklist correspondiente
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endwith %}
+
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
   <div class="card">
     <div class="card-title"><i class="fa-solid fa-location-dot" style="color:var(--accent-blue);"></i> Top ubicaciones con incidentes</div>

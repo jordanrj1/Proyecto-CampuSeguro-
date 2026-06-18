@@ -390,6 +390,21 @@ def dashboard_usuario(request):
     return render(request, 'app/dashboard.html', context)
 
 
+def _cruce_riesgo_checklist():
+    """Cruza riesgo declarado en ticket vs checklist marcado por el guardia."""
+    val = ValidacionGuardia.objects.filter(ticket__deleted_at__isnull=True)
+    def _cruce(riesgo_field, check_field):
+        total = val.filter(**{f'ticket__{riesgo_field}': True}).count()
+        cubierto = val.filter(**{f'ticket__{riesgo_field}': True, check_field: True}).count()
+        pct = round(cubierto / total * 100) if total else None
+        return {'total': total, 'cubierto': cubierto, 'pct': pct}
+    return {
+        'electrico':    _cruce('riesgo_electrico',    'checklist_electrico'),
+        'estructural':  _cruce('riesgo_estructural',  'checklist_estructural'),
+        'accesibilidad':_cruce('riesgo_accesibilidad','checklist_accesibilidad'),
+    }
+
+
 def dashboard_gestor(request):
     tickets = Ticket.objects.filter(deleted_at__isnull=True)
     hoy = timezone.now().date()
@@ -438,6 +453,22 @@ def dashboard_gestor(request):
         'trabajadores_ausentes': trabajadores_ausentes,
         'tickets_con_ausentes': tickets_con_ausentes,
         'pausa_choices': Ticket.PAUSA_CHOICES,
+        # ── Riesgos e impacto ────────────────────────────────────
+        'r_afecta_clase':     tickets.filter(afecta_clase=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
+        'r_electrico':        tickets.filter(riesgo_electrico=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
+        'r_estructural':      tickets.filter(riesgo_estructural=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
+        'r_accesibilidad':    tickets.filter(riesgo_accesibilidad=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
+        'riesgos_por_edificio': list(
+            tickets.filter(
+                Q(riesgo_electrico=True) | Q(riesgo_estructural=True) | Q(riesgo_accesibilidad=True)
+            ).values(edificio=F('ubicacion__edificio')).annotate(
+                total=Count('id'),
+                electricos=Count('id', filter=Q(riesgo_electrico=True)),
+                estructurales=Count('id', filter=Q(riesgo_estructural=True)),
+                accesibilidad=Count('id', filter=Q(riesgo_accesibilidad=True)),
+            ).order_by('-total')[:6]
+        ),
+        'cruce_checklist': _cruce_riesgo_checklist(),
     }
     return render(request, 'app/dashboard_gestor.html', context)
 
@@ -1550,6 +1581,23 @@ def gestor_bi(request):
     afectan_clase = tickets.filter(afecta_clase=True).count()
     riesgos_electricos = tickets.filter(riesgo_electrico=True).count()
     riesgos_estructurales = tickets.filter(riesgo_estructural=True).count()
+    riesgos_accesibilidad = tickets.filter(riesgo_accesibilidad=True).count()
+    tickets_con_riesgo = list(
+        tickets.filter(
+            Q(riesgo_electrico=True) | Q(riesgo_estructural=True) |
+            Q(riesgo_accesibilidad=True) | Q(afecta_clase=True)
+        ).exclude(estado__codigo__in=['cerrado', 'eliminado'])
+        .select_related('ubicacion', 'estado', 'categoria')
+        .values(
+            'id', 'titulo', 'urgencia',
+            'afecta_clase', 'riesgo_electrico', 'riesgo_estructural', 'riesgo_accesibilidad',
+            edificio=F('ubicacion__edificio'),
+            piso=F('ubicacion__piso'),
+            sala=F('ubicacion__sala'),
+            estado_cod=F('estado__codigo'),
+            categoria_nom=F('categoria__nombre_display'),
+        ).order_by('-urgencia', 'ubicacion__edificio', 'ubicacion__piso')
+    )
     cerrados_periodo = tickets.filter(estado__codigo='cerrado').count()
     porc_impacto = round((afectan_clase / total_tickets * 100) if total_tickets else 0, 1)
     tasa_cierre = round((cerrados_periodo / total_tickets * 100) if total_tickets else 0, 1)
@@ -1732,6 +1780,7 @@ def gestor_bi(request):
         'guardias': guardias, 'tecnicos': tecnicos,
         'total_tickets': total_tickets, 'afectan_clase': afectan_clase,
         'riesgos_electricos': riesgos_electricos, 'riesgos_estructurales': riesgos_estructurales,
+        'riesgos_accesibilidad': riesgos_accesibilidad, 'tickets_con_riesgo': tickets_con_riesgo,
         'cerrados_periodo': cerrados_periodo, 'tasa_cierre': tasa_cierre, 'porc_impacto': porc_impacto,
         'por_categoria': por_categoria, 'por_urgencia': por_urgencia,
         'por_estado': por_estado, 'por_edificio': por_edificio, 'reincidencia': reincidencia,

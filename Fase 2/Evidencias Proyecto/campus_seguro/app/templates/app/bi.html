@@ -152,10 +152,59 @@
   </div>
   <div class="kpi red">
     <div class="kpi-label">Riesgos detectados</div>
-    <div class="kpi-value">{{ riesgos_electricos|add:riesgos_estructurales }}</div>
-    <div class="kpi-sub">⚡ {{ riesgos_electricos }} · 🏗️ {{ riesgos_estructurales }}</div>
+    <div class="kpi-value">{{ riesgos_electricos|add:riesgos_estructurales|add:riesgos_accesibilidad }}</div>
+    <div class="kpi-sub">⚡ {{ riesgos_electricos }} · 🏗️ {{ riesgos_estructurales }} · ♿ {{ riesgos_accesibilidad }}</div>
   </div>
 </div>
+
+{% if tickets_con_riesgo %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
+    Tickets con riesgo activos — detalle por ubicación
+    <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:8px;">{{ tickets_con_riesgo|length }} ticket{{ tickets_con_riesgo|length|pluralize:"s" }} en el período</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Edificio</th>
+          <th>Piso</th>
+          <th>Sala</th>
+          <th>Categoría</th>
+          <th style="text-align:center;">Urgencia</th>
+          <th style="text-align:center;">Riesgos declarados</th>
+          <th style="text-align:center;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets_con_riesgo %}
+        <tr>
+          <td style="font-size:12px;color:var(--text-muted);">#{{ t.id }}</td>
+          <td style="font-size:13px;font-weight:600;">{{ t.edificio|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.piso|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.sala|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ t.categoria_nom|default:"—" }}</td>
+          <td style="text-align:center;">
+            <span class="urgencia-{{ t.urgencia }}" style="font-size:12px;">{{ t.urgencia|title }}</span>
+          </td>
+          <td style="text-align:center;">
+            {% if t.riesgo_electrico %}<span title="Riesgo eléctrico" style="margin-right:4px;"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i></span>{% endif %}
+            {% if t.riesgo_estructural %}<span title="Riesgo estructural" style="margin-right:4px;"><i class="fa-solid fa-house-crack" style="color:var(--accent-red);"></i></span>{% endif %}
+            {% if t.riesgo_accesibilidad %}<span title="Afecta accesibilidad" style="margin-right:4px;"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i></span>{% endif %}
+            {% if t.afecta_clase %}<span title="Afecta clases"><i class="fa-solid fa-graduation-cap" style="color:var(--accent-yellow);"></i></span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg-600);color:var(--text-secondary);">{{ t.estado_cod|title }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px;">
   <div class="card">
