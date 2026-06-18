@@ -130,9 +130,15 @@ def _preparar_contexto_ubicaciones():
         for u in ubicaciones
     ])
     
+    urgencias = list(
+        EstadoCatalogo.objects.filter(entidad='urgencia_ticket', activo=True)
+        .order_by('orden').values_list('codigo', 'nombre_display')
+    ) or list(Ticket.URGENCIA_CHOICES)
+
     return {
         'edificios': edificios,
         'ubicaciones_json': ubicaciones_json,
+        'urgencias': urgencias,
     }
 
 
@@ -803,7 +809,7 @@ def gestor_tickets(request):
         'tickets': tickets_page,
         'page_obj': tickets_page,
         'estados': EstadoCatalogo.objects.filter(entidad='ticket').order_by('orden').values_list('codigo', 'nombre_display'),
-        'urgencias': Ticket.URGENCIA_CHOICES,
+        'urgencias': list(EstadoCatalogo.objects.filter(entidad='urgencia_ticket', activo=True).order_by('orden').values_list('codigo', 'nombre_display')) or list(Ticket.URGENCIA_CHOICES),
         'categorias': CategoriaTicket.objects.filter(activo=True).values_list('codigo', 'nombre_display'),
         'filtros': {'estado': estado, 'urgencia': urgencia, 'categoria': categoria, 'q': busqueda},
     })
@@ -1144,7 +1150,7 @@ def pausar_ticket(request, pk):
     if request.method == 'POST' and form.is_valid():
         estado_anterior = ticket.estado.codigo
         razones = form.cleaned_data['razones_pausa']
-        pausa_labels = dict(Ticket.PAUSA_CHOICES)
+        pausa_labels = {e.codigo: e.nombre_display for e in EstadoCatalogo.objects.filter(entidad='pausa_ticket')} or dict(Ticket.PAUSA_CHOICES)
         razones_texto = ' | '.join(pausa_labels.get(r, r) for r in razones)
 
         ticket.estado = EstadoCatalogo.para('ticket', 'pausado')

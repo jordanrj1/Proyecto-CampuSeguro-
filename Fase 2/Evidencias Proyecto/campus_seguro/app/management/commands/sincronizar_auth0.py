@@ -44,7 +44,7 @@ from app.auth0_service import obtener_token_mgmt, Auth0Error
 
 
 # Roles válidos reconocidos por Campus Seguro
-_ROLES_VALIDOS = {'usuario', 'gestor', 'guardia', 'mantencion', 'enc_seguridad'}
+_ROLES_VALIDOS = {'usuario', 'gestor', 'guardia', 'mantencion'}
 
 # Mapeo de campus_estado (Auth0 app_metadata) → codigo de EstadoCatalogo
 _ESTADO_MAP = {

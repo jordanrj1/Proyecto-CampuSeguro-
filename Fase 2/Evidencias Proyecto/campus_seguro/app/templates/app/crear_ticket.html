@@ -235,83 +235,219 @@
       </form>
     </div>
   </div>
+  <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">← Cancelar</a>
 </div>
 
-<style>
-.upload-area:hover {
-  border-color: #0d6efd !important;
-  background-color: rgba(13, 110, 253, 0.05);
-}
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }}" role="alert" style="margin-bottom:12px;">{{ message }}</div>
+  {% endfor %}
+{% endif %}
 
-.upload-area.drag-over {
-  border-color: #198754 !important;
-  background-color: rgba(25, 135, 84, 0.1);
-}
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  <!-- SECCIÓN 1: ¿Qué ocurrió? -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-pen-to-square" style="color:var(--accent-blue);"></i> ¿Qué ocurrió?
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="titulo">Título del reporte *</label>
+      <input type="text" id="titulo" name="titulo"
+        placeholder="Ej: Enchufe quemado, fuga de agua, proyector sin imagen…"
+        value="{{ form.titulo.value|default:'' }}" required maxlength="200">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="descripcion">Descripción detallada *</label>
+      <textarea id="descripcion" name="descripcion" rows="4"
+        placeholder="¿Cuándo comenzó? ¿Con qué frecuencia ocurre? ¿Hay riesgo inmediato para personas?">{{ form.descripcion.value|default:'' }}</textarea>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2: ¿Dónde ocurrió? -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-location-dot" style="color:var(--accent-blue);"></i> ¿Dónde ocurrió?
+    </div>
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label class="form-label" for="edificio">Edificio *</label>
+        <select id="edificio" name="edificio" required>
+          <option value="">Seleccionar edificio…</option>
+          {% for edificio in edificios %}
+          <option value="{{ edificio }}">{{ edificio }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="piso">Piso *</label>
+        <select id="piso" name="piso" required disabled>
+          <option value="">Primero selecciona edificio…</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sala">Sala *</label>
+        <select id="sala" name="sala" required disabled>
+          <option value="">Primero selecciona piso…</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
+    <div id="ubicacion-info" style="display:none; margin-top:10px; padding:10px 14px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:var(--radius-sm); font-size:13px;">
+      <i class="fa-solid fa-circle-check" style="color:var(--accent-blue);"></i>
+      <strong>Ubicación seleccionada:</strong> <span id="ubicacion-texto"></span>
+    </div>
+    <div style="margin-top:10px; padding:10px 14px; background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.2); border-radius:var(--radius-sm);">
+      <small style="color:var(--text-secondary);">
+        <i class="fa-solid fa-circle-info" style="color:var(--accent-yellow);"></i>
+        Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
+      </small>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3: Clasificación -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> Clasificación del problema
+    </div>
+    <div class="form-grid">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="categoria">Categoría *</label>
+        <select id="categoria" name="categoria" required>
+          <option value="">Seleccionar…</option>
+          {% for val, label in form.fields.categoria.choices %}
+            {% if val %}
+            <option value="{{ val }}" {% if form.categoria.value == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="urgencia">Urgencia *</label>
+        <select id="urgencia" name="urgencia" required>
+          <option value="" {% if not form.urgencia.value %}selected{% endif %}>Seleccionar…</option>
+          {% for val, label in urgencias %}
+            <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-help">
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
+          Crítica = riesgo inmediato para personas o clases en curso.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: Impacto y riesgos -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-yellow);"></i> Impacto y riesgos asociados
+    </div>
+    <div class="form-grid">
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="afecta_clase" id="afecta_clase" value="on"
+          {% if form.afecta_clase.value %}checked{% endif %}>
+        <label for="afecta_clase">
+          <span class="riesgo-title"><i class="fa-solid fa-book-open" style="color:var(--accent-blue);"></i> Afecta clases</span>
+          <span class="riesgo-sub">El problema interrumpe o impide actividades académicas.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_electrico" id="riesgo_electrico" value="on"
+          {% if form.riesgo_electrico.value %}checked{% endif %}>
+        <label for="riesgo_electrico">
+          <span class="riesgo-title"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i> Riesgo eléctrico</span>
+          <span class="riesgo-sub">Cables expuestos, chispas, cortocircuito.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_estructural" id="riesgo_estructural" value="on"
+          {% if form.riesgo_estructural.value %}checked{% endif %}>
+        <label for="riesgo_estructural">
+          <span class="riesgo-title"><i class="fa-solid fa-building-columns" style="color:var(--text-secondary);"></i> Riesgo estructural</span>
+          <span class="riesgo-sub">Grietas, filtraciones, techo o estructura dañada.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_accesibilidad" id="riesgo_accesibilidad" value="on"
+          {% if form.riesgo_accesibilidad.value %}checked{% endif %}>
+        <label for="riesgo_accesibilidad">
+          <span class="riesgo-title"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i> Afecta accesibilidad</span>
+          <span class="riesgo-sub">Rampa, ascensor, baño adaptado u otra zona de acceso.</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 5: Evidencia fotográfica -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-camera" style="color:var(--accent-blue);"></i> Evidencia fotográfica *
+    </div>
+    <div id="uploadArea" style="border:2px dashed var(--border); border-radius:var(--radius-sm); padding:36px; text-align:center; cursor:pointer; transition:border-color 0.2s, background 0.2s;">
+      <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" required style="display:none;">
+      <div id="emptyState">
+        <i class="fa-solid fa-camera" style="font-size:32px; color:var(--text-muted); margin-bottom:10px; display:block;"></i>
+        <p style="color:var(--text-secondary); margin-bottom:12px;">Evidencia visual del problema reportado.</p>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('foto_evidencia').click()">
+          <i class="fa-solid fa-upload"></i> Seleccionar archivo
+        </button>
+        <small style="display:block; margin-top:10px; color:var(--text-muted);">JPG, PNG, WebP · Máximo 10 MB</small>
+      </div>
+      <div id="imageState" style="display:none;">
+        <div style="position:relative; display:inline-block;">
+          <img id="previewImg" style="max-height:280px; max-width:100%; border-radius:var(--radius-sm);">
+          <button type="button" class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px;" onclick="removeImage(event)">✕</button>
+        </div>
+        <p id="fileName" style="color:var(--text-muted); margin-top:10px; margin-bottom:4px;"></p>
+        <small style="color:var(--accent-green);"><i class="fa-solid fa-circle-check"></i> Imagen cargada correctamente</small>
+      </div>
+    </div>
+    <div class="form-help" style="color:var(--accent-red); margin-top:6px;">
+      <i class="fa-solid fa-circle-exclamation"></i> La foto es obligatoria. Muestra claramente la falla, daño o elemento afectado.
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; gap:12px;">
+    <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">
+      <i class="fa-solid fa-paper-plane"></i> Enviar reporte
+    </button>
+  </div>
+</form>
+
+<style>
+#uploadArea:hover { border-color: var(--accent-blue) !important; background: rgba(59,130,246,0.04); }
+#uploadArea.drag-over { border-color: var(--accent-green) !important; background: rgba(16,185,129,0.06); }
+.riesgo-check { align-items: flex-start !important; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-700); }
+.riesgo-check input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.riesgo-check label { display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.riesgo-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.riesgo-sub { font-size: 11px; color: var(--text-muted); }
 </style>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-// VISTA PREVIA DE IMAGEN MEJORADA
-// ═══════════════════════════════════════════════════════════════
+// ── VISTA PREVIA IMAGEN ──────────────────────────────────────────
 const uploadArea = document.getElementById('uploadArea');
-const fileInput = document.getElementById('foto_evidencia');
+const fileInput  = document.getElementById('foto_evidencia');
 const emptyState = document.getElementById('emptyState');
 const imageState = document.getElementById('imageState');
 const previewImg = document.getElementById('previewImg');
-const fileName = document.getElementById('fileName');
+const fileName   = document.getElementById('fileName');
 
-// Click en el área de upload
-uploadArea.addEventListener('click', function(e) {
-  if (e.target.tagName !== 'BUTTON' && e.target.closest('button')) {
-    fileInput.click();
-  }
-});
-
-// Drag and drop
-uploadArea.addEventListener('dragover', function(e) {
-  e.preventDefault();
-  this.classList.add('drag-over');
-});
-
-uploadArea.addEventListener('dragleave', function(e) {
-  e.preventDefault();
-  this.classList.remove('drag-over');
-});
-
+uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', function(e) { e.preventDefault(); this.classList.remove('drag-over'); });
 uploadArea.addEventListener('drop', function(e) {
-  e.preventDefault();
-  this.classList.remove('drag-over');
-  
+  e.preventDefault(); this.classList.remove('drag-over');
   const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    fileInput.files = files;
-    handleFile(files[0]);
-  }
+  if (files.length > 0) { fileInput.files = files; handleFile(files[0]); }
 });
-
-// Input file change
-fileInput.addEventListener('change', function(e) {
-  if (this.files && this.files[0]) {
-    handleFile(this.files[0]);
-  }
-});
+fileInput.addEventListener('change', function() { if (this.files && this.files[0]) handleFile(this.files[0]); });
 
 function handleFile(file) {
-  // Validar tipo
-  if (!file.type.startsWith('image/')) {
-    alert('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP)');
-    fileInput.value = '';
-    return;
-  }
-  
-  // Validar tamaño (10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    alert('La imagen no puede superar los 10 MB');
-    fileInput.value = '';
-    return;
-  }
-  
-  // Mostrar preview
+  if (!file.type.startsWith('image/')) { alert('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP)'); fileInput.value = ''; return; }
+  if (file.size > 10 * 1024 * 1024) { alert('La imagen no puede superar los 10 MB'); fileInput.value = ''; return; }
   const reader = new FileReader();
   reader.onload = function(e) {
     previewImg.src = e.target.result;
@@ -324,13 +460,11 @@ function handleFile(file) {
 
 function removeImage(e) {
   e.stopPropagation();
-  fileInput.value = '';
-  previewImg.src = '';
-  fileName.textContent = '';
-  emptyState.style.display = 'block';
-  imageState.style.display = 'none';
+  fileInput.value = ''; previewImg.src = ''; fileName.textContent = '';
+  emptyState.style.display = 'block'; imageState.style.display = 'none';
 }
 
+<<<<<<< HEAD
 // ═══════════════════════════════════════════════════════════════
 // FILTRADO EN CASCADA: EDIFICIO → PISO → SALA
 // ═══════════════════════════════════════════════════════════════
@@ -343,14 +477,26 @@ const edificioSelect = document.getElementById('edificio');
 const pisoSelect = document.getElementById('piso');
 const tipoSelect = document.getElementById('tipo_ubicacion'); // <-- Capturamos el nuevo select
 const salaSelect = document.getElementById('sala');
+=======
+// ── CASCADA EDIFICIO → PISO → SALA ──────────────────────────────
+const ubicacionesData  = {{ ubicaciones_json|safe }};
+const edificioSelect   = document.getElementById('edificio');
+const pisoSelect       = document.getElementById('piso');
+const salaSelect       = document.getElementById('sala');
+>>>>>>> dev
 const ubicacionIdInput = document.getElementById('ubicacion_id');
-const ubicacionInfo = document.getElementById('ubicacion-info');
-const ubicacionTexto = document.getElementById('ubicacion-texto');
+const ubicacionInfo    = document.getElementById('ubicacion-info');
+const ubicacionTexto   = document.getElementById('ubicacion-texto');
 
+<<<<<<< HEAD
 // 1. Cargar pisos cuando se selecciona edificio
 edificioSelect.addEventListener('change', function() {
   const edificioSeleccionado = this.value;
   
+=======
+edificioSelect.addEventListener('change', function() {
+  const edificio = this.value;
+>>>>>>> dev
   pisoSelect.innerHTML = '<option value="">Cargando pisos…</option>';
   tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
   tipoSelect.disabled = true;
@@ -358,12 +504,12 @@ edificioSelect.addEventListener('change', function() {
   salaSelect.disabled = true;
   ubicacionIdInput.value = '';
   ubicacionInfo.style.display = 'none';
-  
-  if (!edificioSeleccionado) {
+  if (!edificio) {
     pisoSelect.innerHTML = '<option value="">Primero selecciona edificio…</option>';
     pisoSelect.disabled = true;
     return;
   }
+<<<<<<< HEAD
   
   const pisosDisponibles = [...new Set(
     ubicacionesData
@@ -371,17 +517,15 @@ edificioSelect.addEventListener('change', function() {
       .map(u => u.piso)
   )].sort((a, b) => parseInt(a) - parseInt(b));
   
+=======
+  const pisos = [...new Set(ubicacionesData.filter(u => u.edificio === edificio).map(u => u.piso))].sort((a, b) => parseInt(a) - parseInt(b));
+>>>>>>> dev
   pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
-  pisosDisponibles.forEach(piso => {
-    const option = document.createElement('option');
-    option.value = piso;
-    option.textContent = `Piso ${piso}`;
-    pisoSelect.appendChild(option);
-  });
-  
+  pisos.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = `Piso ${p}`; pisoSelect.appendChild(o); });
   pisoSelect.disabled = false;
 });
 
+<<<<<<< HEAD
 // 2. Cargar TIPOS DE UBICACIÓN cuando se selecciona un piso (LÓGICA NUEVA)
 pisoSelect.addEventListener('change', function() {
   const edificioSeleccionado = edificioSelect.value;
@@ -445,16 +589,38 @@ tipoSelect.addEventListener('change', function() {
     option.textContent = ubicacion.sala; // Ej: "E002" o "Escalera General P2"
     option.dataset.sala = ubicacion.sala;
     salaSelect.appendChild(option);
+=======
+pisoSelect.addEventListener('change', function() {
+  const edificio = edificioSelect.value;
+  const piso = this.value;
+  salaSelect.innerHTML = '<option value="">Cargando salas…</option>';
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+  if (!piso) {
+    salaSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    salaSelect.disabled = true;
+    return;
+  }
+  const salas = ubicacionesData.filter(u => u.edificio === edificio && u.piso === piso);
+  salaSelect.innerHTML = '<option value="">Seleccionar sala…</option>';
+  salas.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = `${u.sala} (${u.tipo})`;
+    o.dataset.sala = u.sala; o.dataset.tipo = u.tipo;
+    salaSelect.appendChild(o);
+>>>>>>> dev
   });
-  
   salaSelect.disabled = false;
 });
 
+<<<<<<< HEAD
 // 4. Actualizar banner informativo final al seleccionar la sala concreta
+=======
+>>>>>>> dev
 salaSelect.addEventListener('change', function() {
-  const selectedOption = this.options[this.selectedIndex];
-  
+  const opt = this.options[this.selectedIndex];
   if (this.value) {
+<<<<<<< HEAD
     const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
     const piso = pisoSelect.options[pisoSelect.selectedIndex].text;
     const tipo = tipoSelect.options[tipoSelect.selectedIndex].text;
@@ -462,6 +628,12 @@ salaSelect.addEventListener('change', function() {
     
     ubicacionIdInput.value = this.value;
     ubicacionTexto.textContent = `${edificio} → ${piso} → ${tipo} → ${sala}`;
+=======
+    ubicacionIdInput.value = this.value;
+    const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
+    const piso     = pisoSelect.options[pisoSelect.selectedIndex].text;
+    ubicacionTexto.textContent = `${edificio} → ${piso} → ${opt.dataset.sala} (${opt.dataset.tipo})`;
+>>>>>>> dev
     ubicacionInfo.style.display = 'block';
   } else {
     ubicacionIdInput.value = '';
@@ -469,28 +641,40 @@ salaSelect.addEventListener('change', function() {
   }
 });
 
+<<<<<<< HEAD
 // 5. Prevenir doble envío y validar la selección jerárquica total
+=======
+// ── VALIDACIÓN + ANTI DOBLE ENVÍO ───────────────────────────────
+>>>>>>> dev
 let formSubmitted = false;
-
 document.querySelector('form').addEventListener('submit', function(e) {
+<<<<<<< HEAD
   if (formSubmitted) {
     e.preventDefault();
     alert('El formulario ya está siendo procesado. Por favor espera...');
     return false;
   }
   
+=======
+>>>>>>> dev
   if (!ubicacionIdInput.value) {
     e.preventDefault();
     alert('Por favor selecciona la ubicación completa (Edificio → Piso → Tipo → Sala)');
     edificioSelect.focus();
     return false;
   }
-  
+  if (formSubmitted) { e.preventDefault(); return false; }
   formSubmitted = true;
+<<<<<<< HEAD
   
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
   submitBtn.innerHTML = 'Enviando... <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+=======
+  const btn = this.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando…';
+>>>>>>> dev
 });
 </script>
 {% endblock %}

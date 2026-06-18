@@ -416,16 +416,23 @@ class NoReparableForm(forms.ModelForm):
         widgets = {
             'motivo_tecnico': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Detalle técnico de por qué no se puede reparar'}),
             'material_requerido': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Material específico necesario'}),
-            'criticidad': forms.Select(choices=NoReparable.CRITICIDAD_CHOICES),
+            'criticidad': forms.Select(),
             'herramientas_faltantes': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Herramientas faltantes'}),
             'personal_especializado_requerido': forms.TextInput(attrs={'placeholder': 'Especialidad requerida'}),
             'foto_diagnostico': forms.FileInput(attrs={'accept': 'image/*'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='criticidad', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        self.fields['criticidad'].choices = db or NoReparable.CRITICIDAD_CHOICES
+
 
 class PausaForm(forms.Form):
     razones_pausa = forms.MultipleChoiceField(
-        choices=Ticket.PAUSA_CHOICES,
+        choices=[],  # poblado dinámicamente desde EstadoCatalogo(entidad='pausa_ticket')
         widget=forms.CheckboxSelectMultiple,
         label='Motivos de pausa (puede seleccionar más de uno)',
     )
@@ -433,6 +440,13 @@ class PausaForm(forms.Form):
         widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Detalle y justificación de la pausa'}),
         label='Detalle / Justificación'
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='pausa_ticket', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        self.fields['razones_pausa'].choices = db or Ticket.PAUSA_CHOICES
 
 
 class ReactivacionForm(forms.Form):
@@ -481,6 +495,14 @@ class InasistenciaForm(forms.ModelForm):
             'fecha_hasta': forms.DateInput(attrs={'type': 'date'}),
             'detalle': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Información adicional'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='motivo_inasistencia', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        if db:
+            self.fields['motivo'].choices = [('', 'Seleccionar motivo…')] + db
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -52,7 +52,6 @@ class TransicionEstado(models.Model):
     ROL_CHOICES = [
         ('usuario', 'Usuario Base'),
         ('gestor', 'Gestor'),
-        ('enc_seguridad', 'Encargado de Seguridad'),
         ('guardia', 'Guardia'),
         ('mantencion', 'Mantención'),
     ]
@@ -323,7 +322,6 @@ class Usuario(AbstractUser):
     ROL_CHOICES = [
         ('usuario', 'Usuario Base'),
         ('gestor', 'Gestor'),
-        ('enc_seguridad', 'Encargado de Seguridad'),
         ('guardia', 'Guardia'),
         ('mantencion', 'Mantención'),
     ]
