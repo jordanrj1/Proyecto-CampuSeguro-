@@ -17,7 +17,7 @@ def _setup_inicial(sender, **kwargs):
     Si ya tiene datos, no hace nada (idempotente).
     """
     try:
-        from app.models import EstadoCatalogo, Ubicacion, Usuario
+        from app.models import EstadoCatalogo, Usuario
 
         # ── 1. Catálogos y ubicaciones ───────────────────────────
         if EstadoCatalogo.objects.count() == 0:

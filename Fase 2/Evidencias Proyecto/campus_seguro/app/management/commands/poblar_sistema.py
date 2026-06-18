@@ -284,7 +284,6 @@ class Command(BaseCommand):
                     uniones_creadas += 1
 
         # ═══════════════════════════════════════════════════════════════
-<<<<<<< HEAD
         # 6. SEMBRADO: INFRAESTRUCTURA GEOGRÁFICA Y DE UBICACIONES (NUEVO)
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
@@ -357,14 +356,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'   [✓] Sembradas exitosamente {ubicaciones_count} salas/zonas en la Sede San Andrés.'))
         creados += ubicaciones_count
-=======
-        # 6. SEMBRADO: UBICACIONES DEL CAMPUS (Edificio E y H)
-        # ═══════════════════════════════════════════════════════════════
-        self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Ubicaciones del Campus...'))
-        ubicaciones_nuevas = Ubicacion.crear_default_campus()
-        self.stdout.write(self.style.SUCCESS(f'   [✓] Ubicaciones creadas: {ubicaciones_nuevas}'))
->>>>>>> dev
 
         # ── Resumen de ejecución ──────────────────────────────────────
         self.stdout.write('')
