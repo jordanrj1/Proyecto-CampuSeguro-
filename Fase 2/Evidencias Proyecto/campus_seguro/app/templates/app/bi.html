@@ -32,6 +32,12 @@
 .score-mid { background:rgba(244,197,66,0.2); color:var(--accent-yellow); border:2px solid var(--accent-yellow); }
 .score-low { background:rgba(245,54,92,0.2); color:var(--accent-red); border:2px solid var(--accent-red); }
 .filter-chip { display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:3px 10px; border-radius:12px; background:rgba(74,143,255,0.12); color:var(--accent-blue); border:1px solid rgba(74,143,255,0.3); }
+.bi-tag { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:4px; letter-spacing:.4px; text-transform:uppercase; opacity:.75; }
+.bi-tag-source { background:rgba(255,255,255,.06); color:var(--text-muted); border:1px solid rgba(255,255,255,.1); }
+.bi-tag-formula { background:rgba(74,143,255,.1); color:var(--accent-blue); border:1px solid rgba(74,143,255,.2); }
+.bi-tag-alert  { background:rgba(245,54,92,.1);  color:var(--accent-red);  border:1px solid rgba(245,54,92,.2); }
+.bi-tag-perf   { background:rgba(45,206,137,.1); color:var(--accent-green);border:1px solid rgba(45,206,137,.2); }
+.section-eyebrow { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
 </style>
 {% endblock %}
 
@@ -43,21 +49,16 @@
       {% if seccion == 'general' %}Análisis general de tickets
       {% elif seccion == 'guardias' %}Desempeño operativo de guardias
       {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
-      {% else %}Consumo, stock y compras inteligentes{% endif %}
-      · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
+      {% else %}Consumo y compras inteligentes{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
     </div>
   </div>
   <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════
-     BARRA DE FILTROS
-════════════════════════════════════════════════════════════ -->
 <form method="get" style="margin-bottom:14px;">
   <input type="hidden" name="seccion" value="{{ seccion }}">
   <div style="background:var(--bg-850);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;">
 
-    <!-- Período rápido -->
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">PERÍODO</div>
       <div style="display:flex;gap:5px;">
@@ -68,7 +69,6 @@
       </div>
     </div>
 
-    <!-- Fecha personalizada -->
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">FECHA ESPECÍFICA</div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -80,7 +80,6 @@
       </div>
     </div>
 
-    <!-- Filtro trabajador (por sección) -->
     {% if seccion == 'guardias' and guardias %}
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">GUARDIA</div>
@@ -99,13 +98,14 @@
     </div>
     {% endif %}
 
-    <!-- Filtro categoría de material (solo en materiales) -->
     {% if seccion == 'materiales' and categorias_materiales %}
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">CATEGORÍA MATERIAL</div>
       <select name="cat_material" style="padding:7px 12px;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
         <option value="">Todas las categorías</option>
-        {% for cat in categorias_materiales %}<option value="{{ cat }}" {% if cat_material == cat %}selected{% endif %}>{{ cat|title }}</option>{% endfor %}
+        {% for cod, nom in categorias_materiales %}
+          <option value="{{ cod }}" {% if cat_material == cod %}selected{% endif %}>{{ nom }}</option>
+        {% endfor %}
       </select>
     </div>
     {% endif %}
@@ -120,14 +120,13 @@
       {% if trabajador_id or cat_material %}
       <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
         {% if trabajador_id %}<span class="filter-chip">👤 Filtrado por trabajador</span>{% endif %}
-        {% if cat_material %}<span class="filter-chip">📦 Cat: {{ cat_material|title }}</span>{% endif %}
+        {% if cat_material %}<span class="filter-chip">📦 Cat: {{ cat_material_nombre|title }}</span>{% endif %}
       </div>
       {% endif %}
     </div>
   </div>
 </form>
 
-<!-- Tabs de sección -->
 <div class="bi-tabs">
   <a href="?seccion=general&rango={{ rango }}" class="bi-tab {% if seccion == 'general' %}active{% endif %}">📊 General</a>
   <a href="?seccion=guardias&rango={{ rango }}" class="bi-tab tab-yellow {% if seccion == 'guardias' %}active{% endif %}">🛡️ Guardias</a>
@@ -141,6 +140,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'general' %}
 
+<div class="section-eyebrow">
+  <span>Volumen y cierre</span>
+  <span class="bi-tag bi-tag-source">basado en tickets creados</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi blue">
     <div class="kpi-label">Tickets en período</div>
@@ -150,26 +153,79 @@
   <div class="kpi {% if tasa_cierre >= 70 %}green{% elif tasa_cierre >= 40 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Tasa de cierre</div>
     <div class="kpi-value">{{ tasa_cierre }}%</div>
-    <div class="kpi-sub">{{ cerrados_periodo }} cerrados</div>
+    <div class="kpi-sub">{{ cerrados_periodo }} cerrados · <span class="bi-tag bi-tag-formula">cerrados ÷ total</span></div>
   </div>
   <div class="kpi yellow">
     <div class="kpi-label">Afectan clases</div>
     <div class="kpi-value">{{ afectan_clase }}</div>
-    <div class="kpi-sub">{{ porc_impacto }}% del total</div>
+    <div class="kpi-sub">{{ porc_impacto }}% del total · <span class="bi-tag bi-tag-alert">impacto académico</span></div>
   </div>
   <div class="kpi red">
     <div class="kpi-label">Riesgos detectados</div>
-    <div class="kpi-value">{{ riesgos_electricos|add:riesgos_estructurales }}</div>
-    <div class="kpi-sub">⚡ {{ riesgos_electricos }} · 🏗️ {{ riesgos_estructurales }}</div>
+    <div class="kpi-value">{{ riesgos_electricos|add:riesgos_estructurales|add:riesgos_accesibilidad }}</div>
+    <div class="kpi-sub">⚡ {{ riesgos_electricos }} · 🏗️ {{ riesgos_estructurales }} · ♿ {{ riesgos_accesibilidad }}</div>
   </div>
 </div>
 
+{% if tickets_con_riesgo %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
+    Tickets con riesgo activos — detalle por ubicación
+    <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:8px;">{{ tickets_con_riesgo|length }} ticket{{ tickets_con_riesgo|length|pluralize:"s" }} en el período</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Edificio</th>
+          <th>Piso</th>
+          <th>Sala</th>
+          <th>Categoría</th>
+          <th style="text-align:center;">Urgencia</th>
+          <th style="text-align:center;">Riesgos declarados</th>
+          <th style="text-align:center;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets_con_riesgo %}
+        <tr>
+          <td style="font-size:12px;color:var(--text-muted);">#{{ t.id }}</td>
+          <td style="font-size:13px;font-weight:600;">{{ t.edificio|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.piso|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.sala|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ t.categoria_nom|default:"—" }}</td>
+          <td style="text-align:center;">
+            <span class="urgencia-{{ t.urgencia }}" style="font-size:12px;">{{ t.urgencia|title }}</span>
+          </td>
+          <td style="text-align:center;">
+            {% if t.riesgo_electrico %}<span title="Riesgo eléctrico" style="margin-right:4px;"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i></span>{% endif %}
+            {% if t.riesgo_estructural %}<span title="Riesgo estructural" style="margin-right:4px;"><i class="fa-solid fa-house-crack" style="color:var(--accent-red);"></i></span>{% endif %}
+            {% if t.riesgo_accesibilidad %}<span title="Afecta accesibilidad" style="margin-right:4px;"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i></span>{% endif %}
+            {% if t.afecta_clase %}<span title="Afecta clases"><i class="fa-solid fa-graduation-cap" style="color:var(--accent-yellow);"></i></span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg-600);color:var(--text-secondary);">{{ t.estado_cod|title }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="section-eyebrow" style="margin-top:6px;">
+  <span>Distribución de tickets</span>
+  <span class="bi-tag bi-tag-source">tickets agrupados por categoría, urgencia y estado</span>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px;">
   <div class="card">
-    <div class="card-title">🏷️ Por categoría</div>
+    <div class="card-title">🏷️ Por categoría <span class="bi-tag bi-tag-source" style="margin-left:6px;">tipo de problema</span></div>
     {% for c in por_categoria %}
     <div class="stat-row">
-      <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria }}</span>
+      <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:80px;height:5px;background:var(--bg-600);border-radius:3px;overflow:hidden;">
           {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-blue);width:{% widthratio c.total total_tickets 100 %}%;"></div>{% endif %}
@@ -180,7 +236,7 @@
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">⚡ Por urgencia</div>
+    <div class="card-title">⚡ Por urgencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">declarada por usuario</span></div>
     {% for u in por_urgencia %}
     <div class="stat-row">
       <span class="urgencia-{{ u.urgencia }}" style="font-size:13px;">{{ u.urgencia|title }}</span>
@@ -194,7 +250,7 @@
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Por estado</div>
+    <div class="card-title">📊 Por estado <span class="bi-tag bi-tag-source" style="margin-left:6px;">etapa actual en el flujo</span></div>
     {% for e in por_estado %}
     <div class="stat-row">
       <span style="font-size:12px;color:var(--text-secondary);">{{ e.estado|title }}</span>
@@ -206,7 +262,7 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card">
-    <div class="card-title">🔁 Ubicaciones con reincidencia</div>
+    <div class="card-title">🔁 Ubicaciones con reincidencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">+1 ticket misma sala</span></div>
     {% if reincidencia %}
     <div class="table-wrap">
       <table>
@@ -225,7 +281,7 @@
     {% else %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin reincidencias en el período</div>{% endif %}
   </div>
   <div class="card">
-    <div class="card-title">🏢 Carga por edificio</div>
+    <div class="card-title">🏢 Carga por edificio <span class="bi-tag bi-tag-source" style="margin-left:6px;">tickets según su ubicación</span></div>
     {% for b in por_edificio %}
     <div class="stat-row">
       <span style="font-size:13px;">{{ b.edificio }}</span>
@@ -248,6 +304,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'guardias' %}
 
+<div class="section-eyebrow">
+  <span>Desempeño de validación en terreno</span>
+  <span class="bi-tag bi-tag-source">basado en inspecciones realizadas por el guardia</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi blue">
     <div class="kpi-label">Total validaciones</div>
@@ -257,21 +317,20 @@
   <div class="kpi {% if val_tasa_validez >= 80 %}green{% elif val_tasa_validez >= 50 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Precisión de detección</div>
     <div class="kpi-value">{{ val_tasa_validez }}%</div>
-    <div class="kpi-sub">{{ val_validas }} válidas · {{ val_invalidas }} falsas</div>
+    <div class="kpi-sub">{{ val_validas }} válidas · {{ val_invalidas }} falsas · <span class="bi-tag bi-tag-formula">válidas ÷ total</span></div>
   </div>
   <div class="kpi teal">
     <div class="kpi-label">Tiempo prom. respuesta</div>
     <div class="kpi-value" style="font-size:22px;">{{ val_tiempo_prom }}<span style="font-size:13px;font-weight:400;"> min</span></div>
-    <div class="kpi-sub">en terreno</div>
+    <div class="kpi-sub">en terreno · <span class="bi-tag bi-tag-source">tiempo registrado al validar</span></div>
   </div>
   <div class="kpi {% if val_tasa_foto >= 80 %}green{% elif val_tasa_foto >= 50 %}yellow{% else %}red{% endif %}">
     <div class="kpi-label">Calidad documental</div>
     <div class="kpi-value">{{ val_tasa_foto }}%</div>
-    <div class="kpi-sub">{{ val_con_foto }} con foto evidencia</div>
+    <div class="kpi-sub">{{ val_con_foto }} con foto · <span class="bi-tag bi-tag-formula">con foto ÷ total</span></div>
   </div>
 </div>
 
-<!-- Checklists de riesgo -->
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;">
   <div class="card" style="border-left:3px solid var(--accent-red);display:flex;align-items:center;gap:16px;">
     <div style="font-size:30px;">⚡</div>
@@ -296,19 +355,17 @@
   </div>
 </div>
 
-<!-- Puntaje operativo por guardia -->
 {% if por_guardia %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por guardia
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Precisión 35% · Documentación 30% · Actividad 20% · Detección de riesgos 15%</span>
+    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
   </div>
   {% for g in por_guardia %}
   <div style="background:var(--bg-700);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
-    <!-- Score badge -->
     <div class="score-badge {% if g.score >= 75 %}score-high{% elif g.score >= 50 %}score-mid{% else %}score-low{% endif %}">
       {{ g.score }}
     </div>
-    <!-- Info -->
     <div style="flex:1;">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{{ g.guardia__first_name }} {{ g.guardia__last_name }}</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
@@ -333,7 +390,6 @@
           <div style="font-size:10px;color:var(--text-muted);">T. prom.</div>
         </div>
       </div>
-      <!-- Mini barra de actividad relativa -->
       {% if val_total %}
       <div style="margin-top:10px;">
         <div style="height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden;">
@@ -350,16 +406,16 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card">
-    <div class="card-title">📋 Tipos de incidente más validados</div>
+    <div class="card-title">📋 Tipos de incidente más validados <span class="bi-tag bi-tag-source" style="margin-left:6px;">categoría del ticket validado</span></div>
     {% for c in val_por_categoria %}
     <div class="stat-row">
-      <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria }}</span>
+      <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
       <span style="font-size:14px;font-weight:700;color:var(--accent-yellow);">{{ c.total }}</span>
     </div>
     {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Resultado de validaciones</div>
+    <div class="card-title">📊 Resultado de validaciones <span class="bi-tag bi-tag-source" style="margin-left:6px;">confirmación del guardia en terreno</span></div>
     <div style="display:flex;gap:20px;justify-content:center;padding:20px 0;">
       <div style="text-align:center;">
         <div style="font-size:42px;font-weight:800;color:var(--accent-green);font-family:var(--font-mono);">{{ val_validas }}</div>
@@ -390,6 +446,10 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'mantencion' %}
 
+<div class="section-eyebrow">
+  <span>Rendimiento del equipo técnico</span>
+  <span class="bi-tag bi-tag-source">basado en cierres técnicos, sesiones de trabajo y declaraciones de no reparabilidad</span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
   <div class="kpi green">
     <div class="kpi-label">Trabajos completados</div>
@@ -399,17 +459,17 @@
   <div class="kpi teal">
     <div class="kpi-label">HH totales</div>
     <div class="kpi-value">{{ mant_hh_total }}</div>
-    <div class="kpi-sub">horas hombre consumidas</div>
+    <div class="kpi-sub">horas hombre · <span class="bi-tag bi-tag-source">declaradas en cada sesión</span></div>
   </div>
   <div class="kpi blue">
     <div class="kpi-label">HH promedio / trabajo</div>
     <div class="kpi-value" style="font-size:22px;">{{ mant_hh_prom }}<span style="font-size:13px;font-weight:400;"> hrs</span></div>
-    <div class="kpi-sub">esfuerzo promedio</div>
+    <div class="kpi-sub">esfuerzo promedio · <span class="bi-tag bi-tag-formula">HH ÷ trabajos</span></div>
   </div>
   <div class="kpi {% if tasa_nrep >= 30 %}red{% elif tasa_nrep >= 15 %}yellow{% else %}green{% endif %}">
     <div class="kpi-label">Tasa no-reparación</div>
     <div class="kpi-value">{{ tasa_nrep }}%</div>
-    <div class="kpi-sub">{{ nrep_total }} no reparados</div>
+    <div class="kpi-sub">{{ nrep_total }} no reparados · <span class="bi-tag bi-tag-formula">no-rep ÷ total</span></div>
   </div>
 </div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
@@ -435,11 +495,11 @@
   </div>
 </div>
 
-<!-- Puntaje operativo por técnico -->
 {% if por_tecnico %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">🏆 Puntaje operativo por técnico
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Resolución 40% · Autonomía 25% · Documentación 20% · Actividad 15%</span>
+    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
   </div>
   {% for t in por_tecnico %}
   <div style="background:var(--bg-700);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
@@ -474,7 +534,6 @@
           <div style="font-size:10px;color:var(--text-muted);">Con foto</div>
         </div>
       </div>
-      <!-- Barra de actividad relativa -->
       {% if mant_total %}
       <div style="margin-top:10px;">
         <div style="height:4px;background:var(--bg-600);border-radius:2px;overflow:hidden;">
@@ -489,11 +548,10 @@
 </div>
 {% endif %}
 
-<!-- No reparables -->
 {% if nrep_total > 0 %}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
   <div class="card" style="border-left:3px solid var(--accent-red);">
-    <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación</div>
+    <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación <span class="bi-tag bi-tag-source" style="margin-left:6px;">declarados por el técnico como irreparables</span></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
       <div style="background:var(--bg-700);border-radius:8px;padding:12px;text-align:center;">
         <div style="font-size:26px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ nrep_total }}</div>
@@ -513,7 +571,7 @@
     {% endfor %}
   </div>
   <div class="card">
-    <div class="card-title">📊 Resolución vs No-reparación por técnico</div>
+    <div class="card-title">📊 Resolución vs No-reparación por técnico <span class="bi-tag bi-tag-formula" style="margin-left:6px;">completados vs no-rep</span></div>
     {% for t in por_tecnico %}
     {% if mant_total %}
     <div style="margin-bottom:14px;">
@@ -541,7 +599,11 @@
 {# ══════════════════════════════════════════════════════════ #}
 {% if seccion == 'materiales' %}
 
-<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+<div class="section-eyebrow">
+  <span>Consumo de inventario por tickets y técnicos</span>
+  <span class="bi-tag bi-tag-source">materiales registrados durante sesiones de reparación</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px;">
   <div class="kpi teal">
     <div class="kpi-label">Materiales distintos usados</div>
     <div class="kpi-value">{{ materiales_top|length }}</div>
@@ -552,22 +614,12 @@
     <div class="kpi-value">{{ por_categoria_mat|length }}</div>
     <div class="kpi-sub">tipos de material</div>
   </div>
-  <div class="kpi {% if stock_cero > 0 %}red{% else %}green{% endif %}">
-    <div class="kpi-label">Sin stock (0)</div>
-    <div class="kpi-value">{{ stock_cero }}</div>
-    <div class="kpi-sub">de {{ stock_total_activo }} activos</div>
-  </div>
-  <div class="kpi {% if stock_bajo %}yellow{% else %}green{% endif %}">
-    <div class="kpi-label">Bajo mínimo</div>
-    <div class="kpi-value">{{ stock_bajo|length }}</div>
-    <div class="kpi-sub">requieren reposición</div>
-  </div>
 </div>
 
-<!-- Top global de materiales (compras inteligentes) -->
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">📦 Top global – Compras inteligentes
     <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">ordenado por cantidad consumida</span>
+    <span class="bi-tag bi-tag-source" style="margin-left:6px;">consumo acumulado en el período</span>
     {% if cat_material %}<span class="filter-chip" style="margin-left:8px;">{{ cat_material|title }}</span>{% endif %}
   </div>
   {% if materiales_top %}
@@ -592,7 +644,7 @@
           <td style="font-size:12px;color:var(--text-muted);">{{ forloop.counter }}</td>
           <td><span class="id-mono">{{ m.material__codigo }}</span></td>
           <td style="font-weight:600;">{{ m.material__nombre }}</td>
-          <td><span style="font-size:11px;background:rgba(74,143,255,0.12);color:var(--accent-blue);padding:2px 8px;border-radius:4px;">{{ m.material__categoria|title }}</span></td>
+          <td><span style="font-size:11px;background:rgba(74,143,255,0.12);color:var(--accent-blue);padding:2px 8px;border-radius:4px;">{{ m.categoria_nombre|title }}</span></td>
           <td style="text-align:center;font-weight:600;">{{ m.veces_usado }}</td>
           <td style="text-align:center;color:var(--text-secondary);">{{ m.en_tickets }}</td>
           <td style="text-align:right;font-weight:700;color:var(--accent-teal);">{{ m.total_consumido|floatformat:1 }} <span style="font-size:11px;color:var(--text-muted);">{{ m.material__unidad }}</span></td>
@@ -616,7 +668,6 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
 
-  <!-- Consumo por categoría de material -->
   <div class="card">
     <div class="card-title">🗂️ Consumo por categoría de material</div>
     {% with max_cat=por_categoria_mat.0.total %}
@@ -624,7 +675,7 @@
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
         <div>
-          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ c.material__categoria }}</span>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ c.material__categoria__nombre_display|title }}</span>
           <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ c.tipos }} tipo{{ c.tipos|pluralize }}</span>
         </div>
         <div style="display:flex;gap:16px;font-size:12px;">
@@ -642,7 +693,6 @@
     {% endwith %}
   </div>
 
-  <!-- Materiales por tipo de incidente (qué área consume más) -->
   <div class="card">
     <div class="card-title">🏷️ Consumo por tipo de incidente
       <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:4px;">qué categoría de avería consume más</span>
@@ -652,7 +702,7 @@
     <div style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div>
-          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ it.registro__ticket__categoria }}</span>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ it.registro__ticket__categoria__nombre_display|title }}</span>
           <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ it.tipos_material }} mat. distintos</span>
         </div>
         <div style="font-size:13px;font-weight:700;color:var(--accent-yellow);">{{ it.total_cantidad|floatformat:1 }}</div>
@@ -668,7 +718,6 @@
   </div>
 </div>
 
-<!-- Consumo por técnico -->
 {% if mat_por_tecnico %}
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">👷 Consumo de materiales por técnico</div>
@@ -676,44 +725,23 @@
     <table>
       <thead><tr><th>Técnico</th><th style="text-align:center;">Mat. distintos</th><th style="text-align:right;">Cantidad total</th></tr></thead>
       <tbody>
-        {% for t in mat_por_tecnico %}
+        {% for m in mat_por_tecnico %}
         <tr>
-          <td style="font-weight:600;">{{ t.registro__tecnico__first_name }} {{ t.registro__tecnico__last_name }}</td>
-          <td style="text-align:center;color:var(--text-secondary);">{{ t.items_distintos }}</td>
-          <td style="text-align:right;font-weight:700;color:var(--accent-teal);">{{ t.cantidad_total|floatformat:1 }}</td>
+            <td>
+                👷 {% if m.nombre %}{{ m.nombre }} {{ m.apellido }}{% else %}Técnico No Asignado{% endif %}
+            </td>
+            <td style="text-align: center;">
+                {{ m.items_distintos }} tipo{{ m.items_distintos|pluralize }}
+            </td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">
+                {{ m.cantidad_total|default:"0" }} u.
+            </td>
         </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-<!-- Stock bajo mínimo -->
-{% if stock_bajo %}
-<div class="card" style="border-left:3px solid var(--accent-red);">
-  <div class="card-title" style="color:var(--accent-red);">⚠ Stock bajo mínimo – Acción de compra requerida</div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>Código</th><th>Material</th><th>Categoría</th><th style="text-align:center;">Actual</th><th style="text-align:center;">Mínimo</th><th style="text-align:center;">Déficit</th><th>Estado</th></tr>
-      </thead>
-      <tbody>
-        {% for m in stock_bajo %}
+        {% empty %}
         <tr>
-          <td><span class="id-mono">{{ m.codigo }}</span></td>
-          <td style="font-weight:600;">{{ m.nombre }}</td>
-          <td style="font-size:12px;color:var(--text-secondary);">{{ m.categoria|title }}</td>
-          <td style="text-align:center;font-weight:700;font-family:var(--font-mono);color:{% if m.stock_actual == 0 %}var(--accent-red){% else %}var(--accent-yellow){% endif %};">{{ m.stock_actual }}</td>
-          <td style="text-align:center;font-family:var(--font-mono);color:var(--text-muted);">{{ m.stock_minimo }}</td>
-          <td style="text-align:center;font-weight:700;color:var(--accent-red);">-{{ m.deficit }}</td>
-          <td>
-            {% if m.stock_actual == 0 %}
-            <span style="font-size:11px;background:rgba(245,54,92,0.2);color:var(--accent-red);padding:2px 10px;border-radius:4px;font-weight:600;">Sin stock</span>
-            {% else %}
-            <span style="font-size:11px;background:rgba(244,197,66,0.2);color:var(--accent-yellow);padding:2px 10px;border-radius:4px;font-weight:600;">Crítico</span>
-            {% endif %}
-          </td>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">
+                Sin consumo de materiales registrado en este período.
+            </td>
         </tr>
         {% endfor %}
       </tbody>

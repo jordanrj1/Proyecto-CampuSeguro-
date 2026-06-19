@@ -1,6 +1,5 @@
 from django.urls import path
 from . import views
-from . import vistas_nuevas  # BUG-04: conectar vistas mejoradas
 
 app_name = 'app'
 
@@ -26,21 +25,29 @@ urlpatterns = [
     path('tickets/<int:pk>/', views.detalle_ticket, name='detalle_ticket'),
     path('tickets/<int:pk>/editar/', views.editar_ticket, name='editar_ticket'),
     path('tickets/<int:pk>/eliminar/', views.eliminar_ticket, name='eliminar_ticket'),
+    path('tickets/<int:pk>/cancelar/', views.cancelar_ticket, name='cancelar_ticket'),
 
     # ── GESTOR: TICKETS ───────────────────────────────
     path('gestor/tickets/', views.gestor_tickets, name='gestor_tickets'),
     path('gestor/tickets/<int:pk>/derivar/', views.derivar_ticket, name='derivar_ticket'),
+    path('ajax/guardias-disponibles/', views.guardias_disponibles_ajax, name='guardias_disponibles_ajax'),
+    # TARJETA 09: Ruta AJAX para obtener técnicos de mantención disponibles en una fecha específica
+    # Filtra técnicos que NO tienen inasistencia aprobada en esa fecha
+    # Usado por el formulario de derivación para mostrar solo técnicos disponibles
+    path('ajax/tecnicos-disponibles/', views.tecnicos_disponibles_ajax, name='tecnicos_disponibles_ajax'),
     path('gestor/tickets/<int:pk>/reasignar/', views.reasignar_ticket, name='reasignar_ticket'),
     path('gestor/tickets/<int:pk>/pausar/', views.pausar_ticket, name='pausar_ticket'),
     path('gestor/tickets/<int:pk>/reactivar/', views.reactivar_ticket, name='reactivar_ticket'),
     path('gestor/tickets/<int:pk>/cerrar/', views.cerrar_ticket, name='cerrar_ticket'),
+    path('gestor/tickets/<int:pk>/validar-reparacion/', views.validar_reparacion, name='validar_reparacion'),
 
-    # ── GESTOR: CUENTAS / USUARIOS ────────────────────
+    # ─ GESTOR: CUENTAS / USUARIOS ────────────────────
     path('gestor/solicitudes/', views.gestor_solicitudes_cuenta, name='gestor_solicitudes_cuenta'),
     path('gestor/solicitudes/<int:pk>/revisar/', views.aprobar_cuenta, name='aprobar_cuenta'),
     path('gestor/usuarios/', views.gestor_usuarios, name='gestor_usuarios'),
     path('gestor/usuarios/<int:pk>/suspender/', views.suspender_usuario, name='suspender_usuario'),
     path('gestor/usuarios/<int:pk>/reset/', views.reset_usuario_gestor, name='reset_usuario_gestor'),
+    path('gestor/usuarios/<int:pk>/especialidades/', views.actualizar_especialidades_mantenedor, name='actualizar_especialidades_mantenedor'),
 
     # ── GESTOR: BI / OPERATIVO ────────────────────────
     path('gestor/operativo/', views.gestor_operativo, name='gestor_operativo'),
@@ -64,8 +71,9 @@ urlpatterns = [
     path('mantencion/<int:pk>/tomar/', views.tomar_trabajo, name='tomar_trabajo'),
     path('mantencion/<int:pk>/completar/', views.completar_mantencion, name='completar_mantencion'),
     path('mantencion/<int:pk>/no-reparable/', views.marcar_no_reparable, name='no_reparable'),
+    path('mantencion/<int:pk>/estimar/', views.estimar_ticket, name='estimar_ticket'),
 
-    # ── INASISTENCIAS (operativos) ───────────────────
+    # ─ INASISTENCIAS (operativos) ───────────────────
     path('inasistencia/registrar/', views.registrar_inasistencia, name='registrar_inasistencia'),
 
     # ── NOTIFICACIONES ────────────────────────────────
@@ -75,8 +83,7 @@ urlpatterns = [
 
     # ── GESTOR: VINCULAR ACTIVOS ──────────────────────
     path('gestor/tickets/<int:pk>/vincular-activo/', views.vincular_activo_ticket, name='vincular_activo'),
-    # historial: vistas_nuevas amplía permisos (creador + asignado pueden ver, no solo gestor)
-    path('gestor/tickets/<int:pk>/historial/', vistas_nuevas.historial_acciones_ticket, name='historial_acciones'),
+    path('gestor/tickets/<int:pk>/historial/', views.historial_acciones_ticket, name='historial_acciones'),
 
     # ── MANTENCIÓN: TRAZABILIDAD ──────────────────────
     path('mantencion/<int:pk>/trazabilidad/', views.trazabilidad_ticket, name='trazabilidad_ticket'),

@@ -5,8 +5,7 @@
 <div class="topbar">
   <div>
     <div class="page-title">{% if material %}Editar material{% else %}Nuevo material{% endif %}</div>
-    <div class="page-subtitle">Catálogo de inventario</div>
-  </div>
+    <div class="page-subtitle">Ficha técnica del catálogo operativo</div> </div>
   <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">← Cancelar</a>
 </div>
 
@@ -23,24 +22,17 @@
         {{ form.categoria }}
       </div>
     </div>
+
     <div class="form-group">
       <label class="form-label">Nombre *</label>
       {{ form.nombre }}
     </div>
-    <div class="form-grid-3">
-      <div class="form-group">
-        <label class="form-label">Unidad *</label>
-        {{ form.unidad }}
-      </div>
-      <div class="form-group">
-        <label class="form-label">Stock actual *</label>
-        {{ form.stock_actual }}
-      </div>
-      <div class="form-group">
-        <label class="form-label">Stock mínimo *</label>
-        {{ form.stock_minimo }}
-      </div>
+
+    <div class="form-group">
+      <label class="form-label">Unidad de medida *</label>
+      {{ form.unidad }}
     </div>
+
     <div class="form-group">
       <label class="form-label">Descripción</label>
       {{ form.descripcion }}

@@ -3,7 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from .models import (
-    Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
+    AsignacionTicket, SesionTrabajo, Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
     MaterialUtilizado, Material, NoReparable, Inasistencia, MaterialesFaltantes,
     EstadoCatalogo
 )
@@ -120,7 +120,6 @@ class RegistroUsuarioForm(forms.ModelForm):
             'rut': forms.TextInput(attrs={'placeholder': '12.345.678-9'}),
             'correo_institucional': forms.EmailInput(attrs={'placeholder': 'tu.correo@duoc.cl'}),
             'telefono': forms.TextInput(attrs={'placeholder': '+56 9 1234 5678'}),
-            'sede': forms.TextInput(attrs={'placeholder': 'Ej: Sede Concepción'}),
             'carrera': forms.TextInput(attrs={'placeholder': 'Ej: Ingeniería en Informática'}),
         }
 
@@ -263,6 +262,14 @@ class RestablecerContrasenaForm(forms.Form):
 # TICKETS
 # ═══════════════════════════════════════════════════════════════
 class TicketForm(forms.ModelForm):
+    """
+    Formulario para crear/editar tickets de reporte de incidencia.
+    
+    ✅ CAMBIO CLAVE: Se sobrescribe __init__ para que:
+    - El campo 'urgencia' NO tenga valor por defecto (muestra "Seleccionar...")
+    - El campo 'categoria' NO tenga valor por defecto
+    - Los campos tengan clases CSS de Bootstrap para el template
+    """
     class Meta:
         model = Ticket
         fields = [
@@ -272,16 +279,74 @@ class TicketForm(forms.ModelForm):
             'foto_evidencia', 'id_activo_sap',
         ]
         widgets = {
-            'titulo': forms.TextInput(attrs={'placeholder': 'Ej: Enchufe quemado en sala 305'}),
-            'descripcion': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Describe el problema, síntomas y contexto...'}),
-            'ubicacion': forms.Select(attrs={'class': 'form-control'}),
-            'id_activo_sap': forms.TextInput(attrs={'placeholder': 'ACT-2024-001 (opcional)'}),
+            'titulo': forms.TextInput(attrs={
+                'placeholder': 'Ej: Enchufe quemado en sala 305',
+                'class': 'form-control',
+            }),
+            'descripcion': forms.Textarea(attrs={
+                'rows': 4,
+                'placeholder': 'Describe el problema, síntomas y contexto...',
+                'class': 'form-control',
+            }),
+            'ubicacion': forms.Select(attrs={'class': 'form-select'}),
+            'categoria': forms.Select(attrs={'class': 'form-select'}),
+            'urgencia': forms.Select(attrs={'class': 'form-select'}),
+            'afecta_clase': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_electrico': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_estructural': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'riesgo_accesibilidad': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'foto_evidencia': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*',
+            }),
+            'id_activo_sap': forms.TextInput(attrs={
+                'placeholder': 'ACT-2024-001 (opcional)',
+                'class': 'form-control',
+            }),
         }
 
+    def __init__(self, *args, **kwargs):
+        """
+        ✅ CAMBIO CLAVE: Elimina el valor por defecto de 'urgencia' y 'categoria'
+        para que el template muestre "Seleccionar..." en lugar de "Media".
+        
+        El modelo Ticket tiene default='media' en urgencia, lo que hace que
+        Django Form lo preseleccione. Aquí lo forzamos a vacío.
+        """
+        super().__init__(*args, **kwargs)
+        
+        # ✅ Quitar el default de urgencia (que viene del modelo como 'media')
+        self.fields['urgencia'].initial = ''
+        self.fields['urgencia'].required = True
+        self.fields['urgencia'].empty_label = 'Seleccionar...'
+        
+        # ✅ Quitar el default de categoria por consistencia
+        self.fields['categoria'].initial = ''
+        self.fields['categoria'].required = True
+        self.fields['categoria'].empty_label = 'Seleccionar...'
+        
+        # Agregar labels más amigables
+        self.fields['titulo'].label = 'Título del reporte'
+        self.fields['descripcion'].label = 'Descripción detallada'
+        self.fields['ubicacion'].label = 'Ubicación'
+        self.fields['categoria'].label = 'Categoría'
+        self.fields['urgencia'].label = 'Urgencia'
+        self.fields['foto_evidencia'].label = 'Evidencia fotográfica'
+        self.fields['afecta_clase'].label = 'Afecta clases'
+        self.fields['riesgo_electrico'].label = 'Riesgo eléctrico'
+        self.fields['riesgo_estructural'].label = 'Riesgo estructural'
+        self.fields['riesgo_accesibilidad'].label = 'Afecta accesibilidad'
+
     def clean_foto_evidencia(self):
+        """Valida que la foto sea obligatoria al crear un ticket nuevo."""
         foto = self.cleaned_data.get('foto_evidencia')
         if not foto and not self.instance.pk:
             raise ValidationError('La foto de evidencia es obligatoria.')
+        
+        # Validar tamaño (10MB máximo)
+        if foto and foto.size > 10 * 1024 * 1024:
+            raise ValidationError('La foto no puede superar los 10 MB.')
+        
         return foto
 
 
@@ -314,32 +379,28 @@ class ValidacionForm(forms.ModelForm):
 class MantencionForm(forms.ModelForm):
     class Meta:
         model = RegistroMantencion
-        fields = ['descripcion_trabajo', 'causa_raiz', 'horas_hombre', 'foto_final',
-                  'herramientas_utilizadas', 'personal_adicional_requerido', 'requiere_nivel_mayor', 'observaciones']
+        # 🟢 CORRECCIÓN: Dejamos solo los dos campos que sobrevivieron en el modelo
+        fields = ['causa_raiz', 'foto_final'] 
         widgets = {
-            'descripcion_trabajo': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Describe paso a paso lo realizado...'}),
             'causa_raiz': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Origen del problema (para prevención)'}),
-            'observaciones': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Notas adicionales'}),
-            'horas_hombre': forms.NumberInput(attrs={'step': '0.5', 'min': '0', 'placeholder': '2.5'}),
-            'herramientas_utilizadas': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Herramientas usadas'}),
         }
 
 
 class MaterialUtilizadoForm(forms.ModelForm):
     class Meta:
         model = MaterialUtilizado
-        fields = ['material', 'cantidad', 'observacion']
+        fields = ['material', 'cantidad_utilizada', 'observacion']
         widgets = {
             'material': forms.Select(attrs={'class': 'form-control'}),
-            'cantidad': forms.NumberInput(attrs={'step': '1', 'min': '1', 'placeholder': 'Cant.'}),
+            'cantidad_utilizada': forms.NumberInput(attrs={'step': '1', 'min': '1', 'placeholder': 'Cant.'}),
             'observacion': forms.TextInput(attrs={'placeholder': 'Observación (opcional)'}),
         }
 
 
 MaterialUtilizadoFormSet = inlineformset_factory(
-    RegistroMantencion, MaterialUtilizado,
+    SesionTrabajo, MaterialUtilizado,
     form=MaterialUtilizadoForm,
-    fields=['material', 'cantidad', 'observacion'],
+    fields=['material', 'cantidad_utilizada', 'observacion'],
     extra=1, can_delete=True,
 )
 
@@ -355,16 +416,23 @@ class NoReparableForm(forms.ModelForm):
         widgets = {
             'motivo_tecnico': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Detalle técnico de por qué no se puede reparar'}),
             'material_requerido': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Material específico necesario'}),
-            'criticidad': forms.Select(choices=NoReparable.CRITICIDAD_CHOICES),
+            'criticidad': forms.Select(),
             'herramientas_faltantes': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Herramientas faltantes'}),
             'personal_especializado_requerido': forms.TextInput(attrs={'placeholder': 'Especialidad requerida'}),
             'foto_diagnostico': forms.FileInput(attrs={'accept': 'image/*'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='criticidad', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        self.fields['criticidad'].choices = db or NoReparable.CRITICIDAD_CHOICES
+
 
 class PausaForm(forms.Form):
     razones_pausa = forms.MultipleChoiceField(
-        choices=Ticket.PAUSA_CHOICES,
+        choices=[],  # poblado dinámicamente desde EstadoCatalogo(entidad='pausa_ticket')
         widget=forms.CheckboxSelectMultiple,
         label='Motivos de pausa (puede seleccionar más de uno)',
     )
@@ -372,6 +440,13 @@ class PausaForm(forms.Form):
         widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Detalle y justificación de la pausa'}),
         label='Detalle / Justificación'
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='pausa_ticket', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        self.fields['razones_pausa'].choices = db or Ticket.PAUSA_CHOICES
 
 
 class ReactivacionForm(forms.Form):
@@ -421,6 +496,14 @@ class InasistenciaForm(forms.ModelForm):
             'detalle': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Información adicional'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from app.models import EstadoCatalogo
+        db = list(EstadoCatalogo.objects.filter(entidad='motivo_inasistencia', activo=True)
+                  .order_by('orden').values_list('codigo', 'nombre_display'))
+        if db:
+            self.fields['motivo'].choices = [('', 'Seleccionar motivo…')] + db
+
 
 # ═══════════════════════════════════════════════════════════════
 # MATERIAL (catálogo)
@@ -428,7 +511,7 @@ class InasistenciaForm(forms.ModelForm):
 class MaterialForm(forms.ModelForm):
     class Meta:
         model = Material
-        fields = ['codigo', 'nombre', 'categoria', 'unidad', 'stock_actual', 'stock_minimo', 'descripcion']
+        fields = ['codigo', 'nombre', 'categoria', 'unidad', 'descripcion']
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -461,3 +544,43 @@ class MaterialFaltanteForm(forms.ModelForm):
             'cantidad_requerida': forms.NumberInput(attrs={'step': '0.1', 'min': '0.1', 'placeholder': 'Cantidad necesaria'}),
             'observaciones': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Notas adicionales'}),
         }
+
+class EstimarTicketForm(forms.ModelForm):
+    class Meta:
+        model = AsignacionTicket
+        fields = ['tiempo_estimado', 'diagnostico_preliminar']
+        widgets = {
+            'tiempo_estimado': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.5', 
+                'min': '0.5', 
+                'placeholder': 'Ej: 2.5'
+            }),
+            'diagnostico_preliminar': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'rows': 4, 
+                'placeholder': 'Escribe un análisis inicial de la falla y qué herramientas podrías necesitar...'
+            }),
+        }
+        labels = {
+            'tiempo_estimado': 'Tiempo Estimado de Trabajo (en Horas)',
+            'diagnostico_preliminar': 'Diagnóstico Preliminar / Análisis Técnico Inicial',
+        }
+    
+    # 🟢 CORRECCIÓN: Forzamos la validación obligatoria en este formulario específico
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Hacemos que ambos campos sean 100% obligatorios
+        self.fields['tiempo_estimado'].required = True
+        self.fields['diagnostico_preliminar'].required = True
+        
+        # Opcional: Le añadimos un asterisco visual a los labels para avisarle al usuario
+        self.fields['tiempo_estimado'].label = 'Tiempo Estimado de Trabajo (en Horas) *'
+        self.fields['diagnostico_preliminar'].label = 'Diagnóstico Preliminar / Análisis Técnico Inicial *'
+
+    # 🟢 EXTRA: Validación avanzada de reglas de negocio
+    def clean_tiempo_estimado(self):
+        tiempo = self.cleaned_data.get('tiempo_estimado')
+        if tiempo and tiempo <= 0:
+            raise ValidationError('El tiempo estimado debe ser mayor a 0 horas.')
+        return tiempo

@@ -9,6 +9,7 @@
 > **Historial de versiones**
 > - **v1 – Sprint 1:** Setup básico con SQLite y Auth0 fallback. Sin comandos de gestión.
 > - **v2 – Sprint 2 (Junio 2026):** Se reemplaza la creación manual del gestor por `crear_gestor`. Se agregan `sincronizar_auth0` y `limpiar_cuentas`. Se documenta la distinción entre desarrollo local y pruebas compartidas (ngrok).
+> - **v3 – Sprint 2 (Junio 2026):** Setup completamente automático via señal `post_migrate`. Ya no se requiere `crear_gestor` ni script manual de admin. Solo `migrate` + `runserver`.
 
 ---
 
@@ -88,11 +89,16 @@ campus_seguro/
 python manage.py migrate
 ```
 
-Crea todas las tablas en `db.sqlite3`, incluyendo el catálogo de estados
-(30 estados para tickets, cuentas, asignaciones, etc.) que se pobla automáticamente.
+Crea todas las tablas en `db.sqlite3`. A partir de **v3**, este paso también:
+
+- Puebla automáticamente todos los catálogos de estados (50+ registros)
+- Crea las 217 ubicaciones del campus (Edificio E y H)
+- Crea el usuario `gestor@duocuc.cl` con acceso a Django Admin
 
 > Las migraciones son acumulativas. Correr `migrate` en cualquier momento
 > aplica solo lo que falta; no borra datos existentes.
+
+**En v3 ya no se necesita ningún paso adicional después de `migrate`.**
 
 ---
 
@@ -104,23 +110,23 @@ Se creaba manualmente desde el Django shell con un bloque Python, asignando
 campos uno a uno. El proceso era propenso a errores y requería conocer
 el ID exacto de `EstadoCatalogo`.
 
-#### v2 – Sprint 2
+#### v2 – Sprint 2 _(referencia histórica)_
 
-Se usa el comando `crear_gestor` que guía el proceso interactivamente:
+Se usaba el comando `crear_gestor` interactivo:
 
 ```bash
 python manage.py crear_gestor
 ```
 
-El comando pide: correo institucional, RUT, nombre y apellido.
-Crea el usuario con `rol='gestor'`, `estado='activa'`, sin contraseña local
-(Auth0 la gestiona). El `auth0_sub` se vincula automáticamente en el primer login.
+#### v3 – Sprint 2 (actual)
 
-También acepta argumentos para no requerir interacción:
+**No se requiere ningún comando.** El gestor se crea automáticamente durante `migrate`
+via la señal `post_migrate` en `app/apps.py`. Credenciales resultantes:
 
-```bash
-python manage.py crear_gestor --email gestor@duocuc.cl --rut 12.345.678-9 --nombre Jordan --apellido Garcia
-```
+| | |
+|--|--|
+| Login app (`/login/`) | Usar credenciales de Auth0 |
+| Django Admin (`/admin/`) | `gestor@duocuc.cl` / `CampusAdmin2024!` |
 
 ---
 
@@ -193,7 +199,7 @@ Si al cerrar sesión hay error (`invalid_request`):
 
 ---
 
-## Resumen de comandos (v2 – Sprint 2)
+## Resumen de comandos (v3 – Sprint 2, actual)
 
 ```bash
 # Clonar y preparar
@@ -201,20 +207,21 @@ git clone <repo-url> && cd campus_seguro
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 
-# Base de datos
+# Base de datos + catálogos + gestor admin (todo en uno)
 python manage.py migrate
 
-# Primer uso: crear gestor local
-python manage.py crear_gestor
+# Levantar servidor
+python manage.py runserver
+```
 
+**Comandos opcionales:**
+
+```bash
 # Traer usuarios que existen en Auth0 pero no en la BD local
 python manage.py sincronizar_auth0
 
 # Limpiar cuentas de prueba
 python manage.py limpiar_cuentas
-
-# Levantar servidor
-python manage.py runserver
 
 ---
 

@@ -1,4 +1,6 @@
-{% extends 'app/base.html' %} {% block title %}Mi Panel – Campus Seguro{%endblock%} {% block content %}
+{% extends 'app/base.html' %} {% block title %}Mi Panel – Campus Seguro{% endblock %}
+{% block breadcrumb %}<span class="sep">›</span> Mi Panel{% endblock %}
+{% block content %}
 <div class="topbar">
   <div>
     <div class="page-title">Hola, {{ user.first_name }} 👋</div>
@@ -6,7 +8,7 @@
   </div>
   <div class="topbar-actions">
     <a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"
-      >➕ Crear ticket</a
+      ><i class="fa-solid fa-plus"></i> Crear ticket</a
     >
   </div>
 </div>
@@ -41,7 +43,7 @@
 
 <div class="card">
   <div class="card-title">
-    📋 Mis tickets recientes
+    <i class="fa-solid fa-ticket" style="color:var(--accent-blue);"></i> Mis tickets recientes
     <a
       href="{% url 'app:mis_tickets' %}"
       style="
@@ -83,22 +85,22 @@
           </td>
           <td>
             {% if t.estado.codigo == 'cerrado' %}<span class="badge badge-green"
-              >{{ t.get_estado_display }}</span
+              >{{ t.estado.nombre_display }}</span
             >
             {% elif t.estado.codigo == 'pausado' %}<span
               class="badge badge-yellow"
-              >{{ t.get_estado_display }}</span
+              >{{ t.estado.nombre_display }}</span
             >
             {% elif t.estado.codigo == 'no_reparado' %}<span
               class="badge badge-red"
-              >{{ t.get_estado_display }}</span
+              >{{ t.estado.nombre_display }}</span
             >
             {% elif t.estado.codigo == 'enviado' %}<span
               class="badge badge-blue"
-              >{{ t.get_estado_display }}</span
+              >{{ t.estado.nombre_display }}</span
             >
             {% else %}<span class="badge badge-teal"
-              >{{ t.get_estado_display }}</span
+              >{{ t.estado.nombre_display }}</span
             >{% endif %}
           </td>
           <td>
@@ -118,7 +120,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="icon">📭</div>
+    <div class="icon"><i class="fa-solid fa-inbox" style="color:var(--accent-blue);opacity:0.5;"></i></div>
     <div class="label">Aún no tienes tickets registrados</div>
     <div class="sub">Cuando reportes una incidencia aparecerá aquí.</div>
     <a

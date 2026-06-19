@@ -25,7 +25,7 @@
     gap: 12px;
   "
 >
-  <span style="font-size: 20px">⛔</span>
+  <span style="font-size: 20px; color: var(--accent-red);"><i class="fa-solid fa-circle-xmark"></i></span>
   <div>
     <div style="font-weight: 700; color: var(--accent-red); font-size: 14px">
       Tienes una inasistencia activa — tus tickets están bloqueados
@@ -66,7 +66,7 @@
 
 <!-- Trabajos asignados -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🔧 Mis trabajos asignados</div>
+  <div class="card-title"><i class="fa-solid fa-screwdriver-wrench" style="color:var(--accent-teal);"></i> Mis trabajos asignados</div>
   {% if pendientes %} {% for ticket in pendientes %}
   <div
     style="
@@ -156,31 +156,52 @@
           min-width: 140px;
         "
       >
-        {% if not inasistencia_activa %} {% if not ticket.inicio_trabajo_at %}
-        <form method="post" action="{% url 'app:tomar_trabajo' ticket.pk %}">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-primary" style="width: 100%">
-            ▶ Tomar trabajo
-          </button>
-        </form>
+        {% if not inasistencia_activa %} 
+          {% if not ticket.inicio_trabajo_at %}
+            <form method="post" action="{% url 'app:tomar_trabajo' ticket.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary" 
+                      style="width: 100%; {% if not ticket.esta_estimado %}opacity: 0.35; filter: grayscale(80%); cursor: not-allowed;{% endif %}" 
+                      {% if not ticket.esta_estimado %}disabled{% endif %}>
+                <i class="fa-solid fa-play"></i> Tomar trabajo
+              </button>
+            </form>
+
+            {% if not ticket.esta_estimado %}
+              <a href="{% url 'app:estimar_ticket' ticket.pk %}" class="btn btn-ghost"
+                 style="text-align: center; border-color: var(--accent-blue); color: var(--accent-blue); width: 100%">
+                <i class="fa-solid fa-stopwatch"></i> Estimar trabajo
+              </a>
+            {% else %}
+              <div style="font-size: 11px; color: var(--accent-green); text-align: center; margin-top: 4px; font-weight: 600;">
+                ✓ Estimado: {{ ticket.obtener_tiempo_estimado }} hrs
+              </div>
+            {% endif %}
+
+          {% else %}
+          <div style="font-size: 12px; color: var(--text-secondary); background: rgba(74, 143, 255, 0.1); padding: 8px; border-radius: 8px; text-align: center; border: 1px solid rgba(74, 143, 255, 0.2); font-weight: 600; margin-bottom: 4px;">
+            ⏱️ Tiempo Estimado: {{ ticket.obtener_tiempo_estimado }} hrs
+          </div>
+
+          <a
+            href="{% url 'app:completar_mantencion' ticket.pk %}"
+            class="btn btn-primary"
+            style="text-align: center"
+            ><i class="fa-solid fa-pen-to-square"></i> Registrar Avance / Cierre</a
+          >
+
+          <a
+            href="{% url 'app:no_reparable' ticket.pk %}"
+            class="btn btn-ghost"
+            style="
+              text-align: center;
+              border-color: var(--accent-red);
+              color: var(--accent-red);
+            "
+            ><i class="fa-solid fa-circle-xmark"></i> No reparable</a
+          >
+          {% endif %}
         {% else %}
-        <a
-          href="{% url 'app:completar_mantencion' ticket.pk %}"
-          class="btn btn-primary"
-          style="text-align: center"
-          >✓ Completar</a
-        >
-        <a
-          href="{% url 'app:no_reparable' ticket.pk %}"
-          class="btn btn-ghost"
-          style="
-            text-align: center;
-            border-color: var(--accent-red);
-            color: var(--accent-red);
-          "
-          >✗ No reparable</a
-        >
-        {% endif %} {% else %}
         <span
           style="
             font-size: 12px;
@@ -217,7 +238,7 @@
   </div>
   {% endfor %} {% else %}
   <div class="empty-state">
-    <div class="icon">✓</div>
+    <div class="icon"><i class="fa-solid fa-circle-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
     <div class="label">No tienes trabajos pendientes</div>
   </div>
   {% endif %}
@@ -225,7 +246,7 @@
 
 <!-- Historial reciente de reparaciones -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">📋 Historial de reparaciones</div>
+  <div class="card-title"><i class="fa-solid fa-clock-rotate-left" style="color:var(--accent-blue);"></i> Historial de reparaciones</div>
   {% if historial %}
   <div class="table-wrap">
     <table>
@@ -235,7 +256,7 @@
           <th>Título</th>
           <th>Fecha</th>
           <th>HH</th>
-          <th>Tiempo</th>
+          <th>Tiempo finalización</th>
           <th></th>
         </tr>
       </thead>
@@ -249,13 +270,18 @@
             {{ r.ticket.titulo|truncatechars:35 }}
           </td>
           <td style="font-size: 12px; color: var(--text-muted)">
-            {{ r.created_at|date:"d/m/Y H:i" }}
+            {{ r.ticket.created_at|date:"d/m/Y H:i" }}
           </td>
-          <td style="font-size: 13px; font-weight: 600">
-            {{ r.horas_hombre|default:'—' }}
+          <td style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
+            {% if r.hh_reales %}{{ r.hh_reales }} hrs{% else %}—{% endif %}
           </td>
+
           <td style="font-size: 12px; color: var(--text-secondary)">
-            {% if r.tiempo_total_minutos %}{{ r.tiempo_total_minutos }} min{%else%}—{% endif %}
+            {% if r.ticket.cerrado_at %}
+              {{ r.ticket.created_at|timesince:r.ticket.cerrado_at }}
+            {% else %}
+              —
+            {% endif %}
           </td>
           <td>
             <a
@@ -271,7 +297,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="icon">📭</div>
+    <div class="icon"><i class="fa-solid fa-inbox" style="color:var(--text-muted);opacity:0.6;"></i></div>
     <div class="label">Sin historial de reparaciones</div>
   </div>
   {% endif %}
@@ -283,7 +309,7 @@
     class="card-title"
     style="display: flex; justify-content: space-between; align-items: center"
   >
-    <span>📅 Mis inasistencias</span>
+    <span><i class="fa-solid fa-calendar-xmark" style="color:var(--text-muted);"></i> Mis inasistencias</span>
     <a
       href="{% url 'app:registrar_inasistencia' %}"
       class="btn btn-ghost btn-sm"
@@ -325,7 +351,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="icon">🛡️</div>
+    <div class="icon"><i class="fa-solid fa-calendar-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
     <div class="label">Sin inasistencias registradas</div>
   </div>
   {% endif %}

@@ -3,7 +3,6 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 
-
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO GLOBAL DE ESTADOS (normalización – feedback profesora)
 # Tabla 2 del DDL v2.0: reemplaza CHECKs dispersos en 6 entidades
@@ -53,7 +52,6 @@ class TransicionEstado(models.Model):
     ROL_CHOICES = [
         ('usuario', 'Usuario Base'),
         ('gestor', 'Gestor'),
-        ('enc_seguridad', 'Encargado de Seguridad'),
         ('guardia', 'Guardia'),
         ('mantencion', 'Mantención'),
     ]
@@ -76,10 +74,237 @@ class TransicionEstado(models.Model):
     def __str__(self):
         return f"{self.estado_origen} → {self.estado_destino}"
 
+# Clase maestra de Especialidades
+class Especialidad(models.Model):
+    nombre = models.CharField(max_length=100) # Electricista SEC, Cerrajero, etc.
+    descripcion = models.CharField(max_length=250, blank=True, null=True)
+
+    def __str__(self):
+        return self.nombre
+
+# ═══════════════════════════════════════════════════════════════
+# NUEVO: TABLAS MAESTRAS PARA CATEGORÍAS DE TICKETS Y MATERIALES
+# ═══════════════════════════════════════════════════════════════
+class CategoriaTicket(models.Model):
+    """Tabla maestra para la clasificación analítica de fallas y KPIs en los dashboards"""
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre_display = models.CharField(max_length=100)
+    descripcion = models.CharField(max_length=300, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    
+
+    class Meta:
+        verbose_name = 'Categoría de Ticket'
+        verbose_name_plural = 'Categorías de Tickets'
+
+    def __str__(self):
+        return self.nombre_display
+
+
+class CategoriaMaterial(models.Model):
+    """Tabla maestra para la ordenación logística del inventario del pañol"""
+    codigo = models.CharField(max_length=30, unique=True)
+    nombre_display = models.CharField(max_length=100)
+    descripcion = models.CharField(max_length=300, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Categoría de Material'
+        verbose_name_plural = 'Categorías de Materiales'
+
+    def __str__(self):
+        return self.nombre_display
+
+# ═══════════════════════════════════════════════════════════════
+# ESTRUCTURA GEOGRÁFICA Y DE INFRAESTRUCTURA NORMALIZADA
+# Reemplaza el antiguo catálogo plano hardcodeado
+# ═══════════════════════════════════════════════════════════════
+
+class Sede(models.Model):
+    """Sedes de la institución (ej: Sede Principal, Sede Norte, etc.)"""
+    nombre = models.CharField(max_length=100, unique=True)
+    direccion = models.CharField(max_length=250, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Sede'
+        verbose_name_plural = 'Sedes'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Edificio(models.Model):
+    """Edificios pertenecientes a una Sede específica"""
+    sede = models.ForeignKey(Sede, on_delete=models.CASCADE, related_name='edificios')
+    nombre = models.CharField(max_length=100) # Ej: "Edificio E", "Edificio H"
+
+    class Meta:
+        verbose_name = 'Edificio'
+        verbose_name_plural = 'Edificios'
+        unique_together = ('sede', 'nombre')
+
+    def __str__(self):
+        return f"{self.nombre} ({self.sede.nombre})"
+
+
+class Piso(models.Model):
+    """Pisos o niveles pertenecientes a un Edificio"""
+    edificio = models.ForeignKey(Edificio, on_delete=models.CASCADE, related_name='pisos')
+    numero = models.CharField(max_length=10) # Ej: "1", "2", "Subterráneo"
+
+    class Meta:
+        verbose_name = 'Piso'
+        verbose_name_plural = 'Pisos'
+        unique_together = ('edificio', 'numero')
+
+    def __str__(self):
+        return f"Piso {self.numero} – {self.edificio.nombre}"
+
+
+class TipoUbicacion(models.Model):
+    """Categorías de salas (Aula, Laboratorio, Baño, Pasillo, etc.)"""
+    codigo = models.CharField(max_length=30, unique=True) # Ej: "aula", "baño"
+    nombre_display = models.CharField(max_length=100)      # Ej: "Aula", "Baño"
+
+    class Meta:
+        verbose_name = 'Tipo de Ubicación'
+        verbose_name_plural = 'Tipos de Ubicaciones'
+
+    def __str__(self):
+        return self.nombre_display
+
+
+class Ubicacion(models.Model):
+    """La unidad mínima espacial (Sala, Laboratorio o Baño concreto)"""
+    piso = models.ForeignKey(Piso, on_delete=models.CASCADE, related_name='ubicaciones')
+    tipo = models.ForeignKey(TipoUbicacion, on_delete=models.PROTECT, related_name='ubicaciones')
+    sala = models.CharField(max_length=50) # Ej: "E001", "Baño P2"
+    id_sap = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    capacidad = models.PositiveIntegerField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('piso', 'sala')
+        ordering = ['piso__edificio__sede', 'piso__edificio', 'piso__numero', 'sala']
+        verbose_name = 'Ubicación'
+        verbose_name_plural = 'Ubicaciones'
+
+    def __str__(self):
+        # Mantiene la estética original conservando la compatibilidad de tus mensajes anteriores
+        return f"{self.piso.edificio.sede.nombre} – {self.piso.edificio.nombre} P{self.piso.numero} {self.sala}"
+
+    @classmethod
+    def crear_default_campus(cls):
+        """
+        Crea la estructura relacional por defecto para el Campus Seguro,
+        vinculando toda la infraestructura a la Sede San Andrés de Concepción.
+        Incluye aulas, baños, pasillos, escaleras, ascensores y el casino central.
+        """
+        print("🏗️  Creando ubicaciones normalizadas del Campus Seguro...")
+        
+        # 1. Crear o recuperar la Sede
+        sede_institucional, _ = Sede.objects.get_or_create(nombre='Sede San Andrés de Concepción')
+        
+        # 2. Catálogo Maestro de Tipos de Ubicación (AÑADIDOS: ascensor y casino)
+        tipos_dict = {
+            'aula': 'Aula',
+            'laboratorio': 'Laboratorio',
+            'taller': 'Taller',
+            'baño': 'Baño',
+            'pasillo': 'Pasillo',
+            'escalera': 'Escalera',
+            'ascensor': 'Ascensor',  # <-- Nuevo Tipo
+            'casino': 'Casino',      # <-- Nuevo Tipo
+            'oficina': 'Oficina',
+            'area_comun': 'Área Común',
+            'otro': 'Otro',
+        }
+        tipos_maestros = {}
+        for cod, nom in tipos_dict.items():
+            tipo_obj, _ = TipoUbicacion.objects.get_or_create(codigo=cod, defaults={'nombre_display': nom})
+            tipos_maestros[cod] = tipo_obj
+        
+        # Configuración física de los edificios E y H
+        edificios_config = {
+            'E': {
+                'pisos': range(1, 6),  # Pisos 1 al 5
+                'salas_por_piso': 16,
+                'banos_por_piso': {2: 1},
+            },
+            'H': {
+                'pisos': range(1, 9),  # Pisos 1 al 8
+                'salas_por_piso': 16,
+                'banos_por_piso': {p: 1 for p in range(1, 9)},
+            }
+        }
+        
+        total_creadas = 0
+        
+        for letra, config in edificios_config.items():
+            edificio_obj, _ = Edificio.objects.get_or_create(
+                sede=sede_institucional, 
+                nombre=f"Edificio {letra}"
+            )
+            
+            for num_piso in config['pisos']:
+                piso_obj, _ = Piso.objects.get_or_create(
+                    edificio=edificio_obj, 
+                    numero=str(num_piso)
+                )
+                
+                # 4. Crear Aulas
+                for num_sala in range(1, config['salas_por_piso'] + 1):
+                    nombre_sala = f"{letra}{num_sala:03d}"
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala=nombre_sala,
+                        defaults={'tipo': tipos_maestros['aula'], 'capacidad': 30}
+                    )
+                    if creada: total_creadas += 1
+                
+                # 5. Crear Baños
+                if num_piso in config['banos_por_piso']:
+                    num_banos = config['banos_por_piso'][num_piso]
+                    for num_bano in range(1, num_banos + 1):
+                        _, creada = cls.objects.get_or_create(
+                            piso=piso_obj,
+                            sala=f"Baño P{num_piso}",
+                            defaults={'tipo': tipos_maestros['baño'], 'capacidad': None}
+                        )
+                        if creada: total_creadas += 1
+                
+                # 6. Crear Zonas de Tránsito (AÑADIDO: ascensor por cada piso)
+                zonas_especiales = [
+                    ('pasillo', f"Pasillo General P{num_piso}"),
+                    ('escalera', f"Escalera General P{num_piso}"),
+                    ('ascensor', f"Ascensor Principal P{num_piso}")  # <-- Se creará en cada piso
+                ]
+                
+                for codigo_tipo, nombre_zona in zonas_especiales:
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala=nombre_zona,
+                        defaults={'tipo': tipos_maestros[codigo_tipo], 'capacidad': None}
+                    )
+                    if creada: total_creadas += 1
+                
+                # 7. LÓGICA EXCLUSIVA: Crear el Casino Central solo en el Edificio E - Piso 1
+                if letra == 'E' and num_piso == 1:
+                    _, creada = cls.objects.get_or_create(
+                        piso=piso_obj,
+                        sala="Casino Central",
+                        defaults={
+                            'tipo': tipos_maestros['casino'], 
+                            'capacidad': 150  # El casino sí tiene aforo/capacidad estimada
+                        }
+                    )
+                    if creada: total_creadas += 1
+                            
+        print(f"✨ ¡Estructura relacional sembrada con Ascensores y Casino! Total: {total_creadas}")
+        return total_creadas
 
 # ═══════════════════════════════════════════════════════════════
 # USUARIO PERSONALIZADO (registro institucional)
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class UsuarioManager(UserManager):
     """Manager personalizado que asigna estado_cuenta automáticamente."""
 
@@ -97,7 +322,6 @@ class Usuario(AbstractUser):
     ROL_CHOICES = [
         ('usuario', 'Usuario Base'),
         ('gestor', 'Gestor'),
-        ('enc_seguridad', 'Encargado de Seguridad'),
         ('guardia', 'Guardia'),
         ('mantencion', 'Mantención'),
     ]
@@ -122,11 +346,17 @@ class Usuario(AbstractUser):
     vinculo = models.CharField(max_length=20, choices=VINCULO_CHOICES, blank=True, null=True)
     carrera = models.CharField(max_length=100, blank=True, null=True)
     jornada = models.CharField(max_length=15, choices=JORNADA_CHOICES, blank=True, null=True)
-    sede = models.CharField(max_length=100, blank=True, null=True)
+    sede = models.ForeignKey(Sede, on_delete=models.SET_NULL, blank=True, null=True, related_name='estudiantes_funcionarios')
     departamento = models.CharField(max_length=100, blank=True, null=True)
 
     # Datos operativos (guardia / mantención)
-    especialidad = models.CharField(max_length=100, blank=True, null=True)  # eléctrico, plomería, etc.
+    # CharField de especialidad cambiado por una relación real Muchos a Muchos:
+    especialidades = models.ManyToManyField(
+        Especialidad, 
+        through='EspecialidadUsuario', 
+        blank=True,
+        related_name='tecnicos'
+    )
     turno = models.CharField(max_length=50, blank=True, null=True)  # mañana / tarde / noche
 
     # Control
@@ -189,6 +419,14 @@ class Usuario(AbstractUser):
     def puede_asumir_tickets(self):
         return not self.tiene_inasistencia_activa and self.estado_cuenta.codigo == 'activa' and self.activo
 
+# Tabla intermedia explícita para la relación Muchos a Muchos entre Usuario y Especialidad,
+# permitiendo agregar campos adicionales en el futuro si es necesario (por ejemplo, fecha de obtención de la especialidad, certificación, etc.).
+class EspecialidadUsuario(models.Model):
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('usuario', 'especialidad')
 
 # ═══════════════════════════════════════════════════════════════
 # RECUPERACIÓN DE CONTRASEÑA
@@ -215,37 +453,6 @@ class TokenRecuperacion(models.Model):
     def es_valido(self):
         return not self.usado and timezone.now() < self.expira_en
 
-
-# ═══════════════════════════════════════════════════════════════
-# UBICACIÓN (catálogo SAP)
-# ═══════════════════════════════════════════════════════════════
-class Ubicacion(models.Model):
-    TIPO_CHOICES = [
-        ('aula', 'Aula'),
-        ('laboratorio', 'Laboratorio'),
-        ('taller', 'Taller'),
-        ('baño', 'Baño'),
-        ('pasillo', 'Pasillo'),
-        ('oficina', 'Oficina'),
-        ('area_comun', 'Área Común'),
-        ('otro', 'Otro'),
-    ]
-    sede = models.CharField(max_length=100)
-    edificio = models.CharField(max_length=100)
-    piso = models.CharField(max_length=10)
-    sala = models.CharField(max_length=50)
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    id_sap = models.CharField(max_length=50, unique=True, blank=True, null=True)
-    capacidad = models.PositiveIntegerField(blank=True, null=True)
-
-    class Meta:
-        unique_together = ('sede', 'edificio', 'piso', 'sala')
-        ordering = ['sede', 'edificio', 'piso', 'sala']
-
-    def __str__(self):
-        return f"{self.sede} – {self.edificio} P{self.piso} {self.sala}"
-
-
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO DE MATERIALES (BI compras inteligentes)
 # ═══════════════════════════════════════════════════════════════
@@ -258,34 +465,45 @@ class Material(models.Model):
         ('caja', 'Caja'),
         ('rollo', 'Rollo'),
     ]
-    CATEGORIA_CHOICES = [
-        ('electrico', 'Eléctrico'),
-        ('plomeria', 'Plomería'),
-        ('construccion', 'Construcción'),
-        ('ferreteria', 'Ferretería'),
-        ('limpieza', 'Limpieza'),
-        ('tecnologia', 'Tecnología'),
-        ('otro', 'Otro'),
-    ]
     codigo = models.CharField(max_length=50, unique=True)
     nombre = models.CharField(max_length=200)
-    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
+    # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real
+    categoria = models.ForeignKey(CategoriaMaterial, on_delete=models.PROTECT, related_name='materiales')
     unidad = models.CharField(max_length=20, choices=UNIDAD_CHOICES)
-    stock_actual = models.PositiveIntegerField(default=0)
-    stock_minimo = models.PositiveIntegerField(default=5)
     descripcion = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
+    # 🔗 RELACIÓN DE SEGURIDAD: Para filtrar en el formulario del técnico
+    especialidades = models.ManyToManyField(
+        Especialidad,
+        through='EspecialidadMaterial',
+        blank=True,
+        related_name='materiales',
+        help_text="Especialidades que están autorizadas a ver y usar este material en sus reportes."
+    )
 
     class Meta:
-        ordering = ['categoria', 'nombre']
+        ordering = ['categoria__nombre_display', 'nombre']
 
     def __str__(self):
         return f"{self.codigo} – {self.nombre}"
-
+    
     @property
-    def bajo_stock(self):
-        return self.stock_actual <= self.stock_minimo
+    def total_utilizado(self):
+        """Calcula el total histórico consumido sumando los registros de MaterialUtilizado"""
+        return sum(consumo.cantidad_utilizada for consumo in self.consumos.all())
 
+class EspecialidadMaterial(models.Model):
+    """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""
+    material = models.ForeignKey(Material, on_delete=models.CASCADE)
+    especialidad = models.ForeignKey(Especialidad, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('material', 'especialidad')
+        verbose_name = 'Especialidad de Material'
+        verbose_name_plural = 'Especialidades de Materiales'
+
+    def __str__(self):
+        return f"{self.material.nombre} - {self.especialidad.nombre}"
 
 # ═══════════════════════════════════════════════════════════════
 # TICKET
@@ -296,16 +514,6 @@ class Ticket(models.Model):
         ('media', 'Media'),
         ('alta', 'Alta'),
         ('critica', 'Crítica'),
-    ]
-    CATEGORIA_CHOICES = [
-        ('electrico', 'Eléctrico'),
-        ('plomeria', 'Plomería'),
-        ('infraestructura', 'Infraestructura'),
-        ('climatizacion', 'Climatización'),
-        ('tecnologia', 'Tecnología'),
-        ('accesibilidad', 'Accesibilidad'),
-        ('mobiliario', 'Mobiliario'),
-        ('otro', 'Otro'),
     ]
     PAUSA_CHOICES = [
         ('material', 'En Pausa – Aprobación de materiales'),
@@ -342,7 +550,8 @@ class Ticket(models.Model):
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.PROTECT, related_name='tickets')
 
     # Clasificación
-    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES)
+    # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real hacia el catálogo dinámico
+    categoria = models.ForeignKey(CategoriaTicket, on_delete=models.PROTECT, related_name='tickets')
     urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media')
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField()
@@ -394,6 +603,24 @@ class Ticket(models.Model):
         if self.cerrado_at:
             return self.cerrado_at - self.created_at
         return None
+    
+    @property
+    def esta_estimado(self):
+        """Retorna True si el técnico actual ya ingresó las horas estimadas en su asignación."""
+        if not self.asignado_a:
+            return False
+        # Busca la asignación que corresponde al técnico que tiene el ticket actualmente
+        asignacion = self.asignaciones.filter(usuario=self.asignado_a).first()
+        return asignacion.tiempo_estimado is not None if asignacion else False
+
+    @property
+    def obtener_tiempo_estimado(self):
+        """Retorna el valor numérico del tiempo estimado para mostrarlo en la interfaz."""
+        if self.asignado_a:
+            asignacion = self.asignaciones.filter(usuario=self.asignado_a).first()
+            if asignacion:
+                return asignacion.tiempo_estimado
+        return 0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -444,8 +671,26 @@ class AsignacionTicket(models.Model):
     )
     fecha_asignacion = models.DateTimeField(auto_now_add=True)
     fecha_completado = models.DateTimeField(null=True, blank=True)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # NUEVO: Campo para TARJETA 08 - Asignación de Guardia para Validar
+    # Permite programar la fecha en que el guardia debe realizar la validación
+    # en terreno. Se usa para filtrar guardias disponibles y mostrar en el
+    # dashboard del guardia la fecha programada de cada revisión asignada.
+    # ═══════════════════════════════════════════════════════════════
+    fecha_programada = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha programada',
+        help_text='Fecha en la que se debe realizar la validación o el trabajo asignado'
+    )
+    
+    # ⏱️ Nuevos Atributos del Análisis Preliminar / Reasignaciones Estables
+    tiempo_estimado = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Horas estimadas de trabajo real.")
+    diagnostico_preliminar = models.TextField(null=True, blank=True, help_text="Diagnóstico inicial ingresado por el mantenedor.")
 
     class Meta:
+        db_table = 'asignacion_ticket'
         ordering = ['-fecha_asignacion']
 
     def get_estado_display(self):
@@ -454,42 +699,83 @@ class AsignacionTicket(models.Model):
     def __str__(self):
         return f"Ticket #{self.ticket.pk} → {self.usuario} ({self.get_rol_asignacion_display()})"
 
+# ═══════════════════════════════════════════════════════════════
+# SESIONES DE TRABAJO (Cronómetro en tiempo real & Turnos técnicos)
+# Reemplaza la antigua bitácora fija diaria.
+# ═══════════════════════════════════════════════════════════════
+class SesionTrabajo(models.Model):
+    TIPO_CIERRE_CHOICES = [
+        ('fin_turno', 'Fin de turno — continúa mañana'),
+        ('pausa_material', 'Bloqueado — espera material'),
+        ('pausa_tecnica', 'Bloqueado — problema técnico'),
+        ('completado', 'Trabajo completado en esta sesión'),
+    ]
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='sesiones')
+    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='sesiones_trabajo')
+    
+    # Control de tiempos automático
+    inicio = models.DateTimeField(default=timezone.now)
+    fin = models.DateTimeField(null=True, blank=True)  # null = sesión activa ejecutándose en pañol/terreno
+    horas_hombre = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    descripcion_avance = models.TextField()
+    herramientas_utilizadas = models.TextField(blank=True, null=True)
+    
+    personal_adicional_requerido = models.BooleanField(default=False)
+    requiere_nivel_mayor = models.BooleanField(default=False)
+    observaciones = models.TextField(blank=True, null=True) # Notas para el gestor
+    
+    # Métricas de control de carga laboral (Propuesta compañero)
+    tipo_cierre = models.CharField(max_length=50, choices=TIPO_CIERRE_CHOICES, null=True, blank=True)
+    progreso = models.PositiveSmallIntegerField(null=True, blank=True)  # 0 a 100%
+    fecha_estimada_fin = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'sesion_trabajo'
+        ordering = ['-inicio']
+        verbose_name = 'Sesión de Trabajo'
+        verbose_name_plural = 'Sesiones de Trabajo'
+
+    def __str__(self):
+        return f"Sesión #{self.id} - Ticket #{self.ticket.pk} ({self.tecnico.username})"
 
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN + MATERIALES UTILIZADOS
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class RegistroMantencion(models.Model):
+    # Relación 1:1 limpia. Almacena solo auditoría y firmas técnicas de fin de ciclo
     ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='mantencion')
-    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    descripcion_trabajo = models.TextField()
-    causa_raiz = models.TextField(blank=True, null=True)
-    horas_hombre = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    foto_final = models.ImageField(upload_to='mantencion/fotos/', null=True, blank=True)
-    observaciones = models.TextField(blank=True, null=True)
-    fecha_inicio = models.DateTimeField(null=True, blank=True)
-    fecha_finalizacion = models.DateTimeField(null=True, blank=True)
-    reparacion_exitosa = models.BooleanField(null=True, default=None)
-    tiempo_total_minutos = models.PositiveIntegerField(null=True, blank=True)
-    herramientas_utilizadas = models.TextField(blank=True, null=True)
-    personal_adicional_requerido = models.BooleanField(default=False)
-    requiere_nivel_mayor = models.BooleanField(default=False)
+    tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='cierres_firmados')
+    
+    # Datos exclusivos del cierre definitivo
+    causa_raiz = models.TextField()
+    foto_final = models.ImageField(upload_to='mantencion/fotos/', null=True, blank=True) # Destino Cloudinary Storage
+    
+    # Trazabilidad
+    fecha_registro = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'registro_mantencion'
+        verbose_name = 'Registro de Mantención'
+        verbose_name_plural = 'Registros de Mantenciones'
 
     def __str__(self):
-        return f"Mantención #{self.ticket.pk}"
-
+        return f"Acta de Cierre Técnico - Ticket #{self.ticket.pk}"
 
 class MaterialUtilizado(models.Model):
-    """Cada material consumido en una reparación → para BI y compras inteligentes"""
-    registro = models.ForeignKey(RegistroMantencion, on_delete=models.CASCADE, related_name='materiales_utilizados')
+    """Cada material consumido en una sesión diaria → para BI y compras inteligentes"""
+    sesion_trabajo = models.ForeignKey(SesionTrabajo, on_delete=models.CASCADE, related_name='materiales_utilizados')
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='consumos')
-    cantidad = models.DecimalField(max_digits=8, decimal_places=2)
+    cantidad_utilizada = models.DecimalField(max_digits=8, decimal_places=2) # Usa el nombre de tu diagrama
     observacion = models.CharField(max_length=200, blank=True, null=True)
 
-    def __str__(self):
-        return f"{self.cantidad} {self.material.unidad} de {self.material.nombre}"
+    class Meta:
+        db_table = 'material_utilizado'
 
+    def __str__(self):
+        return f"{self.cantidad_utilizada} {self.material.unidad} de {self.material.nombre}"
 
 # ═══════════════════════════════════════════════════════════════
 # NO REPARABLE
@@ -612,7 +898,7 @@ class Inasistencia(models.Model):
 
 # ═══════════════════════════════════════════════════════════════
 # HISTORIAL DE ACCIONES (Trazabilidad global e interna – HU-15)
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 class HistorialAcciones(models.Model):
     """Tabla única de trazabilidad. es_global=True visible a todos; False solo a staff (gestor/operativos)."""
     TIPO_ACCION_CHOICES = [
@@ -662,9 +948,8 @@ class HistorialAcciones(models.Model):
 # MATERIALES FALTANTES EN MANTENCIÓN
 # ═══════════════════════════════════════════════════════════════
 class MaterialesFaltantes(models.Model):
-    """Registra materiales que faltaron para completar una reparación."""
-
-    registro_mantencion = models.ForeignKey(RegistroMantencion, on_delete=models.CASCADE, related_name='materiales_faltantes')
+    """Registra materiales que faltaron durante una sesión de trabajo específica."""
+    sesion_trabajo = models.ForeignKey(SesionTrabajo, on_delete=models.CASCADE, related_name='materiales_faltantes')
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='solicitudes')
     cantidad_requerida = models.DecimalField(max_digits=8, decimal_places=2)
     cantidad_recibida = models.DecimalField(max_digits=8, decimal_places=2, default=0)
@@ -678,11 +963,5 @@ class MaterialesFaltantes(models.Model):
     fecha_recepcion = models.DateTimeField(null=True, blank=True)
     observaciones = models.TextField(blank=True, null=True)
 
-    def get_estado_display(self):
-        return self.estado.nombre_display if self.estado_id else ''
-
     def __str__(self):
-        return f"Material faltante: {self.material.nombre} (Ticket #{self.registro_mantencion.ticket.pk})"
-
-
-
+        return f"Material faltante: {self.material.nombre} (Sesión #{self.sesion_trabajo.id})"

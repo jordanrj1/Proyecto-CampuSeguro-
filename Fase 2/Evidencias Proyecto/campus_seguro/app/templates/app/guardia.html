@@ -41,6 +41,16 @@
          (request.user), no se pasa explícitamente desde la vista.
        → Se usa para: user.turno (muestra el turno del guardia en el subtítulo).
 
+     ═══════════════════════════════════════════════════════════════
+     NUEVOS (TARJETA 08):
+     mis_revisiones (QuerySet<AsignacionTicket>)
+       → Tickets asignados específicamente a este guardia con fecha programada.
+       → Tiene: ticket (FK), fecha_programada, estado (FK → EstadoCatalogo).
+     
+     mis_revisiones_count (int)
+       → Cantidad de revisiones asignadas pendientes.
+     ═══════════════════════════════════════════════════════════════
+
    FILTRO URGENCIA CRÍTICA (línea ~53):
      El condicional {% if t.urgencia == "critica" %} resalta la fila en rojo tenue.
      Corregido en sesión actual: era '="" ="critica"' (typo), ahora es '== "critica"'.
@@ -57,6 +67,7 @@
    CONEXIONES:
      - Modelo Ticket:            app/models.py → class Ticket
      - Modelo ValidacionGuardia: app/models.py → class ValidacionGuardia
+     - Modelo AsignacionTicket:  app/models.py → class AsignacionTicket (TARJETA 08)
      - Modelo Inasistencia:      app/models.py → class Inasistencia
      - Vista que alimenta:       app/views.py → dashboard_guardia()
      - CSS urgencia-{valor}:     static/css/main.css → .urgencia-critica, .urgencia-alta, etc.
@@ -78,6 +89,11 @@
     <div class="kpi-value">{{ pendientes_count }}</div>
     <div class="kpi-sub">por validar</div>
   </div>
+  <div class="kpi {% if mis_revisiones_count > 0 %}blue{% else %}green{% endif %}">
+    <div class="kpi-label">Mis Revisiones</div>
+    <div class="kpi-value">{{ mis_revisiones_count }}</div>
+    <div class="kpi-sub">asignadas</div>
+  </div>
   <div class="kpi blue">
     <div class="kpi-label">Total validados</div>
     <div class="kpi-value">{{ total_validados }}</div>
@@ -95,8 +111,100 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- NUEVO: Mis Revisiones Asignadas (TARJETA 08) -->
+<!-- Tickets asignados específicamente a este guardia con fecha programada -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+{% if mis_revisiones %}
+<div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-blue)">
+  <div class="card-title" style="color: var(--accent-blue)">
+    <i class="fa-solid fa-clipboard-list"></i> Mis Revisiones Asignadas
+  </div>
+  <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+    Tickets que te fueron asignados específicamente para validar en terreno.
+  </div>
+  {% for asignacion in mis_revisiones %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    "
+  >
+    <div style="flex: 1">
+      <div
+        style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px"
+      >
+        <span
+          style="
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-muted);
+          "
+          >#{{ asignacion.ticket.id }}</span
+        >
+        <span class="urgencia-{{ asignacion.ticket.urgencia }}"
+          >{{ asignacion.ticket.get_urgencia_display }}</span
+        >
+        {% if asignacion.ticket.afecta_clase %}<span
+          style="
+            font-size: 11px;
+            background: rgba(74, 143, 255, 0.15);
+            color: var(--accent-blue);
+            padding: 2px 8px;
+            border-radius: 4px;
+          "
+          >📚 Afecta clases</span
+        >{% endif %}
+      </div>
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px">
+        {{ asignacion.ticket.titulo }}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        📍 {{ asignacion.ticket.ubicacion }}
+      </div>
+      <div style="font-size: 12px; color: var(--accent-blue); margin-top: 6px">
+        📅 Fecha programada: 
+        <strong>{{ asignacion.fecha_programada|date:"d/m/Y" }}</strong>
+        {% if asignacion.fecha_programada < today %}
+        <span style="color: var(--accent-red); margin-left: 8px">⚠️ Vencida</span>
+        {% elif asignacion.fecha_programada == today %}
+        <span style="color: var(--accent-yellow); margin-left: 8px">📌 Hoy</span>
+        {% endif %}
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+        Asignado por: {{ asignacion.asignado_por.get_full_name|default:"Sistema" }}
+      </div>
+    </div>
+    <div
+      style="display: flex; flex-direction: column; gap: 8px; min-width: 155px"
+    >
+      <a
+        href="{% url 'app:detalle_ticket' asignacion.ticket.id %}"
+        class="btn btn-ghost btn-sm"
+        style="text-align: center"
+        >Ver detalles</a
+      >
+      <a
+        href="{% url 'app:validar_ticket' asignacion.ticket.id %}"
+        class="btn btn-primary btn-sm"
+        style="text-align: center"
+        ><i class="fa-solid fa-shield-halved"></i> Ir a Validar</a
+      >
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🚨 Validaciones pendientes</div>
+  <div class="card-title"><i class="fa-solid fa-hourglass-half" style="color:var(--accent-yellow);"></i> Validaciones pendientes</div>
   {% if pendientes %}
   <div class="table-wrap">
     <table>
@@ -133,7 +241,7 @@
             <a
               href="{% url 'app:validar_ticket' t.id %}"
               class="btn btn-primary btn-sm"
-              >🛡️ Validar</a
+              ><i class="fa-solid fa-shield-halved"></i> Validar</a
             >
           </td>
         </tr>
@@ -143,7 +251,7 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <div class="icon">✓</div>
+    <div class="icon"><i class="fa-solid fa-circle-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
     <div class="label">No hay validaciones pendientes</div>
     <div class="sub">Sin alertas activas en este momento.</div>
   </div>
@@ -152,7 +260,7 @@
 
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
   <div class="card">
-    <div class="card-title">📋 Mis validaciones recientes</div>
+    <div class="card-title"><i class="fa-solid fa-check-double" style="color:var(--accent-green);"></i> Mis validaciones recientes</div>
     {% if mis_validaciones %}
     <div class="table-wrap">
       <table>
@@ -199,7 +307,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">📅 Mis inasistencias</div>
+    <div class="card-title"><i class="fa-solid fa-calendar-xmark" style="color:var(--text-muted);"></i> Mis inasistencias</div>
     {% if inasistencias %} {% for i in inasistencias %}
     <div
       style="

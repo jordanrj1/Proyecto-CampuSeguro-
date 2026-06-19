@@ -1,177 +1,383 @@
 {% extends 'app/base.html' %}
 {% block title %}Reportar Incidente · Campus Seguro{% endblock %}
+{% block breadcrumb %}<span class="sep">›</span> <a href="{% url 'app:mis_tickets' %}">Mis Tickets</a> <span class="sep">›</span> Nuevo Ticket{% endblock %}
 
 {% block content %}
 <div class="topbar">
   <div>
-    <div class="page-title">Reportar Incidente</div>
-    <div class="page-subtitle">Completa todos los campos para que el equipo pueda actuar rápido</div>
+    <h2 class="page-title">Reportar Incidente</h2>
+    <p class="text-muted">Completa todos los campos para que el equipo pueda actuar rápido</p>
   </div>
   <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">← Cancelar</a>
 </div>
 
-{% if form.errors %}
-<div style="background:rgba(245,54,92,0.1);border:1px solid var(--accent-red);border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--accent-red);">
-  <strong>Por favor corrige los siguientes errores:</strong>
-  {% for field, errors in form.errors.items %}
-    {% for error in errors %}<div style="margin-top:4px;">· {{ field }}: {{ error }}</div>{% endfor %}
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }}" role="alert" style="margin-bottom:12px;">{{ message }}</div>
   {% endfor %}
-</div>
 {% endif %}
 
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
 
-  <!-- SECCIÓN 1: Qué pasó -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📝 ¿Qué ocurrió?</div>
-    <div style="margin-bottom:14px;">
-      <label class="form-label">Título del reporte *</label>
-      <input type="text" name="titulo" class="form-control"
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-pen-to-square" style="color:var(--accent-blue);"></i> ¿Qué ocurrió?
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="titulo">Título del reporte *</label>
+      <input type="text" id="titulo" name="titulo"
         placeholder="Ej: Enchufe quemado, fuga de agua, proyector sin imagen…"
         value="{{ form.titulo.value|default:'' }}" required maxlength="200">
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Sé específico: qué falló y síntoma principal.</div>
     </div>
-    <div>
-      <label class="form-label">Descripción detallada *</label>
-      <textarea name="descripcion" class="form-control" rows="4"
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="descripcion">Descripción detallada *</label>
+      <textarea id="descripcion" name="descripcion" rows="4"
         placeholder="¿Cuándo comenzó? ¿Con qué frecuencia ocurre? ¿Hay riesgo inmediato para personas?">{{ form.descripcion.value|default:'' }}</textarea>
     </div>
   </div>
 
-  <!-- SECCIÓN 2: Dónde ocurrió -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📍 ¿Dónde ocurrió?</div>
-    <div class="form-group">
-      <label class="form-label">Ubicación (sala / espacio) *</label>
-      <select name="ubicacion" class="form-control" required>
-        <option value="">Seleccionar ubicación…</option>
-        {% regroup ubicaciones by sede as por_sede %}
-        {% for grupo in por_sede %}
-          <optgroup label="{{ grupo.grouper }}">
-            {% for u in grupo.list %}
-            <option value="{{ u.pk }}"
-              {% if form.ubicacion.value|stringformat:"s" == u.pk|stringformat:"s" %}selected{% endif %}>
-              {{ u.edificio }} · P{{ u.piso }} · {{ u.sala }} ({{ u.get_tipo_display }})
-            </option>
-            {% endfor %}
-          </optgroup>
-        {% empty %}
-          <option disabled>— No hay ubicaciones registradas. Contacta al administrador. —</option>
-        {% endfor %}
-      </select>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-        Si la sala no aparece en la lista, el administrador debe crearla en el panel de administración.
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-location-dot" style="color:var(--accent-blue);"></i> ¿Dónde ocurrió?
+    </div>
+    <div class="form-grid" style="gap: 10px 16px;">
+      
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+        <label class="form-label" for="edificio">Edificio *</label>
+        <select id="edificio" name="edificio" required>
+          <option value="">Seleccionar edificio…</option>
+          {% for edificio in edificios %}
+          <option value="{{ edificio }}">{{ edificio }}</option>
+          {% endfor %}
+        </select>
       </div>
+
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+        <label class="form-label" for="piso">Piso *</label>
+        <select id="piso" name="piso" required disabled>
+          <option value="">Primero selecciona edificio…</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="tipo_ubicacion">Tipo de Ubicación *</label>
+        <select id="tipo_ubicacion" name="tipo_ubicacion" required disabled>
+          <option value="">Primero selecciona piso…</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="sala">Sala / Zona *</label>
+        <select id="sala" name="sala" required disabled>
+          <option value="">Primero selecciona tipo…</option>
+        </select>
+      </div>
+
+    </div>
+
+    <input type="hidden" id="ubicacion_id" name="ubicacion" value="">
+
+    <div id="ubicacion-info" style="display:none; margin-top:10px; padding:10px 14px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:var(--radius-sm); font-size:13px;">
+      <i class="fa-solid fa-circle-check" style="color:var(--accent-blue);"></i>
+      <strong>Ubicación seleccionada:</strong> <span id="ubicacion-texto"></span>
+    </div>
+
+    <div style="margin-top:10px; padding:10px 14px; background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.2); border-radius:var(--radius-sm);">
+      <small style="color:var(--text-secondary);">
+        <i class="fa-solid fa-circle-info" style="color:var(--accent-yellow);"></i>
+        Si la sala no aparece in la lista, el administrador debe crearla en el panel de administración.
+      </small>
     </div>
   </div>
 
-  <!-- SECCIÓN 3: Clasificación -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">🏷️ Clasificación del problema</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <div>
-        <label class="form-label">Categoría *</label>
-        <select name="categoria" class="form-control" required>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-tags" style="color:var(--accent-blue);"></i> Clasificación del problema
+    </div>
+    <div class="form-grid">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="categoria">Categoría *</label>
+        <select id="categoria" name="categoria" required>
           <option value="">Seleccionar…</option>
           {% for val, label in form.fields.categoria.choices %}
-          <option value="{{ val }}" {% if form.categoria.value == val %}selected{% endif %}>{{ label }}</option>
+            {% if val %}
+            <option value="{{ val }}" {% if form.categoria.value == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
           {% endfor %}
         </select>
       </div>
-      <div>
-        <label class="form-label">Urgencia *</label>
-        <select name="urgencia" class="form-control" required>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="urgencia">Urgencia *</label>
+        <select id="urgencia" name="urgencia" required>
+          <option value="" {% if not form.urgencia.value %}selected{% endif %}>Seleccionar…</option>
           {% for val, label in form.fields.urgencia.choices %}
-          <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
+            {% if val %}
+            <option value="{{ val }}" {% if form.urgencia.value == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
           {% endfor %}
         </select>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+        <div class="form-help" style="margin-top: 6px;">
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
           Crítica = riesgo inmediato para personas o clases en curso.
         </div>
       </div>
     </div>
   </div>
 
-  <!-- SECCIÓN 4: Impacto y riesgos -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">⚠️ Impacto y riesgos asociados</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="afecta_clase" {% if form.afecta_clase.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-blue);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">📚 Afecta clases</div>
-          <div style="font-size:11px;color:var(--text-secondary);">El problema interrumpe o impide actividades académicas.</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_electrico" {% if form.riesgo_electrico.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-red);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">⚡ Riesgo eléctrico</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Cables expuestos, chispas, cortocircuito.</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_estructural" {% if form.riesgo_estructural.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-red);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">🏗️ Riesgo estructural</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Grietas, filtraciones, techo o estructura dañada.</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-        <input type="checkbox" name="riesgo_accesibilidad" {% if form.riesgo_accesibilidad.value %}checked{% endif %}
-          style="width:16px;height:16px;margin-top:2px;accent-color:var(--accent-yellow);" value="on">
-        <div>
-          <div style="font-weight:600;font-size:13px;">♿ Afecta accesibilidad</div>
-          <div style="font-size:11px;color:var(--text-secondary);">Rampa, ascensor, baño adaptado u otra zona de acceso.</div>
-        </div>
-      </label>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-yellow);"></i> Impacto y riesgos asociados
+    </div>
+    <div class="form-grid">
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="afecta_clase" id="afecta_clase" value="on"
+          {% if form.afecta_clase.value %}checked{% endif %}>
+        <label for="afecta_clase">
+          <span class="riesgo-title"><i class="fa-solid fa-book-open" style="color:var(--accent-blue);"></i> Afecta clases</span>
+          <span class="riesgo-sub">El problema interrumpe o impide actividades académicas.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_electrico" id="riesgo_electrico" value="on"
+          {% if form.riesgo_electrico.value %}checked{% endif %}>
+        <label for="riesgo_electrico">
+          <span class="riesgo-title"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i> Riesgo eléctrico</span>
+          <span class="riesgo-sub">Cables expuestos, chispas, cortocircuito.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_estructural" id="riesgo_estructural" value="on"
+          {% if form.riesgo_estructural.value %}checked{% endif %}>
+        <label for="riesgo_estructural">
+          <span class="riesgo-title"><i class="fa-solid fa-building-columns" style="color:var(--text-secondary);"></i> Riesgo estructural</span>
+          <span class="riesgo-sub">Grietas, filtraciones, techo o estructura dañada.</span>
+        </label>
+      </div>
+      <div class="form-check riesgo-check">
+        <input type="checkbox" name="riesgo_accesibilidad" id="riesgo_accesibilidad" value="on"
+          {% if form.riesgo_accesibilidad.value %}checked{% endif %}>
+        <label for="riesgo_accesibilidad">
+          <span class="riesgo-title"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i> Afecta accesibilidad</span>
+          <span class="riesgo-sub">Rampa, ascensor, baño adaptado u otra zona de acceso.</span>
+        </label>
+      </div>
     </div>
   </div>
 
-  <!-- SECCIÓN 5: Foto obligatoria -->
-  <div class="card" style="margin-bottom:18px;">
-    <div class="form-section-title">📷 Evidencia fotográfica *</div>
-    <div id="dropZone" style="border:2px dashed var(--border-strong);border-radius:10px;padding:28px;text-align:center;position:relative;cursor:pointer;transition:border-color 0.2s;"
-      onmouseover="this.style.borderColor='var(--accent-blue)'" onmouseout="this.style.borderColor='var(--border-strong)'">
-      <input type="file" name="foto_evidencia" id="fotoInput" accept="image/*" required
-        style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="previewImg(this)">
-      <div id="previewBox" style="display:none;margin-bottom:12px;">
-        <img id="previewImg" style="max-height:200px;border-radius:8px;max-width:100%;box-shadow:var(--shadow);">
-        <div id="fileName" style="font-size:12px;color:var(--text-secondary);margin-top:8px;"></div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">
+      <i class="fa-solid fa-camera" style="color:var(--accent-blue);"></i> Evidencia fotográfica *
+    </div>
+    <div id="uploadArea" style="border:2px dashed var(--border); border-radius:var(--radius-sm); padding:36px; text-align:center; cursor:pointer; transition:border-color 0.2s, background 0.2s;">
+      <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" required style="display:none;">
+      <div id="emptyState">
+        <i class="fa-solid fa-camera" style="font-size:32px; color:var(--text-muted); margin-bottom:10px; display:block;"></i>
+        <p style="color:var(--text-secondary); margin-bottom:12px;">Evidencia visual del problema reportado.</p>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('foto_evidencia').click()">
+          <i class="fa-solid fa-upload"></i> Seleccionar archivo
+        </button>
+        <small style="display:block; margin-top:10px; color:var(--text-muted);">JPG, PNG, WebP · Máximo 10 MB</small>
       </div>
-      <div id="uploadHint">
-        <div style="font-size:36px;margin-bottom:8px;">📸</div>
-        <div style="font-size:14px;font-weight:600;">Haz clic o arrastra una imagen aquí</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">JPG, PNG, WebP · Máximo 10 MB</div>
+      <div id="imageState" style="display:none;">
+        <div style="position:relative; display:inline-block;">
+          <img id="previewImg" style="max-height:280px; max-width:100%; border-radius:var(--radius-sm);">
+          <button type="button" class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px;" onclick="removeImage(event)">✕</button>
+        </div>
+        <p id="fileName" style="color:var(--text-muted); margin-top:10px; margin-bottom:4px;"></p>
+        <small style="color:var(--accent-green);"><i class="fa-solid fa-circle-check"></i> Imagen cargada correctamente</small>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-      La foto es <strong>obligatoria</strong>. Muestra claramente la falla, daño o elemento afectado.
+    <div class="form-help" style="color:var(--accent-red); margin-top:6px;">
+      <i class="fa-solid fa-circle-exclamation"></i> La foto es obligatoria. Muestra claramente la falla, daño o elemento afectado.
     </div>
   </div>
 
-  <div style="display:flex;justify-content:flex-end;gap:10px;">
+  <div style="display:flex; justify-content:flex-end; gap:12px;">
     <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">Cancelar</a>
-    <button type="submit" class="btn btn-primary" style="min-width:180px;">Enviar reporte →</button>
+    <button type="submit" class="btn btn-primary">
+      <i class="fa-solid fa-paper-plane"></i> Enviar reporte
+    </button>
   </div>
 </form>
 
+<style>
+#uploadArea:hover { border-color: var(--accent-blue) !important; background: rgba(59,130,246,0.04); }
+#uploadArea.drag-over { border-color: var(--accent-green) !important; background: rgba(16,185,129,0.06); }
+.riesgo-check { align-items: flex-start !important; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-700); }
+.riesgo-check input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.riesgo-check label { display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.riesgo-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.riesgo-sub { font-size: 11px; color: var(--text-muted); }
+</style>
+
 <script>
-function previewImg(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('previewImg').src = e.target.result;
-      document.getElementById('fileName').textContent = input.files[0].name;
-      document.getElementById('previewBox').style.display = 'block';
-      document.getElementById('uploadHint').style.display = 'none';
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
+// ── CONTROL DE CARGA DE IMÁGENES ─────────────────────────────────
+const uploadArea = document.getElementById('uploadArea');
+const fileInput  = document.getElementById('foto_evidencia');
+const emptyState = document.getElementById('emptyState');
+const imageState = document.getElementById('imageState');
+const previewImg = document.getElementById('previewImg');
+const fileName   = document.getElementById('fileName');
+
+uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', function(e) { e.preventDefault(); this.classList.remove('drag-over'); });
+uploadArea.addEventListener('drop', function(e) {
+  e.preventDefault(); this.classList.remove('drag-over');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) { fileInput.files = files; handleFile(files[0]); }
+});
+fileInput.addEventListener('change', function() { if (this.files && this.files[0]) handleFile(this.files[0]); });
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) { alert('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP)'); fileInput.value = ''; return; }
+  if (file.size > 10 * 1024 * 1024) { alert('La imagen no puede superar los 10 MB'); fileInput.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    previewImg.src = e.target.result;
+    fileName.textContent = file.name;
+    emptyState.style.display = 'none';
+    imageState.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
 }
+
+function removeImage(e) {
+  e.stopPropagation();
+  fileInput.value = ''; previewImg.src = ''; fileName.textContent = '';
+  emptyState.style.display = 'block'; imageState.style.display = 'none';
+}
+
+// ── CASCADA LIMPIA DE 4 NIVELES (RESOLUCIÓN DE CONFLICTO) ────────
+const ubicacionesData  = {{ ubicaciones_json|safe }};
+const edificioSelect   = document.getElementById('edificio');
+const pisoSelect       = document.getElementById('piso');
+const tipoSelect       = document.getElementById('tipo_ubicacion');
+const salaSelect       = document.getElementById('sala');
+const ubicacionIdInput = document.getElementById('ubicacion_id');
+const ubicacionInfo    = document.getElementById('ubicacion-info');
+const ubicacionTexto   = document.getElementById('ubicacion-texto');
+
+// 1. Cargar Pisos
+edificioSelect.addEventListener('change', function() {
+  const edificioSeleccionado = this.value;
+  pisoSelect.innerHTML = '<option value="">Cargando pisos…</option>';
+  tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+  tipoSelect.disabled = true;
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
+  salaSelect.disabled = true;
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+
+  if (!edificioSeleccionado) {
+    pisoSelect.innerHTML = '<option value="">Primero selecciona edificio…</option>';
+    pisoSelect.disabled = true;
+    return;
+  }
+
+  const pisosDisponibles = [...new Set(
+    ubicacionesData.filter(u => u.edificio === edificioSeleccionado).map(u => u.piso)
+  )].sort((a, b) => parseInt(a) - parseInt(b));
+
+  pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
+  pisosDisponibles.forEach(p => { 
+    const o = document.createElement('option'); 
+    o.value = p; o.textContent = `Piso ${p}`; 
+    pisoSelect.appendChild(o); 
+  });
+  pisoSelect.disabled = false;
+});
+
+// 2. Cargar Tipos de Ubicación
+pisoSelect.addEventListener('change', function() {
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = this.value;
+
+  tipoSelect.innerHTML = '<option value="">Cargando tipos…</option>';
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
+  salaSelect.disabled = true;
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+
+  if (!pisoSeleccionado) {
+    tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>';
+    tipoSelect.disabled = true;
+    return;
+  }
+
+  const tiposDisponibles = [...new Set(
+    ubicacionesData.filter(u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado).map(u => u.tipo)
+  )].sort();
+
+  tipoSelect.innerHTML = '<option value="">Seleccionar tipo…</option>';
+  tiposDisponibles.forEach(tipo => {
+    const option = document.createElement('option');
+    option.value = tipo; option.textContent = tipo;
+    tipoSelect.appendChild(option);
+  });
+  tipoSelect.disabled = false;
+});
+
+// 3. Cargar Salas específicas
+tipoSelect.addEventListener('change', function() {
+  const edificioSeleccionado = edificioSelect.value;
+  const pisoSeleccionado = pisoSelect.value;
+  const tipoSeleccionado = this.value;
+
+  salaSelect.innerHTML = '<option value="">Cargando espacios…</option>';
+  ubicacionIdInput.value = '';
+  ubicacionInfo.style.display = 'none';
+
+  if (!tipoSeleccionado) {
+    salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>';
+    salaSelect.disabled = true;
+    return;
+  }
+
+  const salasDisponibles = ubicacionesData.filter(
+    u => u.edificio === edificioSeleccionado && u.piso === pisoSeleccionado && u.tipo === tipoSeleccionado
+  );
+
+  salaSelect.innerHTML = '<option value="">Seleccionar espacio…</option>';
+  salasDisponibles.forEach(ubicacion => {
+    const option = document.createElement('option');
+    option.value = ubicacion.id; option.textContent = ubicacion.sala;
+    option.dataset.sala = ubicacion.sala;
+    salaSelect.appendChild(option);
+  });
+  salaSelect.disabled = false;
+});
+
+// 4. Banner final
+salaSelect.addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  if (this.value) {
+    ubicacionIdInput.value = this.value;
+    const edificio = edificioSelect.options[edificioSelect.selectedIndex].text;
+    const piso     = pisoSelect.options[pisoSelect.selectedIndex].text;
+    const tipo     = tipoSelect.options[tipoSelect.selectedIndex].text;
+    ubicacionTexto.textContent = `${edificio} → ${piso} → ${tipo} → ${opt.dataset.sala}`;
+    ubicacionInfo.style.display = 'block';
+  } else {
+    ubicacionIdInput.value = '';
+    ubicacionInfo.style.display = 'none';
+  }
+});
+
+// 5. Anti-Doble Envío unificado
+let formSubmitted = false;
+document.querySelector('form').addEventListener('submit', function(e) {
+  if (!ubicacionIdInput.value) {
+    e.preventDefault();
+    alert('Por favor selecciona la ubicación completa (Edificio → Piso → Tipo → Sala)');
+    edificioSelect.focus();
+    return false;
+  }
+  if (formSubmitted) { e.preventDefault(); return false; }
+  formSubmitted = true;
+  const btn = this.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando…';
+});
 </script>
 {% endblock %}

@@ -162,6 +162,22 @@
       <form method="post" id="formDecision">
         {% csrf_token %}
 
+        <input type="hidden" name="accion" id="id_accion" value="">
+
+        {# ── BLOQUE DE ERRORES CORREGIDO (Pegar aquí) ── #}
+        {% if form_rol.errors %}
+        <div class="alert alert-error" style="margin-bottom: 16px; background: rgba(245,54,92,0.08); border-left: 3px solid var(--accent-red); padding: 12px; border-radius: 8px;">
+          <strong style="color: var(--accent-red); font-size: 13px; display: block; margin-bottom: 4px;">⚠️ Error al procesar la solicitud:</strong>
+          <ul style="margin: 0; padding-left: 20px; color: var(--text-primary); font-size: 12.5px;">
+            {% for field, errors in form_rol.errors.items %}
+              {% for error in errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
         {# ── Selector de rol (requerido para aprobar) ── #}
         <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label" style="font-weight:700;font-size:13px;">
@@ -216,6 +232,22 @@
           </div>
         </div>
 
+        {# ── NUEVO: Selector dinámico de Especialidad Técnica (Solo para Mantención) ── #}
+        <div class="form-group" id="grupoEspecialidad" style="display:none;margin-top:14px;padding:12px;background:rgba(45,206,137,0.07);border-radius:8px;border:1px solid rgba(45,206,137,0.3);">
+          <label class="form-label" style="font-size:12px;color:#2dce89;font-weight:700;margin-bottom:6px;display:block;">
+            🛠️ Especialidad Técnica Requerida <span style="color:var(--accent-red)">*</span>
+          </label>
+          <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">
+            Determina el oficio transaccional base del técnico para la asignación de pautas en pañol.
+          </p>
+          <select name="especialidad_seleccionada" id="id_especialidad" class="form-control" style="font-size:13px; width:100%; padding:6px; background:var(--bg-700); color:var(--text-main); border:1px solid var(--border); border-radius:6px;">
+            <option value="">-- Seleccione una Especialidad --</option>
+            {% for esp in especialidades %}
+              <option value="{{ esp.id }}">{{ esp.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
         {# ── RUT corregible si fue importado desde Auth0 ── #}
         {% if 'SYNC-' in cuenta.rut %}
         <div class="form-group" style="margin-top:14px;padding:12px;background:rgba(255,193,7,0.07);border-radius:8px;border:1px solid rgba(255,193,7,0.3);">
@@ -237,13 +269,13 @@
         </div>
         {% endif %}
 
-        {# ── Botones de acción ── #}
+        {# ── Botones de acción actualizados ── #}
+        {# ── Botones de acción corregidos ── #}
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-          <button type="submit" name="accion" value="aprobar" class="btn btn-success btn-full">
+          <button type="button" class="btn btn-success btn-full" onclick="enviarDecision('aprobar', this)">
             ✓ Aprobar y asignar rol
           </button>
-          <button type="submit" name="accion" value="rechazar" class="btn btn-danger btn-full"
-                  onclick="return confirm('¿Confirmas el rechazo de esta solicitud?')">
+          <button type="button" class="btn btn-danger btn-full" onclick="enviarDecision('rechazar', this)">
             ✗ Rechazar solicitud
           </button>
         </div>
@@ -282,14 +314,71 @@
 </style>
 
 <script>
-// Resaltar la opción de rol seleccionada visualmente
-document.querySelectorAll('.rol-option input[type="radio"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    document.querySelectorAll('.rol-option-content').forEach(c => {
-      c.style.borderColor = '';
-      c.style.background = '';
-    });
+// Manejo visual de selección de roles + Toggle dinámico de la especialidad técnica
+const radioButtons = document.querySelectorAll('input[name="rol"]');
+const grupoEspecialidad = document.getElementById('grupoEspecialidad');
+const selectEspecialidad = document.getElementById('id_especialidad');
+
+function manejarCambioRol() {
+  // Limpiamos bordes y fondos de los contenedores
+  document.querySelectorAll('.rol-option-content').forEach(c => {
+    c.style.borderColor = '';
+    c.style.background = '';
   });
+
+  // Capturamos el radio presionado actual
+  const radioSeleccionado = document.querySelector('input[name="rol"]:checked');
+  
+  if (radioSeleccionado && radioSeleccionado.value === 'mantencion') {
+    // Si el rol es mantención, desplegamos la caja y hacemos obligatorio el campo select
+    grupoEspecialidad.style.display = 'block';
+    selectEspecialidad.setAttribute('required', 'required');
+  } else {
+    // Si es cualquier otro rol, ocultamos y eliminamos la obligatoriedad para no romper el envío
+    grupoEspecialidad.style.display = 'none';
+    selectEspecialidad.removeAttribute('required');
+    selectEspecialidad.value = ''; // Limpiamos cualquier selección previa
+  }
+}
+
+// Escuchar los clics de cambio en cada uno de los inputs de rol
+radioButtons.forEach(radio => {
+  radio.addEventListener('change', manejarCambioRol);
 });
+
+// Evaluación de inicio por si carga por defecto algún valor
+document.addEventListener('DOMContentLoaded', manejarCambioRol);
+
+// FUNCIÓN CORREGIDA: Envío seguro sin errores de referencia
+function enviarDecision(accion, boton) {
+  const form = document.getElementById('formDecision');
+  const idAccion = document.getElementById('id_accion');
+  const selectEsp = document.getElementById('id_especialidad');
+  const radioSeleccionado = document.querySelector('input[name="rol"]:checked');
+
+  // 1. Confirmación de rechazo
+  if (accion === 'rechazar') {
+    if (!confirm('¿Confirmas el rechazo de esta solicitud?')) return;
+  }
+
+  // 2. Validación de especialidad para mantención
+  if (accion === 'aprobar' && radioSeleccionado && radioSeleccionado.value === 'mantencion' && !selectEsp.value) {
+    alert('⚠️ Por favor, seleccione una especialidad técnica para el mantenedor antes de aprobar.');
+    selectEsp.focus();
+    return;
+  }
+
+  // 3. Asignamos la acción al campo oculto
+  idAccion.value = accion;
+
+  // 4. Deshabilitar el botón de forma segura usando el parámetro
+  if (boton) {
+    boton.disabled = true;
+    boton.innerHTML = 'Procesando...';
+  }
+
+  // 5. Enviar el formulario directamente a Django
+  form.submit();
+}
 </script>
 {% endblock %}

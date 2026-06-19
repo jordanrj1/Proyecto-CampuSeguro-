@@ -26,8 +26,7 @@
       <thead>
         <tr>
           <th>Código</th><th>Material</th><th>Categoría</th><th>Unidad</th>
-          <th style="text-align:center;">Stock actual</th><th style="text-align:center;">Stock mínimo</th>
-          <th>Estado</th><th></th>
+          <th style="text-align:center;">Total Utilizado</th> <th></th>
         </tr>
       </thead>
       <tbody>
@@ -35,13 +34,12 @@
         <tr>
           <td><span class="id-mono">{{ m.codigo }}</span></td>
           <td><strong>{{ m.nombre }}</strong>{% if m.descripcion %}<br><span style="font-size:11px;color:var(--text-muted);">{{ m.descripcion|truncatechars:50 }}</span>{% endif %}</td>
-          <td><span class="badge badge-purple">{{ m.get_categoria_display }}</span></td>
+          <td><span class="badge badge-purple">{{ m.categoria.nombre_display|default:'Sin categoría' }}</span></td>
           <td>{{ m.get_unidad_display }}</td>
-          <td style="text-align:center;"><span class="id-mono" style="font-size:14px;font-weight:700;">{{ m.stock_actual }}</span></td>
-          <td style="text-align:center;"><span class="id-mono">{{ m.stock_minimo }}</span></td>
-          <td>
-            {% if m.bajo_stock %}<span class="badge badge-red">Crítico</span>
-            {% else %}<span class="badge badge-green">OK</span>{% endif %}
+          <td style="text-align:center;">
+            <span class="id-mono" style="font-size:14px;font-weight:700;color:var(--accent-blue);">
+              {{ m.total_utilizado|default:"0" }}
+            </span>
           </td>
           <td><a href="{% url 'app:material_editar' m.id %}" class="btn btn-ghost btn-sm">✏️</a></td>
         </tr>

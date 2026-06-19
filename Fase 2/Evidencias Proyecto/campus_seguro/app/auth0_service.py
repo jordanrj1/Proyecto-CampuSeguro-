@@ -36,6 +36,11 @@
 #      Lee los claims del id_token (email, sub, roles) para
 #      identificar al usuario después del login.
 #
+#   8. sincronizar_usuario_local() → Sincronización Auth0 ↔ BD Local
+#      Crea o actualiza automáticamente el usuario en la BD local
+#      después de autenticar en Auth0. Resuelve el problema de usuarios
+#      que existen en Auth0 pero no en Django.
+#
 # ARQUITECTURA DE AUTENTICACIÓN:
 #
 #   Usuario ingresa email+contraseña
@@ -48,8 +53,11 @@
 #        │     │            │
 #        │     │            ├─ Éxito → JWT token recibido
 #        │     │            │   └─ decodificar_token()
-#        │     │            │       └─ Buscar usuario local por email
-#        │     │            │           └─ login() + redirect a dashboard
+#        │     │            │       └─ sincronizar_usuario_local()
+#        │     │            │           ├─ Busca usuario por email
+#        │     │            │           ├─ Si existe → actualiza datos
+#        │     │            │           └─ Si no existe → crea en BD
+#        │     │            │               └─ login() + redirect dashboard
 #        │     │            │
 #        │     │            └─ Fallo → mensaje error "Credenciales incorrectas"
 #        │     │
@@ -81,6 +89,7 @@ import logging
 import requests
 import jwt
 from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -296,8 +305,8 @@ def crear_usuario_auth0(email, password, nombre, apellido):
             'email' (str): Correo del usuario.
 
     Lanza:
-        Auth0Error: Si el email ya existe en Auth0, si la contraseña
-                    no cumple los requisitos de Auth0, o si falla la conexión.
+        Auth0Error: Si el email ya existe en Auth0 (código 409 Conflict),
+                    si la contraseña no cumple los requisitos, o falla la conexión.
 
     Efectos secundarios:
         El usuario queda creado en Auth0 con email_verified=False.
@@ -566,7 +575,167 @@ def decodificar_token(id_token):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 8. MAPEO DE ROLES Auth0 → Campus Seguro
+# 8. SINCRONIZACIÓN DE USUARIO LOCAL (Auth0 ↔ BD Django)
+# ═══════════════════════════════════════════════════════════════
+def sincronizar_usuario_local(auth0_user_data):
+    """
+    Crea o actualiza automáticamente el usuario en la base de datos local
+    después de autenticar exitosamente en Auth0.
+
+    RESUELVE EL PROBLEMA:
+        "Auth0 autenticó a usuario@dominio.cl pero no existe en BD local"
+    
+    Esta función se llama DESPUÉS de autenticar_usuario() exitosamente.
+    Sincroniza los datos entre Auth0 y la BD local de Django, permitiendo
+    que cualquier usuario que exista en Auth0 pueda acceder al sistema
+    sin necesidad de crearlo manualmente en la BD.
+
+    Parámetros:
+        auth0_user_data (dict): Datos del usuario obtenidos de Auth0 tras
+                                autenticación exitosa. Debe contener:
+            - 'email' (str): Correo institucional
+            - 'sub' (str): Auth0 user ID (ej: 'auth0|66a1b2...')
+            - 'given_name' (str, opcional): Nombre
+            - 'family_name' (str, opcional): Apellido
+            - 'name' (str, opcional): Nombre completo
+
+    Retorna:
+        Usuario: Instancia del modelo Usuario de Django (creada o actualizada).
+
+    Lógica de sincronización:
+        1. Busca usuario por auth0_sub O por email
+        2. Si existe → Actualiza nombre, email, último login
+        3. Si no existe → Crea nuevo usuario con:
+            - rol='usuario' (por defecto) O según email (si contiene 'gestor', 'guardia', etc.)
+            - estado='pendiente' (requiere aprobación del gestor)
+            - is_active=True (puede acceder al sistema)
+            - is_staff=True si es gestor
+        4. Retorna el usuario sincronizado
+
+    Determinación automática de rol:
+        El rol se infiere del email si contiene palabras clave:
+        - 'gestor' → rol='gestor', is_staff=True, estado='activa'
+        - 'guardia' o 'seguridad' → rol='guardia'
+        - 'mantencion' → rol='mantencion'
+        - cualquier otro → rol='usuario'
+
+    NOTA SOBRE GESTORES:
+        Los usuarios con email que contenga 'gestor' son aprobados
+        automáticamente (estado='activa') para facilitar el desarrollo
+        en equipo sin necesidad de aprobación manual.
+
+    Excepciones:
+        ImportError: Si no se puede importar el modelo Usuario o EstadoCatalogo.
+        Exception: Errores de base de datos o validación.
+    """
+    from app.models import Usuario, EstadoCatalogo
+    
+    email = auth0_user_data.get('email')
+    auth0_sub = auth0_user_data.get('sub')
+    
+    if not email:
+        logger.error("Auth0 user data no contiene email")
+        raise ValueError("Auth0 user data debe contener email")
+    
+    # Determinar rol basado en el email
+    rol = 'usuario'  # Por defecto
+    email_lower = email.lower()
+    
+    if 'gestor' in email_lower:
+        rol = 'gestor'
+    elif 'guardia' in email_lower or 'seguridad' in email_lower:
+        rol = 'guardia'
+    elif 'mantencion' in email_lower or 'mantenimiento' in email_lower:
+        rol = 'mantencion'
+
+    logger.info(f"Sincronizando usuario: {email} → rol={rol}")
+    
+    # Buscar si ya existe por auth0_sub O por email
+    try:
+        user = Usuario.objects.get(auth0_sub=auth0_sub)
+        # Usuario existe por auth0_sub → actualizar datos
+        user.first_name = auth0_user_data.get('given_name', user.first_name)
+        user.last_name = auth0_user_data.get('family_name', user.last_name)
+        user.correo_institucional = email
+        user.rol = rol  # Actualizar rol si cambió
+        user.save()
+        
+        logger.info(f"✅ Usuario actualizado: {email} (auth0_sub: {auth0_sub})")
+        return user
+        
+    except Usuario.DoesNotExist:
+        # Intentar buscar por email (por si el usuario existe en Auth0 pero no en BD)
+        try:
+            user = Usuario.objects.get(correo_institucional__iexact=email)
+            # Usuario existe por email pero no tiene auth0_sub vinculado
+            user.auth0_sub = auth0_sub
+            user.first_name = auth0_user_data.get('given_name', user.first_name)
+            user.last_name = auth0_user_data.get('family_name', user.last_name)
+            user.rol = rol
+            user.save()
+            
+            logger.info(f"✅ Usuario actualizado con auth0_sub: {email}")
+            return user
+            
+        except Usuario.DoesNotExist:
+            # Usuario NO existe en BD → crearlo automáticamente
+            logger.info(f"⚠️ Usuario {email} no existe en BD local. Creando...")
+            
+            # Obtener estado según el rol
+            if rol == 'gestor':
+                # Aprobar automáticamente a los gestores
+                try:
+                    estado = EstadoCatalogo.objects.get(entidad='cuenta', codigo='activa')
+                except EstadoCatalogo.DoesNotExist:
+                    logger.warning("Estado 'activa' no existe. Usando 'pendiente'")
+                    estado = EstadoCatalogo.objects.get(entidad='cuenta', codigo='pendiente')
+                is_staff = True
+            else:
+                # Otros roles quedan pendientes de aprobación
+                try:
+                    estado = EstadoCatalogo.objects.get(entidad='cuenta', codigo='pendiente')
+                except EstadoCatalogo.DoesNotExist:
+                    logger.error("No existe estado 'pendiente' en el catálogo")
+                    raise
+                is_staff = False
+            
+            # Crear usuario
+            username = email.split('@')[0]  # Ej: 'gestor' de 'gestor@duocuc.cl'
+            
+            # Asegurar que el username sea único
+            base_username = username
+            counter = 1
+            while Usuario.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            
+            user = Usuario.objects.create_user(
+                username=username,
+                correo_institucional=email,
+                first_name=auth0_user_data.get('given_name', ''),
+                last_name=auth0_user_data.get('family_name', ''),
+                rut='00000000-0',  # Placeholder, se puede actualizar después
+                rol=rol,
+                estado_cuenta=estado,
+                auth0_sub=auth0_sub,
+                is_active=True,
+                is_staff=is_staff,
+                vinculo='funcionario' if rol == 'gestor' else '',
+                departamento='Gestión' if rol == 'gestor' else '',
+            )
+            
+            if rol == 'gestor':
+                user.fecha_aprobacion = timezone.now()
+                user.save()
+                logger.info(f"✅ Usuario GESTOR creado y aprobado: {email}")
+            else:
+                logger.info(f"✅ Usuario creado (pendiente): {email}")
+            
+            return user
+
+
+# ═══════════════════════════════════════════════════════════════
+# 9. MAPEO DE ROLES Auth0 → Campus Seguro
 # ═══════════════════════════════════════════════════════════════
 def mapear_rol_desde_token(claims):
     """
@@ -586,7 +755,7 @@ def mapear_rol_desde_token(claims):
 
     Retorna:
         str: Rol Campus Seguro. Uno de:
-             'usuario', 'gestor', 'guardia', 'mantencion', 'enc_seguridad'
+             'usuario', 'gestor', 'guardia', 'mantencion'
 
     Mapeo entre roles Auth0 y roles Campus Seguro:
         Auth0 app_metadata.campus_rol   →  Campus Seguro .rol
@@ -594,7 +763,6 @@ def mapear_rol_desde_token(claims):
         'gestor'                        →  'gestor'
         'guardia'                       →  'guardia'
         'mantencion'                    →  'mantencion'
-        'enc_seguridad'                 →  'enc_seguridad'
         cualquier otro / ausente        →  'usuario'
 
     Este mapeo se aplica SOLO al leer el token durante el login.
@@ -604,7 +772,7 @@ def mapear_rol_desde_token(claims):
     namespace = settings.AUTH0_CLAIMS_NAMESPACE
     roles_claim = claims.get(f'{namespace}/roles', [])
 
-    roles_validos = {'gestor', 'guardia', 'mantencion', 'enc_seguridad', 'usuario'}
+    roles_validos = {'gestor', 'guardia', 'mantencion', 'usuario'}
 
     if isinstance(roles_claim, list) and roles_claim:
         for r in roles_claim:
