@@ -43,8 +43,7 @@ htmlcov/
 
 # ----- Django -----
 # DB local (mantén fuera de Git en desarrollo)
-db.sqlite3
-*.sqlite3
+# db.sqlite3  ← habilitado para compartir entorno de demo
 *.sqlite3-journal
 
 # Ajustes locales
