@@ -29,7 +29,7 @@
       {% if mantencion %}
       <div><strong style="color:var(--text-muted)">Técnico:</strong> {{ mantencion.tecnico.get_full_name }}</div>
       {% endif %}
-      {% with sesion_final=sesiones|last %}
+      {% with sesion_final=sesiones.last %}
         {% if sesion_final %}
         <div><strong style="color:var(--text-muted)">Trabajo realizado:</strong> {{ sesion_final.descripcion_avance|truncatechars:120 }}</div>
         {% if sesion_final.horas_hombre %}
