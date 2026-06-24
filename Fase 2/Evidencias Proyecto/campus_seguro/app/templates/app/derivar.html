@@ -1,4 +1,5 @@
 {% extends 'app/base.html' %}
+{% load static %}
 {% block title %}Derivar Ticket #{{ ticket.id }}{% endblock %}
 {% block content %}
 <div class="topbar">
@@ -212,6 +213,10 @@
     <button type="submit" class="btn btn-primary" id="btnDerivar">Derivar →</button>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'app/js/derivar_ticket.js' %}"></script>
 
 <script>
   function toggleDestino(d) {
@@ -389,4 +394,4 @@
     }
   });
 </script>
-{% endblock %}
+{% endblock scripts %}

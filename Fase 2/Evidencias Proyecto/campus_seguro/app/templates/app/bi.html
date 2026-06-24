@@ -1,7 +1,7 @@
 {% extends 'app/base.html' %}
 {% block title %}Business Intelligence · Campus Seguro{% endblock %}
 
-{% block extra_css %}
+{% block styles %}
 <style>
 .bi-tabs { display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap; }
 .bi-tab {
@@ -1598,14 +1598,12 @@ if (categoriasFiltradas.length > 0) {
 
 {% endif %}{# /comunidad #}
 
-{% endblock %}
-
-{% block extra_js %}
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FUNCIONES GLOBALES PARA PERÍODO Y FILTROS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════════════════
-// FUNCIONES PARA ACTUALIZAR PERÍODO Y FILTROS (DISPONIBLES EN TODAS LAS SECCIONES)
-// ═══════════════════════════════════════════════════════════
 function cambiarPeriodo(periodo) {
+  console.log('🔄 Cambiando período a:', periodo);
   const url = new URL(window.location.href);
   url.searchParams.set('rango', periodo);
   url.searchParams.delete('fecha_desde');
@@ -1636,4 +1634,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
 {% endblock %}
