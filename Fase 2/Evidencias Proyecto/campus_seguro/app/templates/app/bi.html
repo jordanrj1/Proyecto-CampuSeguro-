@@ -1443,14 +1443,12 @@ if (categoriasFiltradas.length > 0) {
 
 {% endif %}{# /graficos #}
 
-{% endblock %}
-
-{% block extra_js %}
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FUNCIONES GLOBALES PARA PERÍODO Y FILTROS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════════════════
-// FUNCIONES PARA ACTUALIZAR PERÍODO Y FILTROS (DISPONIBLES EN TODAS LAS SECCIONES)
-// ═══════════════════════════════════════════════════════════
 function cambiarPeriodo(periodo) {
+  console.log('🔄 Cambiando período a:', periodo);
   const url = new URL(window.location.href);
   url.searchParams.set('rango', periodo);
   url.searchParams.delete('fecha_desde');
@@ -1481,4 +1479,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
 {% endblock %}
