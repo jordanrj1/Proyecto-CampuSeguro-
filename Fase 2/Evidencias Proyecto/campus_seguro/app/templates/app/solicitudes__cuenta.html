@@ -31,7 +31,7 @@
             <strong>{{ u.get_full_name }}</strong>
             {% if u.carrera or u.departamento %}<br /><span
               style="font-size: 11px; color: var(--text-muted)"
-              >{{ u.carrera|default:u.departamento }}</span
+              >{{ u.carrera.nombre|default:u.departamento }}</span
             >{% endif %}
           </td>
           <td>

@@ -211,6 +211,7 @@
 .riesgo-sub { font-size: 11px; color: var(--text-muted); }
 </style>
 
+{{ ubicaciones_json|json_script:"ubicaciones-data" }}
 <script>
 // ── CONTROL DE CARGA DE IMÁGENES ─────────────────────────────────
 const uploadArea = document.getElementById('uploadArea');
@@ -249,7 +250,7 @@ function removeImage(e) {
 }
 
 // ── CASCADA LIMPIA DE 4 NIVELES (RESOLUCIÓN DE CONFLICTO) ────────
-const ubicacionesData  = {{ ubicaciones_json|safe }};
+const ubicacionesData  = JSON.parse(document.getElementById('ubicaciones-data').textContent);
 const edificioSelect   = document.getElementById('edificio');
 const pisoSelect       = document.getElementById('piso');
 const tipoSelect       = document.getElementById('tipo_ubicacion');

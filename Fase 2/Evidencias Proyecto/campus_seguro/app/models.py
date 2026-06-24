@@ -133,6 +133,26 @@ class Sede(models.Model):
         return self.nombre
 
 
+class Carrera(models.Model):
+    """Catálogo de carreras impartidas en cada sede. Escalable vía Django Admin."""
+    nombre  = models.CharField(max_length=150, unique=True)
+    escuela = models.CharField(max_length=150, blank=True)
+    sede    = models.ForeignKey(
+        'Sede', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='carreras',
+        help_text='Sede donde se imparte. Null = disponible en todas.',
+    )
+    activa  = models.BooleanField(default=True, help_text='Desmarcar para ocultarla del formulario de registro.')
+
+    class Meta:
+        verbose_name = 'Carrera'
+        verbose_name_plural = 'Carreras'
+        ordering = ['escuela', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
 class Edificio(models.Model):
     """Edificios pertenecientes a una Sede específica"""
     sede = models.ForeignKey(Sede, on_delete=models.CASCADE, related_name='edificios')
@@ -344,7 +364,10 @@ class Usuario(AbstractUser):
 
     # Datos académicos (para usuario base)
     vinculo = models.CharField(max_length=20, choices=VINCULO_CHOICES, blank=True, null=True)
-    carrera = models.CharField(max_length=100, blank=True, null=True)
+    carrera = models.ForeignKey(
+        'Carrera', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='alumnos',
+    )
     jornada = models.CharField(max_length=15, choices=JORNADA_CHOICES, blank=True, null=True)
     sede = models.ForeignKey(Sede, on_delete=models.SET_NULL, blank=True, null=True, related_name='estudiantes_funcionarios')
     departamento = models.CharField(max_length=100, blank=True, null=True)
@@ -399,15 +422,6 @@ class Usuario(AbstractUser):
         return self.estado_cuenta.codigo == 'activa' and self.activo
 
     @property
-    def tiene_inasistencia_activa(self):
-        hoy = timezone.now().date()
-        return self.inasistencias.filter(
-            fecha_desde__lte=hoy,
-            fecha_hasta__gte=hoy,
-            estado__codigo='aprobada'
-        ).exists()
-
-    @property
     def inasistencia_activa_detalle(self):
         hoy = timezone.now().date()
         return self.inasistencias.filter(
@@ -415,6 +429,10 @@ class Usuario(AbstractUser):
             fecha_hasta__gte=hoy,
             estado__codigo='aprobada'
         ).first()
+
+    @property
+    def tiene_inasistencia_activa(self):
+        return self.inasistencia_activa_detalle is not None
 
     def puede_asumir_tickets(self):
         return not self.tiene_inasistencia_activa and self.estado_cuenta.codigo == 'activa' and self.activo
@@ -489,8 +507,8 @@ class Material(models.Model):
     
     @property
     def total_utilizado(self):
-        """Calcula el total histórico consumido sumando los registros de MaterialUtilizado"""
-        return sum(consumo.cantidad_utilizada for consumo in self.consumos.all())
+        from django.db.models import Sum
+        return self.consumos.aggregate(total=Sum('cantidad_utilizada'))['total'] or 0
 
 class EspecialidadMaterial(models.Model):
     """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""
@@ -691,6 +709,7 @@ class AsignacionTicket(models.Model):
 
     class Meta:
         db_table = 'asignacion_ticket'
+        unique_together = [('ticket', 'usuario', 'rol_asignacion')]
         ordering = ['-fecha_asignacion']
 
     def get_estado_display(self):

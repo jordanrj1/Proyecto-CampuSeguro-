@@ -192,12 +192,13 @@ body::before {
       <div class="field-grid">
         <div class="form-group">
           <label class="form-label">RUT <span style="color:var(--accent-red)">*</span></label>
-          <input type="text" name="rut" placeholder="12345678-9" required
-                 value="{{ form.rut.value|default:'' }}">
+          <input type="text" name="rut" id="rutInput" placeholder="12.345.678-9" required
+                 value="{{ form.rut.value|default:'' }}" autocomplete="off">
+          <div id="rut-msg" style="font-size:11px;margin-top:3px;display:none;"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Teléfono</label>
-          <input type="tel" name="telefono" placeholder="+56 9 1234 5678"
+          <input type="tel" name="telefono" id="telefonoInput" placeholder="+56 9 1234 5678"
                  value="{{ form.telefono.value|default:'' }}">
         </div>
       </div>
@@ -209,36 +210,57 @@ body::before {
 
       {# ── Sección: Datos Académicos ── #}
       <div class="section-title">Datos Académicos</div>
+
       <div class="field-grid">
         <div class="form-group">
-          <label class="form-label">Vínculo con la institución</label>
-          <select name="vinculo">
+          <label class="form-label">Vínculo con la institución <span style="color:var(--accent-red)">*</span></label>
+          <select name="vinculo" id="vinculoSelect" required>
             <option value="">Seleccionar...</option>
-            <option value="alumno" {% if form.vinculo.value == 'alumno' %}selected{% endif %}>Alumno</option>
-            <option value="docente" {% if form.vinculo.value == 'docente' %}selected{% endif %}>Docente</option>
+            <option value="alumno"         {% if form.vinculo.value == 'alumno' %}selected{% endif %}>Alumno</option>
+            <option value="docente"        {% if form.vinculo.value == 'docente' %}selected{% endif %}>Docente</option>
             <option value="administrativo" {% if form.vinculo.value == 'administrativo' %}selected{% endif %}>Administrativo</option>
-            <option value="funcionario" {% if form.vinculo.value == 'funcionario' %}selected{% endif %}>Funcionario</option>
+            <option value="funcionario"    {% if form.vinculo.value == 'funcionario' %}selected{% endif %}>Funcionario</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="jornadaGroup" style="display:none;">
           <label class="form-label">Jornada</label>
-          <select name="jornada">
+          <select name="jornada" id="jornadaSelect">
             <option value="">Seleccionar...</option>
-            <option value="diurna" {% if form.jornada.value == 'diurna' %}selected{% endif %}>Diurna</option>
+            <option value="diurna"     {% if form.jornada.value == 'diurna' %}selected{% endif %}>Diurna</option>
             <option value="vespertina" {% if form.jornada.value == 'vespertina' %}selected{% endif %}>Vespertina</option>
-            <option value="mixta" {% if form.jornada.value == 'mixta' %}selected{% endif %}>Mixta</option>
+            <option value="mixta"      {% if form.jornada.value == 'mixta' %}selected{% endif %}>Mixta</option>
           </select>
         </div>
       </div>
-      <div class="field-grid">
-        <div class="form-group">
-          <label class="form-label">Carrera o Departamento</label>
-          <input type="text" name="carrera" placeholder="Ej: Ingeniería en Informática"
-                 value="{{ form.carrera.value|default:'' }}">
+
+      {# Selector de carrera en dos pasos: Escuela → Carrera (solo alumno/docente) #}
+      {{ carreras_data|json_script:"carreras-data" }}
+      <div id="carreraGroup" style="display:none;margin-top:14px;">
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Escuela
+              <span id="escuelaReq" style="color:var(--accent-red);"> *</span>
+            </label>
+            <select id="escuelaSelect">
+              <option value="">Seleccionar escuela...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <span id="carreraLabel">Carrera</span>
+              <span id="carreraReq" style="color:var(--accent-red);"> *</span>
+            </label>
+            <select name="carrera" id="carreraSelect">
+              <option value="">Selecciona una escuela primero...</option>
+            </select>
+          </div>
         </div>
+      </div>
+
+      <div class="field-grid" style="margin-top:14px;">
         <div class="form-group">
           <label class="form-label">Sede</label>
-          <select name="sede">
+          <select name="sede" id="sedeSelect">
             <option value="">Seleccionar sede...</option>
             {% for s in sedes %}
               <option value="{{ s.id }}" {% if form.sede.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>
@@ -337,5 +359,162 @@ function checkPasswords() {
 
 pw1.addEventListener('input', checkPasswords);
 pw2.addEventListener('input', checkPasswords);
+
+// ── RUT: auto-formato al perder el foco ────────────────────
+const rutInput  = document.getElementById('rutInput');
+const rutMsg    = document.getElementById('rut-msg');
+
+function calcDv(cuerpo) {
+  let suma = 0, mult = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += parseInt(cuerpo[i]) * mult;
+    mult = mult < 7 ? mult + 1 : 2;  // ciclo: 2-3-4-5-6-7-2-3...
+  }
+  const resto = 11 - (suma % 11);
+  return resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
+}
+
+function limpiarRut(val) {
+  // Quita todo excepto dígitos y K (acepta k minúscula)
+  return val.replace(/[^0-9Kk]/g, '').toUpperCase();
+}
+
+function formatRut(raw) {
+  // raw = solo dígitos + K, sin puntos ni guión
+  if (raw.length < 2) return raw;
+  const dv   = raw.slice(-1);        // último char = dígito verificador
+  const body = raw.slice(0, -1);     // resto = cuerpo
+  // Agrega puntos cada 3 dígitos desde la derecha
+  const bodyFmt = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${bodyFmt}-${dv}`;
+}
+
+rutInput.addEventListener('input', function () {
+  // Mientras escribe: solo permite dígitos, K, puntos y guión
+  this.value = this.value.replace(/[^0-9Kk.\-]/g, '');
+  rutMsg.style.display = 'none';
+});
+
+rutInput.addEventListener('blur', function () {
+  const raw = limpiarRut(this.value);
+  if (!raw) { rutMsg.style.display = 'none'; return; }
+
+  // Formato visual siempre (aunque sea inválido)
+  this.value = formatRut(raw);
+
+  // Validar longitud: cuerpo 7-9 dígitos + 1 DV = 8-10 chars totales
+  if (raw.length < 8 || raw.length > 10) {
+    rutMsg.textContent = '⚠ El cuerpo del RUT debe tener entre 7 y 9 dígitos.';
+    rutMsg.style.color = 'var(--accent-yellow)';
+    rutMsg.style.display = 'block';
+    return;
+  }
+
+  const dvIngresado   = raw.slice(-1);
+  const dvCalculado   = calcDv(raw.slice(0, -1));
+
+  if (dvIngresado !== dvCalculado) {
+    rutMsg.textContent = `✗ Dígito verificador incorrecto. El correcto es -${dvCalculado}.`;
+    rutMsg.style.color = 'var(--accent-red)';
+    rutMsg.style.display = 'block';
+  } else {
+    rutMsg.textContent = '✓ RUT válido';
+    rutMsg.style.color = 'var(--accent-teal)';
+    rutMsg.style.display = 'block';
+  }
+});
+
+// ── Teléfono: solo dígitos y caracteres telefónicos ────────
+document.getElementById('telefonoInput').addEventListener('input', function () {
+  this.value = this.value.replace(/[^0-9\s\+\-\(\)]/g, '');
+});
+
+// ── Vínculo dinámico ────────────────────────────────────────
+// carrera (FK → Carrera) → alumno y docente  (select agrupado por escuela)
+// jornada (choices)       → todos los vínculos
+// sede    (FK)            → todos los vínculos
+
+const vinculoSelect  = document.getElementById('vinculoSelect');
+const jornadaGroup  = document.getElementById('jornadaGroup');
+const jornadaSelect = document.getElementById('jornadaSelect');
+const carreraGroup  = document.getElementById('carreraGroup');
+const carreraLabel  = document.getElementById('carreraLabel');
+const carreraReq    = document.getElementById('carreraReq');
+const escuelaReq    = document.getElementById('escuelaReq');
+const escuelaSelect = document.getElementById('escuelaSelect');
+const carreraSelect = document.getElementById('carreraSelect');
+const sedeSelect    = document.getElementById('sedeSelect');
+
+// Dict {escuela: [{id, nombre}, ...]} inyectado de forma segura desde el servidor
+const CARRERAS_DATA = JSON.parse(document.getElementById('carreras-data').textContent);
+
+// Poblar el select de escuelas al cargar la página (orden alfabético)
+Object.keys(CARRERAS_DATA).sort().forEach(esc => {
+  const opt = document.createElement('option');
+  opt.value       = esc;
+  opt.textContent = esc;
+  escuelaSelect.appendChild(opt);
+});
+
+// Al cambiar escuela → llenar carreraSelect con las carreras de esa escuela
+escuelaSelect.addEventListener('change', () => {
+  const escuela = escuelaSelect.value;
+  carreraSelect.innerHTML = '';
+  if (escuela && CARRERAS_DATA[escuela]) {
+    const ph = document.createElement('option');
+    ph.value = ''; ph.textContent = 'Seleccionar carrera...';
+    carreraSelect.appendChild(ph);
+    CARRERAS_DATA[escuela].forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.nombre;
+      carreraSelect.appendChild(opt);
+    });
+  } else {
+    const ph = document.createElement('option');
+    ph.value = ''; ph.textContent = 'Selecciona una escuela primero...';
+    carreraSelect.appendChild(ph);
+  }
+});
+
+const VINCULO_CFG = {
+  alumno:        { carrera: true,  jornada: true,  label: 'Carrera', req: true  },
+  docente:       { carrera: true,  jornada: true,  label: 'Carrera', req: false },
+  administrativo:{ carrera: false, jornada: true  },
+  funcionario:   { carrera: false, jornada: true  },
+};
+
+function resetCarrera() {
+  escuelaSelect.value     = '';
+  carreraSelect.innerHTML = '<option value="">Selecciona una escuela primero...</option>';
+  carreraSelect.required  = false;
+}
+
+function actualizarCamposVinculo() {
+  const cfg = VINCULO_CFG[vinculoSelect.value];
+
+  // Siempre limpiar al cambiar vínculo
+  jornadaSelect.value = '';
+  resetCarrera();
+  sedeSelect.value = '';
+
+  if (!cfg) {
+    jornadaGroup.style.display = 'none';
+    carreraGroup.style.display = 'none';
+    return;
+  }
+
+  jornadaGroup.style.display = cfg.jornada ? '' : 'none';
+
+  carreraGroup.style.display = cfg.carrera ? '' : 'none';
+  if (cfg.carrera) {
+    carreraLabel.textContent = cfg.label;
+    carreraSelect.required   = cfg.req;
+    carreraReq.style.display = cfg.req ? 'inline' : 'none';
+    escuelaReq.style.display = cfg.req ? 'inline' : 'none';
+  }
+}
+
+vinculoSelect.addEventListener('change', actualizarCamposVinculo);
+actualizarCamposVinculo();
 </script>
 {% endblock %}

@@ -15,6 +15,7 @@
 .bi-tab.tab-green.active { background:rgba(40,167,69,0.15); color:var(--accent-green); border-color:var(--accent-green); }
 .bi-tab.tab-teal.active { background:rgba(23,162,184,0.15); color:var(--accent-teal); border-color:var(--accent-teal); }
 .bi-tab.tab-purple.active { background:rgba(111,66,193,0.15); color:var(--accent-purple); border-color:var(--accent-purple); }
+.bi-tab.tab-orange.active { background:rgba(253,126,20,0.15); color:#c85a00; border-color:#fd7e14; }
 .period-btn {
   font-size:12px; padding:6px 14px; border-radius:8px; text-decoration:none;
   border:1px solid var(--border); color:var(--text-secondary); transition:all 0.15s;
@@ -110,7 +111,8 @@
       {% elif seccion == 'guardias' %}Desempeño operativo de guardias
       {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
       {% elif seccion == 'materiales' %}Consumo y compras inteligentes
-      {% elif seccion == 'graficos' %}Visualización gráfica avanzada{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
+      {% elif seccion == 'graficos' %}Visualización gráfica avanzada
+      {% elif seccion == 'comunidad' %}Perfil de la comunidad y cruce con incidencias{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
     </div>
   </div>
   <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
@@ -194,6 +196,7 @@
   <a href="?seccion=mantencion&rango={{ rango }}" class="bi-tab tab-green {% if seccion == 'mantencion' %}active{% endif %}">🔧 Mantención</a>
   <a href="?seccion=materiales&rango={{ rango }}" class="bi-tab tab-teal {% if seccion == 'materiales' %}active{% endif %}">📦 Materiales</a>
   <a href="?seccion=graficos&rango={{ rango }}" class="bi-tab tab-purple {% if seccion == 'graficos' %}active{% endif %}">📈 Gráficos</a>
+  <a href="?seccion=comunidad&rango={{ rango }}" class="bi-tab tab-orange {% if seccion == 'comunidad' %}active{% endif %}">👥 Comunidad</a>
 </div>
 
 
@@ -1442,6 +1445,158 @@ if (categoriasFiltradas.length > 0) {
 </script>
 
 {% endif %}{# /graficos #}
+
+
+{# ══════════════════════════════════════════════════════════ #}
+{# COMUNIDAD                                                  #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'comunidad' %}
+
+{# ── KPIs rápidos ── #}
+<div class="section-eyebrow">
+  <span>Usuarios registrados por vínculo</span>
+  <span class="bi-tag bi-tag-source">todos los tiempos</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+  {% for v in com_por_vinculo %}
+  <div class="kpi blue">
+    <div class="kpi-label">{{ v.vinculo|capfirst }}</div>
+    <div class="kpi-value">{{ v.total }}</div>
+    <div class="kpi-sub">usuarios registrados</div>
+  </div>
+  {% empty %}
+  <div class="kpi blue" style="grid-column:1/-1;">
+    <div class="kpi-label">Sin datos de vínculo aún</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Fila 1: tickets por vínculo + tickets por jornada ── #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  {# Tickets por vínculo #}
+  <div class="card">
+    <div class="card-title">Tickets por vínculo del solicitante
+      <span class="bi-tag bi-tag-formula" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_vinculo %}
+    {% for v in com_tickets_por_vinculo %}
+    {% with pct=v.total|stringformat:"s" %}
+    <div class="stat-row">
+      <span style="font-size:13px;font-weight:500;">
+        {% if v.creado_por__vinculo == 'alumno' %}Alumno
+        {% elif v.creado_por__vinculo == 'docente' %}Docente
+        {% elif v.creado_por__vinculo == 'administrativo' %}Administrativo
+        {% elif v.creado_por__vinculo == 'funcionario' %}Funcionario
+        {% else %}Sin vínculo{% endif %}
+      </span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:100px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio v.total com_total_vinculo 100 %}%;background:var(--accent-primary);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ v.total }}</span>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con vínculo en el período.</div>
+    {% endif %}
+  </div>
+
+  {# Tickets por jornada #}
+  <div class="card">
+    <div class="card-title">Tickets por jornada del solicitante
+      <span class="bi-tag bi-tag-formula" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_jornada %}
+    {% with max_j=com_tickets_por_jornada.0.total %}
+    {% for j in com_tickets_por_jornada %}
+    <div class="stat-row">
+      <span style="font-size:13px;font-weight:500;">
+        {% if j.creado_por__jornada == 'diurna' %}Diurna
+        {% elif j.creado_por__jornada == 'vespertina' %}Vespertina
+        {% elif j.creado_por__jornada == 'mixta' %}Mixta
+        {% else %}—{% endif %}
+      </span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:100px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio j.total max_j 100 %}%;background:var(--accent-teal);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ j.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% endwith %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con jornada en el período.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Fila 2: tickets por escuela + afectación de clase por escuela ── #}
+<div class="section-eyebrow" style="margin-top:6px;">
+  <span>Cruce por escuela — solo alumnos y docentes con carrera asignada</span>
+  <span class="bi-tag bi-tag-alert">impacto académico</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+  {# Tickets por escuela #}
+  <div class="card">
+    <div class="card-title">Tickets reportados por escuela
+      <span class="bi-tag bi-tag-source" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_escuela %}
+    {% for e in com_tickets_por_escuela %}
+    <div class="stat-row">
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela|default:"Sin escuela" }}</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio e.total com_total_escuela 100 %}%;background:var(--accent-green);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ e.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos de escuela en el período.</div>
+    {% endif %}
+  </div>
+
+  {# Afectación de clase por escuela #}
+  <div class="card">
+    <div class="card-title">Clases afectadas por escuela
+      <span class="bi-tag bi-tag-alert" style="margin-left:8px;">afecta_clase=true</span>
+    </div>
+    {% if com_afectacion_por_escuela %}
+    {% for e in com_afectacion_por_escuela %}
+    <div class="stat-row">
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela|default:"Sin escuela" }}</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio e.total com_max_escuela_af 100 %}%;background:var(--accent-red);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ e.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con afectación de clase en el período.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Nota metodológica ── #}
+<div style="font-size:11px;color:var(--text-muted);background:var(--bg-50);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+  <strong>Nota:</strong>
+  Los cruces de escuela requieren que el solicitante tenga vínculo <em>alumno</em> o <em>docente</em> y carrera asignada al registrarse.
+  Tickets sin carrera registrada no aparecen en esos gráficos.
+  El período aplica igual que en las demás pestañas.
+</div>
+
+{% endif %}{# /comunidad #}
 
 {% endblock %}
 

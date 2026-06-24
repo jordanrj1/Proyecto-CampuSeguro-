@@ -213,10 +213,11 @@
 </div>
 {% endif %}
 
+{{ materiales_filtrados_json|json_script:"catalog-filtrado-data" }}
+{{ todos_materiales_json|json_script:"catalog-total-data" }}
 <script>
-  // Inyectamos de forma segura las matrices JSON desde Django hacia variables JavaScript
-  const catalogFiltrado = {{ materiales_filtrados_json|safe }};
-  const catalogTotal = {{ todos_materiales_json|safe }};
+  const catalogFiltrado = JSON.parse(document.getElementById('catalog-filtrado-data').textContent);
+  const catalogTotal = JSON.parse(document.getElementById('catalog-total-data').textContent);
 
   function previewFinal(input) {
     if (input.files && input.files[0]) {

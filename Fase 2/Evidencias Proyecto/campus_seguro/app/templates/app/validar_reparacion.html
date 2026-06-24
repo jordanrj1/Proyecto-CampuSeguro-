@@ -1,6 +1,29 @@
 {% extends 'app/base.html' %}
 {% block title %}Validar Reparación #{{ ticket.id }}{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> <a href="{% url 'app:gestor_tickets' %}">Tickets</a> <span class="sep">›</span> Validar Reparación #{{ ticket.id }}{% endblock %}
+{% block extra_css %}
+<style>
+.sesion-card {
+  padding: 12px 14px;
+  background: var(--bg-700);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.sesion-card.completado  { border-left: 3px solid var(--accent-green); }
+.sesion-card.advertencia { border-left: 3px solid var(--accent-yellow); }
+.sesion-card.otro        { border-left: 3px solid var(--border); }
+
+.badge-sesion {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.badge-sesion.completado { background: rgba(39,174,96,.15);  color: var(--accent-green); }
+.badge-sesion.fin-turno  { background: rgba(99,179,237,.1);  color: var(--accent-blue); }
+.badge-sesion.otro       { background: rgba(245,54,92,.1);   color: var(--accent-red); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="topbar">
   <div>
@@ -70,16 +93,13 @@
   <div class="form-section-title">🗂 Historial de jornadas ({{ sesiones|length }} sesión{% if sesiones|length != 1 %}es{% endif %})</div>
   <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
     {% for sesion in sesiones %}
-    <div style="padding:12px 14px;background:var(--bg-700);border-radius:8px;border:1px solid var(--border);{% if sesion.tipo_cierre == 'completado' %}border-left:3px solid var(--accent-green);{% elif sesion.personal_adicional_requerido or sesion.requiere_nivel_mayor %}border-left:3px solid var(--accent-yellow);{% else %}border-left:3px solid var(--border);{% endif %}">
+    <div class="sesion-card {% if sesion.tipo_cierre == 'completado' %}completado{% elif sesion.personal_adicional_requerido or sesion.requiere_nivel_mayor %}advertencia{% else %}otro{% endif %}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:12px;font-weight:700;color:var(--text-secondary);">
           {{ sesion.inicio|date:"d/m/Y" }}
           {% if sesion.horas_hombre %}— {{ sesion.horas_hombre }} h{% endif %}
         </span>
-        <span style="font-size:11px;padding:2px 8px;border-radius:12px;
-          {% if sesion.tipo_cierre == 'completado' %}background:rgba(39,174,96,.15);color:var(--accent-green);
-          {% elif sesion.tipo_cierre == 'fin_turno' %}background:rgba(99,179,237,.1);color:var(--accent-blue);
-          {% else %}background:rgba(245,54,92,.1);color:var(--accent-red);{% endif %}">
+        <span class="badge-sesion {% if sesion.tipo_cierre == 'completado' %}completado{% elif sesion.tipo_cierre == 'fin_turno' %}fin-turno{% else %}otro{% endif %}">
           {{ sesion.get_tipo_cierre_display }}
         </span>
       </div>

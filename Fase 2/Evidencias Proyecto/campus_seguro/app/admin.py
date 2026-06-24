@@ -3,11 +3,11 @@ from django.contrib.auth.admin import UserAdmin
 from django.urls import path, reverse
 from django.http import HttpResponseRedirect
 from .models import (
-    CategoriaMaterial, CategoriaTicket, Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
+    Carrera, CategoriaMaterial, CategoriaTicket, Usuario, TokenRecuperacion, Ubicacion, Material, Ticket,
     SesionTrabajo, ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, TransicionEstado,
-    Especialidad, EspecialidadUsuario, EspecialidadMaterial
+    Especialidad, EspecialidadUsuario, EspecialidadMaterial, Sede
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -168,14 +168,33 @@ class MaterialAdmin(admin.ModelAdmin):
 
 
 # ═══════════════════════════════════════════════════════════════
+# SEDES Y CARRERAS — escalables vía admin
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Sede)
+class SedeAdmin(admin.ModelAdmin):
+    list_display  = ('nombre', 'direccion')
+    search_fields = ('nombre',)
+
+
+@admin.register(Carrera)
+class CarreraAdmin(admin.ModelAdmin):
+    list_display  = ('nombre', 'escuela', 'sede', 'activa')
+    list_filter   = ('escuela', 'sede', 'activa')
+    search_fields = ('nombre', 'escuela')
+    list_editable = ('activa',)
+    ordering      = ('escuela', 'nombre')
+
+
+# ═══════════════════════════════════════════════════════════════
 # USUARIOS
 # ═══════════════════════════════════════════════════════════════
 
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
-    list_display  = ('username', 'get_full_name', 'rol', 'estado_cuenta', 'correo_institucional', 'fecha_registro')
+    list_display  = ('username', 'get_full_name', 'rol', 'estado_cuenta', 'fecha_registro')
     list_filter   = ('rol', 'estado_cuenta', 'vinculo')
-    search_fields = ('username', 'first_name', 'last_name', 'correo_institucional', 'rut')
+    search_fields = ('username', 'first_name', 'last_name')
     fieldsets = UserAdmin.fieldsets + (
         ('Datos Institucionales', {
             'fields': ('rol', 'rut', 'telefono', 'correo_institucional',

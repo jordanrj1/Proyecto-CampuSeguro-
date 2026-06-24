@@ -43,7 +43,7 @@ from django.conf import settings
 from decimal import Decimal
 
 from .models import (
-    CategoriaMaterial, CategoriaTicket, Especialidad, Sede, SesionTrabajo, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    Carrera, CategoriaMaterial, CategoriaTicket, Especialidad, Sede, SesionTrabajo, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -127,9 +127,10 @@ def _preparar_contexto_ubicaciones():
             'edificio': u.piso.edificio.nombre,
             'piso': u.piso.numero,
             'sala': u.sala,
-            'tipo': u.tipo.nombre_display
+            'tipo': u.tipo.nombre_display if u.tipo else ''
         }
         for u in ubicaciones
+        if u.piso and u.piso.edificio
     ])
     
     urgencias = list(
@@ -203,7 +204,7 @@ def login_view(request):
                     pass
 
         if user:
-            estado = user.estado_cuenta.codigo
+            estado = user.estado_cuenta.codigo if user.estado_cuenta else 'activa'
             if estado == 'pendiente':
                 messages.warning(request, 'Tu cuenta está pendiente de aprobación por un gestor.')
             elif estado == 'suspendida':
@@ -261,14 +262,15 @@ def registro_view(request):
                     messages.error(request, f'Error al crear cuenta: {e.message}')
                 return render(request, 'app/registro.html', {'form': form})
 
-        user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
-
-        LogAuditoria.objects.create(
-            usuario=user,
-            accion='Solicitud de cuenta creada' + (' (Auth0)' if usar_auth0 else ' (local)'),
-            ip_address=get_client_ip(request),
-            modulo='cuenta',
-        )
+        from django.db import transaction
+        with transaction.atomic():
+            user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
+            LogAuditoria.objects.create(
+                usuario=user,
+                accion='Solicitud de cuenta creada' + (' (Auth0)' if usar_auth0 else ' (local)'),
+                ip_address=get_client_ip(request),
+                modulo='cuenta',
+            )
 
         notificar_gestores(
             'cuenta_solicitud',
@@ -284,10 +286,23 @@ def registro_view(request):
         )
         return redirect('app:login')
 
+    # Construir dict {escuela: [{id, nombre}, ...]} para el selector en dos pasos
+    from collections import OrderedDict
+    _carreras_qs = (
+        Carrera.objects
+        .filter(activa=True)
+        .order_by('escuela', 'nombre')
+        .values('id', 'nombre', 'escuela')
+    )
+    _por_escuela: dict = OrderedDict()
+    for c in _carreras_qs:
+        _por_escuela.setdefault(c['escuela'], []).append({'id': c['id'], 'nombre': c['nombre']})
+
     return render(request, 'app/registro.html', {
         'form': form,
         'sedes': Sede.objects.all().order_by('nombre'),
-        })
+        'carreras_data': dict(_por_escuela),  # dict Python — json_script lo serializa en el template
+    })
 
 
 def olvide_contrasena_view(request):
@@ -301,7 +316,8 @@ def olvide_contrasena_view(request):
                 reverse('app:restablecer_contrasena', kwargs={'token': token.token})
             )
             messages.success(request, f'✓ Se ha generado un enlace de recuperación. Revisa tu correo institucional.')
-            messages.info(request, f'🔗 [DEV] Enlace de recuperación: {link}')
+            if settings.DEBUG:
+                messages.info(request, f'🔗 [DEV] Enlace de recuperación: {link}')
             LogAuditoria.objects.create(
                 usuario=user, accion='Solicitud de recuperación de contraseña',
                 ip_address=get_client_ip(request), modulo='cuenta'
@@ -326,10 +342,16 @@ def restablecer_contrasena_view(request, token):
 
     form = RestablecerContrasenaForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        tk.usuario.set_password(form.cleaned_data['password1'])
-        tk.usuario.save()
-        tk.usado = True
-        tk.save()
+        from django.db import transaction
+        with transaction.atomic():
+            tk_locked = TokenRecuperacion.objects.select_for_update().get(pk=tk.pk)
+            if not tk_locked.es_valido:
+                messages.error(request, 'Este enlace ya fue utilizado.')
+                return redirect('app:login')
+            tk_locked.usuario.set_password(form.cleaned_data['password1'])
+            tk_locked.usuario.save()
+            tk_locked.usado = True
+            tk_locked.save()
         LogAuditoria.objects.create(
             usuario=tk.usuario, accion='Contraseña restablecida',
             ip_address=get_client_ip(request), modulo='cuenta'
@@ -730,8 +752,24 @@ def editar_ticket(request, pk):
         return redirect('app:detalle_ticket', pk=pk)
     
     ubicaciones = Ubicacion.objects.select_related('piso__edificio', 'tipo').all()
-    
-    return render(request, 'app/editar_ticket.html', {'form': form, 'ticket': ticket, 'ubicaciones': ubicaciones})
+    edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
+    ubicaciones_json = json.dumps([
+        {
+            'id': u.id,
+            'edificio': u.piso.edificio.nombre,
+            'piso': u.piso.numero,
+            'sala': u.sala,
+            'tipo': u.tipo.nombre_display if u.tipo else ''
+        }
+        for u in ubicaciones
+        if u.piso and u.piso.edificio
+    ])
+
+    return render(request, 'app/editar_ticket.html', {
+        'form': form, 'ticket': ticket,
+        'ubicaciones': ubicaciones, 'edificios': edificios,
+        'ubicaciones_json': ubicaciones_json,
+    })
 
 
 @login_required
@@ -769,27 +807,30 @@ def cancelar_ticket(request, pk):
     if request.method == 'GET':
         return render(request, 'app/confirmar_cancelar.html', {'ticket': ticket})
     
+    from django.db import transaction
     estado_anterior = ticket.estado
-    ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
-    ticket.save()
-    
-    HistorialAcciones.objects.create(
-        ticket=ticket,
-        usuario=request.user,
-        tipo_accion='cancelacion',
-        estado_anterior=estado_anterior,
-        estado_nuevo=ticket.estado,
-        descripcion=f'Ticket cancelado por {request.user.get_full_name() or request.user.username}',
-        es_global=True,
-        ip_address=get_client_ip(request),
-    )
-    
-    registrar_log(
-        ticket, request.user, 'Ticket cancelado por usuario',
-        estado_anterior=estado_anterior.codigo,
-        estado_nuevo='cancelado',
-        ip=get_client_ip(request)
-    )
+    with transaction.atomic():
+        ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
+        ticket.cancelado_at = timezone.now()
+        ticket.save()
+
+        HistorialAcciones.objects.create(
+            ticket=ticket,
+            usuario=request.user,
+            tipo_accion='cancelacion',
+            estado_anterior=estado_anterior,
+            estado_nuevo=ticket.estado,
+            descripcion=f'Ticket cancelado por {request.user.get_full_name() or request.user.username}',
+            es_global=True,
+            ip_address=get_client_ip(request),
+        )
+
+        registrar_log(
+            ticket, request.user, 'Ticket cancelado por usuario',
+            estado_anterior=estado_anterior.codigo,
+            estado_nuevo='cancelado',
+            ip=get_client_ip(request)
+        )
     
     notificar_gestores(
         'ticket_cancelado',
@@ -878,31 +919,31 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{guardia.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            asignacion = AsignacionTicket.objects.create(
-                ticket=ticket,
-                usuario=guardia,
-                rol_asignacion='guardia',
-                asignado_por=request.user,
-                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
-                fecha_programada=fecha_programada
-            )
-            
-            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
-            ticket.save()
-            
-            HistorialAcciones.objects.create(
-                ticket=ticket,
-                usuario=request.user,
-                tipo_accion='asignacion',
-                estado_anterior=estado_anterior,
-                estado_nuevo='en_validacion',
-                sub_estado_nuevo='asignado_guardia',
-                descripcion=f'Ticket asignado a guardia {guardia.get_full_name()} para validación el {fecha_programada.strftime("%d/%m/%Y")}',
-                es_global=True,
-                ip_address=get_client_ip(request),
-            )
-            
+            from django.db import transaction
+            with transaction.atomic():
+                AsignacionTicket.objects.create(
+                    ticket=ticket,
+                    usuario=guardia,
+                    rol_asignacion='guardia',
+                    asignado_por=request.user,
+                    estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                    fecha_programada=fecha_programada
+                )
+                ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
+                ticket.save()
+                HistorialAcciones.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    tipo_accion='asignacion',
+                    estado_anterior=estado_anterior,
+                    estado_nuevo='en_validacion',
+                    sub_estado_nuevo='asignado_guardia',
+                    descripcion=f'Ticket asignado a guardia {guardia.get_full_name()} para validación el {fecha_programada.strftime("%d/%m/%Y")}',
+                    es_global=True,
+                    ip_address=get_client_ip(request),
+                )
+
             notificar(
                 guardia, 'asignacion',
                 f'Te asignaron el ticket #{ticket.pk} para validar',
@@ -941,32 +982,32 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{tecnico.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            asignacion = AsignacionTicket.objects.create(
-                ticket=ticket,
-                usuario=tecnico,
-                rol_asignacion='mantencion',
-                asignado_por=request.user,
-                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
-                fecha_programada=fecha_programada
-            )
-            
-            ticket.asignado_a = tecnico
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
-            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_tecnico')
-            ticket.save()
-            
-            HistorialAcciones.objects.create(
-                ticket=ticket,
-                usuario=request.user,
-                tipo_accion='asignacion',
-                estado_anterior=estado_anterior,
-                estado_nuevo='en_mantencion',
-                sub_estado_nuevo='asignado_tecnico',
-                descripcion=f'Ticket asignado a técnico {tecnico.get_full_name()} para trabajo el {fecha_programada.strftime("%d/%m/%Y")}',
-                es_global=True,
-                ip_address=get_client_ip(request),
-            )
-            
+            from django.db import transaction
+            with transaction.atomic():
+                AsignacionTicket.objects.create(
+                    ticket=ticket,
+                    usuario=tecnico,
+                    rol_asignacion='mantencion',
+                    asignado_por=request.user,
+                    estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                    fecha_programada=fecha_programada
+                )
+                ticket.asignado_a = tecnico
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+                ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_tecnico')
+                ticket.save()
+                HistorialAcciones.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    tipo_accion='asignacion',
+                    estado_anterior=estado_anterior,
+                    estado_nuevo='en_mantencion',
+                    sub_estado_nuevo='asignado_tecnico',
+                    descripcion=f'Ticket asignado a técnico {tecnico.get_full_name()} para trabajo el {fecha_programada.strftime("%d/%m/%Y")}',
+                    es_global=True,
+                    ip_address=get_client_ip(request),
+                )
+
             notificar(
                 tecnico, 'asignacion',
                 f'Te asignaron el ticket #{ticket.pk} para reparación',
@@ -1016,23 +1057,21 @@ def guardias_disponibles_ajax(request):
     guardias = Usuario.objects.filter(
         rol='guardia',
         estado_cuenta__codigo='activa',
-        activo=True
-    ).order_by('first_name', 'last_name')
-    
-    guardias_disponibles = []
-    for g in guardias:
-        tiene_inasistencia = g.inasistencias.filter(
-            estado__codigo='aprobada',
-            fecha_desde__lte=fecha,
-            fecha_hasta__gte=fecha
-        ).exists()
-        
-        if not tiene_inasistencia:
-            guardias_disponibles.append({
-                'id': g.id,
-                'nombre': f'{g.get_full_name()} ({g.turno})' if g.turno else g.get_full_name(),
-                'turno': g.turno or 'General'
-            })
+        activo=True,
+    ).exclude(
+        inasistencias__estado__codigo='aprobada',
+        inasistencias__fecha_desde__lte=fecha,
+        inasistencias__fecha_hasta__gte=fecha,
+    ).distinct().order_by('first_name', 'last_name')
+
+    guardias_disponibles = [
+        {
+            'id': g.id,
+            'nombre': f'{g.get_full_name()} ({g.turno})' if g.turno else g.get_full_name(),
+            'turno': g.turno or 'General',
+        }
+        for g in guardias
+    ]
     
     return JsonResponse({
         'fecha': fecha_str,
@@ -1057,26 +1096,21 @@ def tecnicos_disponibles_ajax(request):
     tecnicos = Usuario.objects.filter(
         rol='mantencion',
         estado_cuenta__codigo='activa',
-        activo=True
-    ).order_by('first_name', 'last_name')
-    
+        activo=True,
+    ).exclude(
+        inasistencias__estado__codigo='aprobada',
+        inasistencias__fecha_desde__lte=fecha,
+        inasistencias__fecha_hasta__gte=fecha,
+    ).distinct().prefetch_related('especialidades').order_by('first_name', 'last_name')
+
     tecnicos_disponibles = []
     for t in tecnicos:
-        tiene_inasistencia = t.inasistencias.filter(
-            estado__codigo='aprobada',
-            fecha_desde__lte=fecha,
-            fecha_hasta__gte=fecha
-        ).exists()
-        
-        if not tiene_inasistencia:
-            especialidades = list(t.especialidades.values_list('nombre', flat=True))
-            especialidad_texto = ', '.join(especialidades) if especialidades else 'General'
-            
-            tecnicos_disponibles.append({
-                'id': t.id,
-                'nombre': t.get_full_name(),
-                'especialidad': especialidad_texto
-            })
+        especialidades = list(t.especialidades.values_list('nombre', flat=True))
+        tecnicos_disponibles.append({
+            'id': t.id,
+            'nombre': t.get_full_name(),
+            'especialidad': ', '.join(especialidades) if especialidades else 'General',
+        })
     
     return JsonResponse({
         'fecha': fecha_str,
@@ -1089,6 +1123,10 @@ def tecnicos_disponibles_ajax(request):
 @rol_requerido('gestor')
 def reasignar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
+    _estados_reasignables = {'enviado', 'en_validacion', 'en_mantencion', 'pausado'}
+    if ticket.estado.codigo not in _estados_reasignables:
+        messages.error(request, 'Este ticket no puede reasignarse desde su estado actual.')
+        return redirect('app:gestor_tickets')
     roles_destino = ['mantencion'] if ticket.estado.codigo == 'en_mantencion' else ['guardia', 'mantencion']
 
     form = ReasignarForm(request.POST or None, roles=roles_destino)
@@ -1116,20 +1154,22 @@ def pausar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
     form = PausaForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
+        from django.db import transaction
         estado_anterior = ticket.estado.codigo
         razones = form.cleaned_data['razones_pausa']
         pausa_labels = {e.codigo: e.nombre_display for e in EstadoCatalogo.objects.filter(entidad='pausa_ticket')} or dict(Ticket.PAUSA_CHOICES)
         razones_texto = ' | '.join(pausa_labels.get(r, r) for r in razones)
 
-        ticket.estado = EstadoCatalogo.para('ticket', 'pausado')
-        ticket.estado_pausa = ','.join(razones)
-        ticket.motivo_pausa = form.cleaned_data['motivo_pausa']
-        ticket.save()
-        registrar_log(ticket, request.user,
-                      f'Ticket pausado — {razones_texto}',
-                      estado_anterior=estado_anterior, estado_nuevo='pausado',
-                      ip=get_client_ip(request), es_interno=True,
-                      detalle=f'Razones: {razones_texto}\nDetalle: {ticket.motivo_pausa}')
+        with transaction.atomic():
+            ticket.estado = EstadoCatalogo.para('ticket', 'pausado')
+            ticket.estado_pausa = ','.join(razones)
+            ticket.motivo_pausa = form.cleaned_data['motivo_pausa']
+            ticket.save()
+            registrar_log(ticket, request.user,
+                          f'Ticket pausado — {razones_texto}',
+                          estado_anterior=estado_anterior, estado_nuevo='pausado',
+                          ip=get_client_ip(request), es_interno=True,
+                          detalle=f'Razones: {razones_texto}\nDetalle: {ticket.motivo_pausa}')
         if ticket.asignado_a:
             notificar(ticket.asignado_a, 'pausa', f'Ticket #{ticket.pk} pausado',
                       f'Motivo: {razones_texto}', ticket=ticket)
@@ -1144,7 +1184,14 @@ def reactivar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='pausado', deleted_at__isnull=True)
     form = ReactivacionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        codigo_destino = 'en_mantencion' if ticket.asignado_a and ticket.asignado_a.rol == 'mantencion' else 'validado' if ticket.validado_por else 'enviado'
+        if ticket.asignado_a and ticket.asignado_a.rol == 'mantencion':
+            codigo_destino = 'en_mantencion'
+        elif ticket.asignado_a and ticket.asignado_a.rol == 'guardia':
+            codigo_destino = 'en_validacion'
+        elif ticket.validado_por:
+            codigo_destino = 'validado'
+        else:
+            codigo_destino = 'enviado'
         ticket.estado = EstadoCatalogo.para('ticket', codigo_destino)
         ticket.comentario_reactivacion = form.cleaned_data['comentario']
         ticket.estado_pausa = None
@@ -1171,13 +1218,15 @@ def cerrar_ticket(request, pk):
         messages.error(request, 'Este ticket no puede cerrarse desde su estado actual.')
         return redirect('app:gestor_tickets')
     if request.method == 'POST':
+        from django.db import transaction
         estado_anterior = ticket.estado.codigo
-        ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
-        ticket.cerrado_at = timezone.now()
-        ticket.save()
-        registrar_log(ticket, request.user, 'Ticket cerrado por gestor',
-                      estado_anterior=estado_anterior, estado_nuevo='cerrado',
-                      ip=get_client_ip(request))
+        with transaction.atomic():
+            ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
+            ticket.cerrado_at = timezone.now()
+            ticket.save()
+            registrar_log(ticket, request.user, 'Ticket cerrado por gestor',
+                          estado_anterior=estado_anterior, estado_nuevo='cerrado',
+                          ip=get_client_ip(request))
         notificar(ticket.creado_por, 'ticket_cerrado', f'Ticket #{ticket.pk} cerrado',
                   'Tu reporte fue resuelto satisfactoriamente.', ticket=ticket)
         messages.success(request, '✓ Ticket cerrado.')
@@ -1194,14 +1243,16 @@ def validar_reparacion(request, pk):
     if request.method == 'POST':
         accion = request.POST.get('accion')
 
+        from django.db import transaction
         if accion == 'aprobar':
             estado_anterior = ticket.estado.codigo
-            ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
-            ticket.cerrado_at = timezone.now()
-            ticket.save()
-            registrar_log(ticket, request.user, 'Reparación aprobada por gestor — ticket cerrado',
-                          estado_anterior=estado_anterior, estado_nuevo='cerrado',
-                          ip=get_client_ip(request))
+            with transaction.atomic():
+                ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
+                ticket.cerrado_at = timezone.now()
+                ticket.save()
+                registrar_log(ticket, request.user, 'Reparación aprobada por gestor — ticket cerrado',
+                              estado_anterior=estado_anterior, estado_nuevo='cerrado',
+                              ip=get_client_ip(request))
             notificar(ticket.creado_por, 'ticket_cerrado',
                       f'Ticket #{ticket.pk} cerrado',
                       'La reparación fue aprobada por el gestor. Tu reporte quedó resuelto.',
@@ -1227,13 +1278,14 @@ def validar_reparacion(request, pk):
                     'sesiones': sesiones, 'todos_materiales_sesiones': todos_mat,
                 })
             estado_anterior = ticket.estado.codigo
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
-            ticket.save()
-            registrar_log(ticket, request.user,
-                          f'Reparación rechazada por gestor — devuelta a mantención',
-                          estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
-                          ip=get_client_ip(request), es_interno=True,
-                          detalle=comentario)
+            with transaction.atomic():
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+                ticket.save()
+                registrar_log(ticket, request.user,
+                              f'Reparación rechazada por gestor — devuelta a mantención',
+                              estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
+                              ip=get_client_ip(request), es_interno=True,
+                              detalle=comentario)
             if mantencion:
                 notificar(mantencion.tecnico, 'rechazo_validacion',
                           f'Reparación #{ticket.pk} rechazada',
@@ -1635,9 +1687,13 @@ def gestor_bi(request):
     denominador = mant_total + nrep_total
     tasa_nrep = round((nrep_total / denominador * 100) if denominador else 0, 1)
 
+    nrep_por_tecnico = {
+        row['tecnico_id']: row['total']
+        for row in nrep_qs.values('tecnico_id').annotate(total=Count('id'))
+    }
     max_mant_total = max((t['total'] for t in por_tecnico), default=1)
     for t in por_tecnico:
-        nrep_tec = nrep_qs.filter(tecnico_id=t['tecnico__id']).count()
+        nrep_tec = nrep_por_tecnico.get(t['tecnico__id'], 0)
         denom_tec = t['total'] + nrep_tec
         t['resolucion'] = round((t['total'] / denom_tec * 100) if denom_tec else 100, 1)
         t['foto_tasa'] = round((t['con_foto'] / t['total'] * 100) if t['total'] else 0, 1)
@@ -1850,6 +1906,47 @@ def gestor_bi(request):
     guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').order_by('first_name')
     tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
 
+    # ═══════════════════════════════════════════════════════════════
+    # SECCIÓN COMUNIDAD — cruces con perfil del solicitante
+    # ═══════════════════════════════════════════════════════════════
+    # Distribución de usuarios registrados por vínculo (todos los tiempos)
+    com_por_vinculo = list(
+        Usuario.objects
+        .exclude(vinculo__isnull=True).exclude(vinculo='')
+        .values('vinculo').annotate(total=Count('id')).order_by('-total')
+    )
+    # Tickets del período por vínculo del solicitante
+    com_tickets_por_vinculo = list(
+        tickets.exclude(creado_por__vinculo__isnull=True)
+        .values('creado_por__vinculo').annotate(total=Count('id')).order_by('-total')
+    )
+    # Tickets del período por escuela (solo alumnos y docentes con carrera asignada)
+    com_tickets_por_escuela = list(
+        tickets
+        .filter(creado_por__vinculo__in=['alumno', 'docente'])
+        .exclude(creado_por__carrera__isnull=True)
+        .values('creado_por__carrera__escuela')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    # Tickets que afectan clase, por escuela
+    com_afectacion_por_escuela = list(
+        tickets
+        .filter(afecta_clase=True, creado_por__vinculo__in=['alumno', 'docente'])
+        .exclude(creado_por__carrera__isnull=True)
+        .values('creado_por__carrera__escuela')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    # Tickets por jornada del solicitante
+    com_tickets_por_jornada = list(
+        tickets.exclude(creado_por__jornada__isnull=True).exclude(creado_por__jornada='')
+        .values('creado_por__jornada').annotate(total=Count('id')).order_by('-total')
+    )
+    _com_total_vinculo = sum(v['total'] for v in com_tickets_por_vinculo) or 1
+    _com_total_escuela = sum(v['total'] for v in com_tickets_por_escuela) or 1
+    _com_max_escuela_af = max((v['total'] for v in com_afectacion_por_escuela), default=1)
+
     return render(request, 'app/bi.html', {
         'rango': rango, 'desde': desde, 'hasta': hasta, 'seccion': seccion,
         'trabajador_id': trabajador_id, 'cat_material': cat_material,
@@ -1889,6 +1986,15 @@ def gestor_bi(request):
         # ── NUEVOS DATOS PARA GRÁFICOS DE MATERIALES (NUEVOS GRÁFICOS DE TORTA) ─────────────────────────
         'materiales_top_grafico': materiales_top_grafico,
         'por_categoria_mat_grafico': por_categoria_mat_grafico,
+        # ── COMUNIDAD ────────────────────────────────────────────────────────────────────────────────────
+        'com_por_vinculo': com_por_vinculo,
+        'com_tickets_por_vinculo': com_tickets_por_vinculo,
+        'com_tickets_por_escuela': com_tickets_por_escuela,
+        'com_afectacion_por_escuela': com_afectacion_por_escuela,
+        'com_tickets_por_jornada': com_tickets_por_jornada,
+        'com_total_vinculo': _com_total_vinculo,
+        'com_total_escuela': _com_total_escuela,
+        'com_max_escuela_af': _com_max_escuela_af,
     })
 
 
@@ -1903,27 +2009,39 @@ def validar_ticket(request, pk):
         messages.info(request, 'Este ticket ya fue validado.')
         return redirect('app:dashboard')
 
+    # Verificar que el guardia que accede es el asignado al ticket
+    es_asignado = AsignacionTicket.objects.filter(
+        ticket=ticket,
+        usuario=request.user,
+        rol_asignacion='guardia',
+    ).exists()
+    if not es_asignado:
+        messages.error(request, 'No tienes asignación para validar este ticket.')
+        return redirect('app:dashboard')
+
     form = ValidacionForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        validacion = form.save(commit=False)
-        validacion.ticket = ticket
-        validacion.guardia = request.user
-        validacion.save()
+        from django.db import transaction
+        with transaction.atomic():
+            validacion = form.save(commit=False)
+            validacion.ticket = ticket
+            validacion.guardia = request.user
+            validacion.save()
 
-        estado_anterior = ticket.estado.codigo
-        
-        try:
-            asignacion = AsignacionTicket.objects.get(
-                ticket=ticket,
-                usuario=request.user,
-                rol_asignacion='guardia',
-                estado__codigo='pendiente'
-            )
-            asignacion.estado = EstadoCatalogo.para('asignacion', 'completada')
-            asignacion.fecha_completado = timezone.now()
-            asignacion.save()
-        except AsignacionTicket.DoesNotExist:
-            pass
+            estado_anterior = ticket.estado.codigo
+
+            try:
+                asignacion = AsignacionTicket.objects.get(
+                    ticket=ticket,
+                    usuario=request.user,
+                    rol_asignacion='guardia',
+                    estado__codigo='pendiente'
+                )
+                asignacion.estado = EstadoCatalogo.para('asignacion', 'completada')
+                asignacion.fecha_completado = timezone.now()
+                asignacion.save()
+            except AsignacionTicket.DoesNotExist:
+                pass
 
         if validacion.resultado == 'valido':
             ticket.estado = EstadoCatalogo.para('ticket', 'validado')
@@ -2476,6 +2594,7 @@ def registrar_material_faltante(request, pk):
     if request.method == 'POST' and form.is_valid():
         faltante = form.save(commit=False)
         faltante.sesion_trabajo = sesion
+        faltante.estado = EstadoCatalogo.para('material_faltante', 'pendiente')
         faltante.save()
         notificar_gestores('general', f'Material faltante – Ticket #{ticket.pk}',
                            f'{request.user.get_full_name()} reportó material faltante: {faltante.material.nombre}',

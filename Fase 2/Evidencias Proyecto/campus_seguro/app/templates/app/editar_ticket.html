@@ -39,8 +39,9 @@
           <label for="edificio" class="form-label">Edificio *</label>
           <select class="form-select" id="edificio" name="edificio" required>
             <option value="">Seleccionar edificio…</option>
-            <option value="Edificio E">Edificio E</option>
-            <option value="Edificio H">Edificio H</option>
+            {% for edificio in edificios %}
+            <option value="{{ edificio }}">{{ edificio }}</option>
+            {% endfor %}
           </select>
         </div>
 
@@ -114,19 +115,9 @@
   </div>
 </form>
 
+{{ ubicaciones_json|json_script:"ubicaciones-data" }}
 <script>
-// Base de datos compacta generada dinámicamente desde el contexto de Django
-const ubicacionesData = [
-  {% for u in ubicaciones %}
-  {
-    "id": {{ u.id }},
-    "edificio": "{{ u.piso.edificio.nombre }}",
-    "piso": "{{ u.piso.numero }}",
-    "tipo": "{{ u.tipo.nombre_display }}",
-    "sala": "{{ u.sala }}"
-  }{% if not forloop.last %},{% endif %}
-  {% endfor %}
-];
+const ubicacionesData = JSON.parse(document.getElementById('ubicaciones-data').textContent);
 
 // Elementos del DOM
 const edificioSelect = document.getElementById('edificio');
