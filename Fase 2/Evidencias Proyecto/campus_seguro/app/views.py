@@ -40,6 +40,9 @@ from django.core.paginator import Paginator
 from datetime import timedelta, datetime
 from functools import wraps
 from django.conf import settings
+# transaction se usa en varias vistas para agrupar escrituras — se centraliza
+# aquí para no repetir el mismo import adentro de cada función
+from django.db import transaction
 from decimal import Decimal
 
 from .models import (
@@ -262,7 +265,6 @@ def registro_view(request):
                     messages.error(request, f'Error al crear cuenta: {e.message}')
                 return render(request, 'app/registro.html', {'form': form})
 
-        from django.db import transaction
         with transaction.atomic():
             user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
             LogAuditoria.objects.create(
@@ -342,7 +344,6 @@ def restablecer_contrasena_view(request, token):
 
     form = RestablecerContrasenaForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        from django.db import transaction
         with transaction.atomic():
             tk_locked = TokenRecuperacion.objects.select_for_update().get(pk=tk.pk)
             if not tk_locked.es_valido:
@@ -454,20 +455,32 @@ def dashboard_gestor(request):
     no_reparados_escalados = tickets.filter(estado__codigo='no_reparado').select_related('creado_por', 'asignado_a', 'no_reparable')
     validados_pendientes = tickets.filter(estado__codigo='validado').select_related('creado_por', 'validado_por')
 
+    # Antes el dashboard pedía cada contador por separado a la base de datos,
+    # lo que eran como 15 viajes distintos en cada carga. Ahora se piden todos
+    # juntos de una sola vez. Visualmente no cambia nada, pero escala mucho mejor.
+    _excluir = ['cerrado', 'eliminado']
+    stats = tickets.aggregate(
+        total_tickets=Count('id'),
+        activos=Count('id', filter=~Q(estado__codigo__in=_excluir)),
+        pausados=Count('id', filter=Q(estado__codigo='pausado')),
+        cerrados=Count('id', filter=Q(estado__codigo='cerrado')),
+        criticos=Count('id', filter=Q(urgencia='critica') & ~Q(estado__codigo__in=_excluir)),
+        no_reparados=Count('id', filter=Q(estado__codigo='no_reparado')),
+        reparados_pendientes_count=Count('id', filter=Q(estado__codigo='reparado')),
+        validados_count=Count('id', filter=Q(estado__codigo='validado')),
+        sin_asignar=Count('id', filter=Q(estado__codigo='enviado')),
+        tickets_hoy=Count('id', filter=Q(created_at__date=hoy)),
+        cerrados_semana=Count('id', filter=Q(estado__codigo='cerrado', cerrado_at__gte=semana)),
+        r_afecta_clase=Count('id', filter=Q(afecta_clase=True) & ~Q(estado__codigo__in=_excluir)),
+        r_electrico=Count('id', filter=Q(riesgo_electrico=True) & ~Q(estado__codigo__in=_excluir)),
+        r_estructural=Count('id', filter=Q(riesgo_estructural=True) & ~Q(estado__codigo__in=_excluir)),
+        r_accesibilidad=Count('id', filter=Q(riesgo_accesibilidad=True) & ~Q(estado__codigo__in=_excluir)),
+    )
+
     context = {
-        'total_tickets': tickets.count(),
-        'activos': tickets.exclude(estado__codigo__in=['cerrado', 'eliminado']).count(),
-        'pausados': tickets.filter(estado__codigo='pausado').count(),
-        'cerrados': tickets.filter(estado__codigo='cerrado').count(),
-        'criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=['cerrado', 'eliminado']).count(),
-        'no_reparados': tickets.filter(estado__codigo='no_reparado').count(),
-        'reparados_pendientes_count': tickets.filter(estado__codigo='reparado').count(),
-        'validados_count': tickets.filter(estado__codigo='validado').count(),
-        'sin_asignar': tickets.filter(estado__codigo='enviado').count(),
-        'tickets_hoy': tickets.filter(created_at__date=hoy).count(),
-        'cerrados_semana': tickets.filter(estado__codigo='cerrado', cerrado_at__gte=semana).count(),
+        **stats,
         'tickets_recientes': tickets.order_by('-created_at')[:10],
-        'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=['cerrado', 'eliminado']).order_by('-created_at')[:5],
+        'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=_excluir).order_by('-created_at')[:5],
         'reparados_pendientes': reparados_pendientes.order_by('-created_at'),
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
@@ -480,11 +493,6 @@ def dashboard_gestor(request):
         'trabajadores_ausentes': trabajadores_ausentes,
         'tickets_con_ausentes': tickets_con_ausentes,
         'pausa_choices': Ticket.PAUSA_CHOICES,
-        # ── Riesgos e impacto ────────────────────────────────────
-        'r_afecta_clase':     tickets.filter(afecta_clase=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_electrico':        tickets.filter(riesgo_electrico=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_estructural':      tickets.filter(riesgo_estructural=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_accesibilidad':    tickets.filter(riesgo_accesibilidad=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
         'riesgos_por_edificio': list(
             tickets.filter(
                 Q(riesgo_electrico=True) | Q(riesgo_estructural=True) | Q(riesgo_accesibilidad=True)
@@ -807,7 +815,6 @@ def cancelar_ticket(request, pk):
     if request.method == 'GET':
         return render(request, 'app/confirmar_cancelar.html', {'ticket': ticket})
     
-    from django.db import transaction
     estado_anterior = ticket.estado
     with transaction.atomic():
         ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
@@ -919,7 +926,6 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{guardia.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            from django.db import transaction
             with transaction.atomic():
                 AsignacionTicket.objects.create(
                     ticket=ticket,
@@ -982,7 +988,6 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{tecnico.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            from django.db import transaction
             with transaction.atomic():
                 AsignacionTicket.objects.create(
                     ticket=ticket,
@@ -1154,7 +1159,6 @@ def pausar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
     form = PausaForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        from django.db import transaction
         estado_anterior = ticket.estado.codigo
         razones = form.cleaned_data['razones_pausa']
         pausa_labels = {e.codigo: e.nombre_display for e in EstadoCatalogo.objects.filter(entidad='pausa_ticket')} or dict(Ticket.PAUSA_CHOICES)
@@ -1218,7 +1222,6 @@ def cerrar_ticket(request, pk):
         messages.error(request, 'Este ticket no puede cerrarse desde su estado actual.')
         return redirect('app:gestor_tickets')
     if request.method == 'POST':
-        from django.db import transaction
         estado_anterior = ticket.estado.codigo
         with transaction.atomic():
             ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
@@ -1243,7 +1246,6 @@ def validar_reparacion(request, pk):
     if request.method == 'POST':
         accion = request.POST.get('accion')
 
-        from django.db import transaction
         if accion == 'aprobar':
             estado_anterior = ticket.estado.codigo
             with transaction.atomic():
@@ -1429,8 +1431,10 @@ def gestor_usuarios(request):
         qs = qs.filter(rol=rol_filtro)
     if estado_filtro:
         qs = qs.filter(estado_cuenta__codigo=estado_filtro)
+    paginator = Paginator(qs, 30)
+    usuarios_page = paginator.get_page(request.GET.get('page', 1))
     return render(request, 'app/usuarios.html', {
-        'usuarios': qs,
+        'usuarios': usuarios_page,
         'roles': Usuario.ROL_CHOICES,
         'estados': EstadoCatalogo.objects.filter(entidad='cuenta').order_by('orden').values_list('codigo', 'nombre_display'),
         'filtros': {'rol': rol_filtro, 'estado': estado_filtro},
@@ -1791,33 +1795,38 @@ def gestor_bi(request):
     # ═══════════════════════════════════════════════════════════════
     # Calcular materiales_top solo si estamos en la sección de materiales
     if seccion == 'materiales':
-        # Obtener todos los materiales del catálogo
-        todos_materiales_tabla = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
-        
-        # Calcular consumo en el período para cada material
-        materiales_top = []
-        for material in todos_materiales_tabla:
-            consumo = MaterialUtilizado.objects.filter(
-                material=material,
+        # Se traía el consumo de cada material de forma individual, lo que hacía
+        # que si había 40 materiales se hacían 40+ consultas. Ahora se trae todo
+        # el consumo del período de una vez y se cruza en memoria. El resultado
+        # es exactamente igual, solo que mucho más rápido con catálogos grandes.
+        consumo_dict = {
+            c['material_id']: c
+            for c in MaterialUtilizado.objects
+            .filter(
                 sesion_trabajo__ticket__created_at__date__gte=desde,
-                sesion_trabajo__ticket__created_at__date__lte=hasta
-            ).aggregate(
-                total=Sum('cantidad_utilizada'),
-                veces=Count('id'),
-                tickets=Count('sesion_trabajo__ticket', distinct=True)
+                sesion_trabajo__ticket__created_at__date__lte=hasta,
             )
-            
+            .values('material_id')
+            .annotate(
+                total_consumido=Sum('cantidad_utilizada'),
+                veces_usado=Count('id'),
+                en_tickets=Count('sesion_trabajo__ticket', distinct=True),
+            )
+        }
+
+        materiales_top = []
+        for material in Material.objects.filter(activo=True).select_related('categoria').order_by('categoria__nombre_display', 'nombre'):
+            c = consumo_dict.get(material.pk, {})
             materiales_top.append({
                 'material__codigo': material.codigo,
                 'material__nombre': material.nombre,
                 'material__unidad': material.unidad,
                 'categoria_nombre': material.categoria.nombre_display if material.categoria else 'General',
-                'total_consumido': consumo['total'] or 0,
-                'veces_usado': consumo['veces'] or 0,
-                'en_tickets': consumo['tickets'] or 0,
+                'total_consumido': c.get('total_consumido') or 0,
+                'veces_usado': c.get('veces_usado') or 0,
+                'en_tickets': c.get('en_tickets') or 0,
             })
-        
-        # Ordenar por cantidad consumida (mayor a menor)
+
         materiales_top.sort(key=lambda x: x['total_consumido'], reverse=True)
     else:
         # Si no estamos en la sección de materiales, inicializar lista vacía
@@ -2021,7 +2030,6 @@ def validar_ticket(request, pk):
 
     form = ValidacionForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        from django.db import transaction
         with transaction.atomic():
             validacion = form.save(commit=False)
             validacion.ticket = ticket
@@ -2115,8 +2123,10 @@ def tomar_trabajo(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
     if request.method == 'POST':
         if not ticket.inicio_trabajo_at:
-            ticket.inicio_trabajo_at = timezone.now()
-            ticket.save()
+            # Si algo falla al guardar, el ticket no queda a mitad de camino
+            with transaction.atomic():
+                ticket.inicio_trabajo_at = timezone.now()
+                ticket.save()
             registrar_log(ticket, request.user, 'Trabajo iniciado',
                           ip=get_client_ip(request), es_interno=True,
                           detalle=f'Técnico {request.user.get_full_name()} inició la reparación')
@@ -2335,12 +2345,16 @@ def marcar_no_reparable(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
     form = NoReparableForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        no_rep = form.save(commit=False)
-        no_rep.ticket = ticket
-        no_rep.tecnico = request.user
-        no_rep.save()
-        ticket.estado = EstadoCatalogo.para('ticket', 'no_reparado')
-        ticket.save()
+        # Se agrupa en una sola transacción para que si falla el cambio de estado
+        # del ticket, tampoco se guarde el registro de no reparable. Antes podía
+        # quedar uno sin el otro y el ticket quedaba en un estado inconsistente.
+        with transaction.atomic():
+            no_rep = form.save(commit=False)
+            no_rep.ticket = ticket
+            no_rep.tecnico = request.user
+            no_rep.save()
+            ticket.estado = EstadoCatalogo.para('ticket', 'no_reparado')
+            ticket.save()
         registrar_log(ticket, request.user, 'Marcado como No Reparable',
                       estado_anterior='en_mantencion', estado_nuevo='no_reparado',
                       ip=get_client_ip(request), es_interno=True,
@@ -2465,6 +2479,9 @@ def notif_accion(request, pk, accion):
     elif accion == 'eliminar':
         notif.deleted_at = timezone.now()
     notif.save()
+    # Invalida el cache del context processor para que el badge se actualice de inmediato
+    from django.core.cache import cache
+    cache.delete(f'notif_count_{request.user.pk}')
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'ok': True})
     return redirect('app:notificaciones')
@@ -2473,6 +2490,9 @@ def notif_accion(request, pk, accion):
 @login_required
 def marcar_todas_leidas(request):
     Notificacion.objects.filter(destinatario=request.user, leida=False).update(leida=True)
+    # Invalida el cache del context processor
+    from django.core.cache import cache
+    cache.delete(f'notif_count_{request.user.pk}')
     messages.success(request, '✓ Todas las notificaciones marcadas como leídas.')
     return redirect('app:notificaciones')
 

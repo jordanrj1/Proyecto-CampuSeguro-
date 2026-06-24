@@ -992,6 +992,16 @@
   </div>
 </div>
 
+{# Se usan json_script en lugar de |safe para pasar datos al JS de forma segura.
+   Con |safe cualquier carácter especial en los datos podía romper el script o
+   permitir inyección de código. json_script escapa todo y lo deja en un elemento
+   <script type="application/json"> que el JS lee con JSON.parse(). #}
+{{ tickets_por_estado|json_script:"bi-data-estado" }}
+{{ tickets_por_prioridad|json_script:"bi-data-prioridad" }}
+{{ por_categoria|json_script:"bi-data-categoria" }}
+{{ materiales_top_grafico|json_script:"bi-data-materiales-torta" }}
+{{ por_categoria_mat_grafico|json_script:"bi-data-categoria-mat" }}
+
 <!-- Script de Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
@@ -1034,7 +1044,7 @@ const datalabelsDoughnut = {
 // ═══════════════════════════════════════════════════════════
 // GRÁFICO 1: Tickets por Estado (Doughnut) - CON PORCENTAJES
 // ═══════════════════════════════════════════════════════════
-const dataEstado = {{ tickets_por_estado|safe }};
+const dataEstado = JSON.parse(document.getElementById('bi-data-estado').textContent);
 const labelsEstado = dataEstado.map(e => {
   const nombres = {
     'creado': 'Creado',
@@ -1091,7 +1101,7 @@ new Chart(document.getElementById('chartEstado'), {
 // ═══════════════════════════════════════════════════════════
 // GRÁFICO 2: Tickets por Prioridad (Barras) - SIN PORCENTAJES
 // ═══════════════════════════════════════════════════════════
-const dataPrioridad = {{ tickets_por_prioridad|safe }};
+const dataPrioridad = JSON.parse(document.getElementById('bi-data-prioridad').textContent);
 const labelsPrioridad = dataPrioridad.map(p => p.urgencia.charAt(0).toUpperCase() + p.urgencia.slice(1));
 const valoresPrioridad = dataPrioridad.map(p => p.total);
 const coloresPrioridad = dataPrioridad.map(p => {
@@ -1220,7 +1230,7 @@ new Chart(document.getElementById('chartEspera'), {
 // ═══════════════════════════════════════════════════════════
 // GRÁFICO 5: Distribución por Categoría (Doughnut) - CON PORCENTAJES
 // ═══════════════════════════════════════════════════════════
-const dataCategoriaDist = {{ por_categoria|safe }};
+const dataCategoriaDist = JSON.parse(document.getElementById('bi-data-categoria').textContent);
 const labelsCategoriaDist = dataCategoriaDist.map(c => c.categoria__nombre_display || 'Sin Categoría');
 const valoresCategoriaDist = dataCategoriaDist.map(c => c.total);
 
@@ -1263,7 +1273,7 @@ new Chart(document.getElementById('chartCategoriaDistribucion'), {
 // ═══════════════════════════════════════════════════════════
 // GRÁFICO 6: Top Categorías Más Frecuentes (Barras) - SIN PORCENTAJES
 // ═══════════════════════════════════════════════════════════
-const dataCategoriaTop = {{ por_categoria|safe }}.slice(0, 8);
+const dataCategoriaTop = JSON.parse(document.getElementById('bi-data-categoria').textContent).slice(0, 8);
 const labelsCategoriaTop = dataCategoriaTop.map(c => {
   const nombre = c.categoria__nombre_display || 'Sin Categoría';
   return nombre.length > 20 ? nombre.substring(0, 20) + '...' : nombre;
@@ -1309,7 +1319,7 @@ new Chart(document.getElementById('chartCategoriaTop'), {
 // GRÁFICO 7: Top Materiales Más Consumidos (Torta)
 // ═══════════════════════════════════════════════════════════
 {% if materiales_top_grafico %}
-const dataMaterialesTorta = {{ materiales_top_grafico|safe }};
+const dataMaterialesTorta = JSON.parse(document.getElementById('bi-data-materiales-torta').textContent);
 console.log('📊 Materiales:', dataMaterialesTorta);
 
 // Filtrar solo materiales con total > 0
@@ -1378,7 +1388,7 @@ if (materialesFiltrados.length > 0) {
 // GRÁFICO 8: Consumo por Categoría de Material (Torta)
 // ═══════════════════════════════════════════════════════════
 {% if por_categoria_mat_grafico %}
-const dataCategoriaMaterial = {{ por_categoria_mat_grafico|safe }};
+const dataCategoriaMaterial = JSON.parse(document.getElementById('bi-data-categoria-mat').textContent);
 console.log('📊 Categorías:', dataCategoriaMaterial);
 
 // Filtrar solo categorías con total > 0

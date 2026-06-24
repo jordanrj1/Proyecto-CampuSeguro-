@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils import timezone
 from django.utils.crypto import get_random_string
+from functools import lru_cache
 
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO GLOBAL DE ESTADOS (normalización – feedback profesora)
@@ -39,8 +40,13 @@ class EstadoCatalogo(models.Model):
         return self.nombre_display
 
     @classmethod
+    @lru_cache(maxsize=64)
     def para(cls, entidad, codigo):
-        """Shortcut para obtener un estado por entidad y código (sin hardcodear IDs)."""
+        """
+        Busca un estado por entidad y código. Se cachea en memoria porque esta
+        función se llama decenas de veces por request (cada cambio de estado de
+        ticket la llama) y los registros del catálogo casi nunca cambian.
+        """
         return cls.objects.get(entidad=entidad, codigo=codigo)
 
 
@@ -570,7 +576,8 @@ class Ticket(models.Model):
     # Clasificación
     # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real hacia el catálogo dinámico
     categoria = models.ForeignKey(CategoriaTicket, on_delete=models.PROTECT, related_name='tickets')
-    urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media')
+    # db_index=True porque el dashboard filtra por urgencia en casi todas las vistas
+    urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media', db_index=True)
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField()
 
@@ -594,7 +601,8 @@ class Ticket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     cerrado_at = models.DateTimeField(null=True, blank=True)
     cancelado_at = models.DateTimeField(null=True, blank=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    # db_index=True en deleted_at porque todos los listados excluyen tickets eliminados con deleted_at__isnull=True
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -873,9 +881,10 @@ class Notificacion(models.Model):
     titulo = models.CharField(max_length=200)
     mensaje = models.TextField()
     url_accion = models.CharField(max_length=300, blank=True, null=True)
-    leida = models.BooleanField(default=False)
-    archivada = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    # db_index=True en estos tres porque el context processor los filtra en cada request del sistema
+    leida = models.BooleanField(default=False, db_index=True)
+    archivada = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
