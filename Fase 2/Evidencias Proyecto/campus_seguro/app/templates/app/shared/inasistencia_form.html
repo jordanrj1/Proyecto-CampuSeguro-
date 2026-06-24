@@ -1,4 +1,5 @@
 {% extends 'app/base.html' %}
+{% load static %}
 {% block title %}Registrar inasistencia{% endblock %}
 
 {% block content %}
@@ -21,3 +22,7 @@
   </form>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script src="{% static 'app/js/registrar_inasistencia.js' %}"></script>
+{% endblock scripts %}
