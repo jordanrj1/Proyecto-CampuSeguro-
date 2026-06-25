@@ -1452,11 +1452,12 @@ if (categoriasFiltradas.length > 0) {
 {% block scripts %}
 <script src="{% static 'app/js/gestor_bi.js' %}"></script>
 
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FUNCIONES GLOBALES PARA PERÍODO Y FILTROS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════════════════
-// FUNCIONES PARA ACTUALIZAR PERÍODO Y FILTROS (DISPONIBLES EN TODAS LAS SECCIONES)
-// ═══════════════════════════════════════════════════════════
 function cambiarPeriodo(periodo) {
+  console.log('🔄 Cambiando período a:', periodo);
   const url = new URL(window.location.href);
   url.searchParams.set('rango', periodo);
   url.searchParams.delete('fecha_desde');

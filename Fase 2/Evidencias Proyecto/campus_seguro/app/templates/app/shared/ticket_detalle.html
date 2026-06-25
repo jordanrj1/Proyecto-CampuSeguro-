@@ -230,9 +230,13 @@
       {% endif %}
     </div>
 
+    {# ══════════════════════════════════════════════════════════ #}
+    {# RELEVANCIA Y PROGRESO (CON SOPORTE PARA PASOS OMITIDOS) #}
+    {# ══════════════════════════════════════════════════════════ #}
     <div class="card" style="margin-bottom: 18px">
       <div class="form-section-title"> Relevancia y Progreso</div>
       <div style="position: relative; padding: 30px 10px 20px;">
+        {# Línea de fondo #}
         <div
           style="
             position: absolute;
@@ -244,6 +248,8 @@
             z-index: 0;
           "
         ></div>
+        
+        {# Línea de progreso #}
         <div
           style="
             position: absolute;
@@ -256,6 +262,7 @@
             transition: width 0.5s ease;
           "
         ></div>
+        
         <div
           style="
             display: flex;
@@ -264,6 +271,9 @@
             z-index: 2;
           "
         >
+          {# ───────────────────────────────────────────── #}
+          {# PASO 1: CREADO                                #}
+          {# ───────────────────────────────────────────── #}
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -294,26 +304,29 @@
             </div>
           </div>
 
+          {# ──────────────────────────────────────────── #}
+          {# PASO 2: VALIDACIÓN (CON SOPORTE DE OMITIDO)  #}
+          {# ───────────────────────────────────────────── #}
           <div style="text-align: center; flex: 1;">
             <div
               style="
                 width: 36px;
                 height: 36px;
                 border-radius: 50%;
-                background: {% if ticket.validado_por %}var(--accent-green){% elif ticket.estado.codigo == 'en_validacion' %}var(--accent-yellow){% else %}var(--bg-700){% endif %};
+                background: {% if ticket.validado_por %}var(--accent-green){% elif ticket.estado.codigo == 'en_validacion' %}var(--accent-yellow){% elif ticket.mantencion %}var(--bg-600){% else %}var(--bg-700){% endif %};
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 margin: 0 auto 8px;
                 font-weight: 700;
                 font-size: 14px;
-                border: 3px solid var(--bg-850);
-                color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--bg-850){% else %}var(--text-muted){% endif %};
+                border: {% if ticket.mantencion and not ticket.validado_por %}2px dashed var(--text-muted){% else %}3px solid var(--bg-850){% endif %};
+                color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--bg-850){% elif ticket.mantencion %}var(--text-muted){% else %}var(--text-muted){% endif %};
               "
             >
-              {% if ticket.validado_por %}✓{% else %}🛡️{% endif %}
+              {% if ticket.validado_por %}✓{% elif ticket.mantencion and not ticket.validado_por %}⤴{% else %}🛡️{% endif %}
             </div>
-            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--text-primary){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
+            <div style="font-weight: 600; font-size: 11px; color: {% if ticket.validado_por or ticket.estado.codigo == 'en_validacion' %}var(--text-primary){% elif ticket.mantencion %}var(--text-muted){% else %}var(--text-muted){% endif %}; margin-bottom: 2px;">
               Validación
             </div>
             {% if ticket.validado_por %}
@@ -323,11 +336,21 @@
               <div style="font-size: 9px; color: var(--text-secondary);">
                 {{ ticket.validado_por.get_full_name }}
               </div>
+            {% elif ticket.mantencion and not ticket.validado_por %}
+              <div style="font-size: 10px; color: var(--text-muted); font-style: italic;">
+                Omitido
+              </div>
+              <div style="font-size: 9px; color: var(--text-muted);">
+                Directo a mantención
+              </div>
             {% else %}
               <div style="font-size: 10px; color: var(--text-muted);">Pendiente</div>
             {% endif %}
           </div>
 
+          {# ───────────────────────────────────────────── #}
+          {# PASO 3: MANTENCIÓN                             #}
+          {# ───────────────────────────────────────────── #}
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -362,6 +385,9 @@
             {% endif %}
           </div>
 
+          {# ───────────────────────────────────────────── #}
+          {# PASO 4: REPARADO                               #}
+          {# ───────────────────────────────────────────── #}
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -396,6 +422,9 @@
             {% endif %}
           </div>
 
+          {# ───────────────────────────────────────────── #}
+          {# PASO 5: CERRADO                                #}
+          {# ───────────────────────────────────────────── #}
           <div style="text-align: center; flex: 1;">
             <div
               style="
@@ -759,7 +788,7 @@
                     </table>
                   </div>
                   {% else %}
-                    <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">ℹ️ No se retiraron materiales de pañol en este turno.</div>
+                    <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">️ No se retiraron materiales de pañol en este turno.</div>
                   {% endif %}
 
                 {% endif %}
@@ -835,7 +864,7 @@
       {% endfor %}
     </div>
     {% endif %}
-    {% endwith % constituency %}{% endif %}
+    {% endwith %}{% endif %}
 
     {% if ticket.no_reparable %} {% with nr=ticket.no_reparable %}
     <div
@@ -935,7 +964,7 @@
 
     {% if request.user.rol == 'gestor' %}
     <div class="card">
-      <div class="form-section-title">⚡ Acciones</div>
+      <div class="form-section-title"> Acciones</div>
       <div style="display: flex; flex-direction: column; gap: 8px">
         {%if ticket.estado.codigo == 'enviado' or ticket.estado.codigo == 'validado'%}
         <a
