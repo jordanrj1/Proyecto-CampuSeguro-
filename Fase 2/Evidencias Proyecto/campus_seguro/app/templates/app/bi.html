@@ -306,19 +306,65 @@
     </div>
     {% else %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin reincidencias en el período</div>{% endif %}
   </div>
-  <div class="card">
-    <div class="card-title">🏢 Carga por edificio <span class="bi-tag bi-tag-source" style="margin-left:6px;">tickets según su ubicación</span></div>
+  <div class="card" id="tarjeta-infraestructura"> 
+    <div class="card-title" style="margin-bottom: 12px;">
+      🏢 Carga por Infraestructura 
+      <span class="bi-tag bi-tag-source" style="margin-left:6px;">tickets según su ubicación</span>
+    </div>
+
+    <form method="get" action="" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; background:var(--bg-100); padding:10px; border-radius:8px; border:1px solid var(--border);">
+      <input type="hidden" name="seccion" value="{{ seccion }}">
+      <input type="hidden" name="rango" value="{{ rango }}">
+      <input type="hidden" name="fecha_desde" value="{{ fecha_desde_str }}">
+      <input type="hidden" name="fecha_hasta" value="{{ fecha_hasta_str }}">
+
+      <div style="flex:1; min-width:110px;">
+        <select name="edificio" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Edificios (Todos)</option>
+          {% for ed in edificios_lista %}
+            <option value="{{ ed.id }}" {% if edificio_seleccionado == ed.id|stringformat:'s' %}selected{% endif %}>{{ ed.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:110px;">
+        <select name="piso" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Pisos (Todos)</option>
+          {% for pi in pisos_lista %}
+            <option value="{{ pi.numero }}" {% if piso_seleccionado == pi.numero|stringformat:'s' %}selected{% endif %}>Piso {{ pi.numero }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:110px;">
+        <select name="tipo_ubicacion" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Tipos de Espacio</option>
+          {% for tu in tipos_ubicacion_lista %}
+            <option value="{{ tu.codigo }}" {% if tipo_ubicacion_seleccionado == tu.codigo %}selected{% endif %}>{{ tu.nombre_display }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+
     {% for b in por_edificio %}
     <div class="stat-row">
-      <span style="font-size:13px;">{{ b.edificio }}</span>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:80px;height:5px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
-          {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-teal);width:{% widthratio b.total total_tickets 100 %}%;"></div>{% endif %}
+      <span style="font-size:13px; font-weight: 500;">
+        <i class="fa-solid fa-building" style="color:var(--accent-teal); margin-right:6px; font-size:11px;"></i>
+        {{ b.edificio }}
+      </span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:80px; height:5px; background:var(--bg-300); border-radius:3px; overflow:hidden;">
+          {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-teal); width:{% widthratio b.total total_tickets 100 %}%;"></div>{% endif %}
         </div>
-        <span style="font-size:13px;font-weight:700;min-width:22px;text-align:right;">{{ b.total }}</span>
+        <span style="font-size:13px; font-weight:700; min-width:22px; text-align:right;">{{ b.total }}</span>
       </div>
     </div>
-    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+    {% empty %}
+      <div style="color:var(--text-muted); font-size:12px; padding:24px 0; text-align: center;">
+        <i class="fa-solid fa-folder-open" style="display:block; font-size:20px; margin-bottom:6px; opacity:0.5;"></i>
+        Sin registros para la ubicación seleccionada.
+      </div>
+    {% endfor %}
   </div>
 </div>
 
@@ -1487,5 +1533,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// 1. Guarda la posición antes de enviar el formulario
+  function enviarConScroll(selectElement) {
+    sessionStorage.setItem('bi_infra_scroll_pos', window.scrollY);
+    selectElement.form.submit();
+  }
+
+  // 2. Al terminar de recargar, si hay una posición guardada, vuelve a ella de golpe
+  document.addEventListener('DOMContentLoaded', function() {
+    const savedScrollPos = sessionStorage.getItem('bi_infra_scroll_pos');
+    if (savedScrollPos) {
+      window.scrollTo(0, parseInt(savedScrollPos));
+      sessionStorage.removeItem('bi_infra_scroll_pos'); // Limpia la memoria para que no interfiera en otras navegaciones
+    }
+  });
 </script>
 {% endblock scripts %}
