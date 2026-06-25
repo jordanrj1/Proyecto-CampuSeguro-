@@ -1084,7 +1084,6 @@ def tecnicos_disponibles_ajax(request):
         'total': len(tecnicos_disponibles)
     })
 
-
 @login_required
 @rol_requerido('gestor')
 def reasignar_ticket(request, pk):
@@ -1096,19 +1095,54 @@ def reasignar_ticket(request, pk):
         anterior = ticket.asignado_a
         nuevo = form.cleaned_data['nuevo_responsable']
         motivo = form.cleaned_data['motivo']
+        
         ticket.asignado_a = nuevo
+        ticket.inicio_trabajo_at = None
+        
+        if ticket.estado.codigo == 'no_reparado':
+            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+        
         ticket.save()
+        
         registrar_log(ticket, request.user,
                       f'Reasignado: {anterior or "(sin asignar)"} → {nuevo.get_full_name()}',
                       ip=get_client_ip(request), es_interno=True, detalle=motivo)
+        
+        if anterior:
+            HistorialAcciones.objects.create(
+                ticket=ticket,
+                usuario=anterior,
+                tipo_accion='reasignacion',
+                estado_anterior=ticket.estado.codigo,
+                estado_nuevo=ticket.estado.codigo,
+                descripcion=motivo,
+                usuario_reasignado_a=nuevo,
+                ip_address=get_client_ip(request)
+            )
+
+        estado_ini_asignacion = EstadoCatalogo.objects.filter(entidad='asignacion', es_inicial=True).first()
+        if not estado_ini_asignacion:
+            estado_ini_asignacion = EstadoCatalogo.objects.filter(
+                entidad='asignacion', 
+                codigo__in=['pendiente', 'activa', 'asignada']
+            ).first() or EstadoCatalogo.objects.filter(entidad='asignacion').first()
+
+        AsignacionTicket.objects.create(
+            ticket=ticket,
+            usuario=nuevo,
+            rol_asignacion='mantencion' if nuevo.rol == 'mantencion' else 'guardia',
+            asignado_por=request.user,
+            estado=estado_ini_asignacion
+        )
+        
         notificar(nuevo, 'asignacion', f'Ticket reasignado a ti #{ticket.pk}',
                   f'{ticket.titulo}\nMotivo: {motivo}', ticket=ticket,
                   url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk}))
-        messages.success(request, '✓ Ticket reasignado.')
+        
+        messages.success(request, '✓ Ticket reasignado con su respectiva orden de trabajo.')
         return redirect('app:gestor_tickets')
 
     return render(request, 'app/reasignar.html', {'form': form, 'ticket': ticket})
-
 
 @login_required
 @rol_requerido('gestor')
@@ -1635,17 +1669,170 @@ def gestor_bi(request):
     denominador = mant_total + nrep_total
     tasa_nrep = round((nrep_total / denominador * 100) if denominador else 0, 1)
 
-    max_mant_total = max((t['total'] for t in por_tecnico), default=1)
-    for t in por_tecnico:
-        nrep_tec = nrep_qs.filter(tecnico_id=t['tecnico__id']).count()
-        denom_tec = t['total'] + nrep_tec
-        t['resolucion'] = round((t['total'] / denom_tec * 100) if denom_tec else 100, 1)
-        t['foto_tasa'] = round((t['con_foto'] / t['total'] * 100) if t['total'] else 0, 1)
-        escalaciones = (t['nivel_mayor'] or 0) + (t['adicional'] or 0)
-        t['autonomia'] = round(max(0, (t['total'] - escalaciones) / t['total'] * 100) if t['total'] else 100, 1)
-        actividad_pts = (t['total'] / max_mant_total * 100) if max_mant_total else 0
-        t['score'] = int(t['resolucion'] * 0.40 + t['foto_tasa'] * 0.20 + t['autonomia'] * 0.25 + actividad_pts * 0.15)
-        t['nrep_count'] = nrep_tec
+    # ═══════════════════════════════════════════════════════════════
+    # 🟢 CONTROL DE GESTIÓN JUSTA POR TÉCNICO (CORREGIDO: BASE EN ASIGNACIONES)
+    # ═══════════════════════════════════════════════════════════════
+    
+    # 1. Buscamos qué técnicos tuvieron asignaciones activas de mantención en este rango de fechas
+    tecnicos_activos_ids = Usuario.objects.filter(
+        rol='mantencion', 
+        estado_cuenta__codigo='activa'
+    ).values_list('id', flat=True).distinct()
+
+    # Si se aplicó el filtro por un trabajador específico en la barra superior, dejamos solo a ese técnico
+    if trabajador_id and seccion in ('mantencion', 'materiales'):
+        tecnicos_activos_ids = [int(trabajador_id)] if int(trabajador_id) in tecnicos_activos_ids else []
+
+    por_tecnico = []
+
+    # Iteramos sobre la lista purificada (sin duplicados)
+    for tec_id in tecnicos_activos_ids:
+        try:
+            user_tec = Usuario.objects.get(id=tec_id)
+        except Usuario.DoesNotExist:
+            continue
+
+        # 🔧 FILTRO POR FECHA DE ACCIÓN REAL: Captura cierres realizados estrictamente en el rango filtrado
+        reparados_count = mant_qs.filter(tecnico_id=tec_id).count()
+
+        # 🔧 FILTRO POR FECHA DE ACCIÓN REAL: Captura declaraciones de no reparabilidad hechas hoy/rango filtrado
+        norep_count = nrep_qs.filter(tecnico_id=tec_id).count()
+
+        # Contar las reasignaciones del técnico registradas en el período filtrado
+        reasignados_count = HistorialAcciones.objects.filter(
+            usuario_id=tec_id,
+            tipo_accion__in=['reasignacion', 'reasignacion_por_inasistencia'],
+            created_at__date__gte=desde,
+            created_at__date__lte=hasta
+        ).count()
+
+        inasistencias_qs = Inasistencia.objects.filter(
+            usuario_id=tec_id,
+            estado__codigo='aprobada',
+            fecha_desde__gte=desde,
+            fecha_hasta__lte=hasta
+        ).order_by('-fecha_desde')
+        
+        inasistencias_count = inasistencias_qs.count()
+        
+        lista_inasistencias = []
+        for ina in inasistencias_qs:
+            lista_inasistencias.append({
+                'fecha_desde': ina.fecha_desde.strftime('%d/%m/%Y') if hasattr(ina.fecha_desde, 'strftime') else str(ina.fecha_desde),
+                'fecha_hasta': ina.fecha_hasta.strftime('%d/%m/%Y') if hasattr(ina.fecha_hasta, 'strftime') else str(ina.fecha_hasta),
+                'motivo': ina.motivo if hasattr(ina, 'motivo') else (ina.descripcion if hasattr(ina, 'descripcion') else 'Ausencia autorizada y validada por jefatura.')
+            })
+
+        # Tickets que tiene asignados en su bandeja activa en tiempo real (Carga viva actual)
+        en_proceso_count = Ticket.objects.filter(
+            asignado_a_id=tec_id,
+            estado__codigo='en_mantencion',
+            deleted_at__isnull=True
+        ).count()
+
+        # 📊 CALCULAR RENDIMIENTOS OPERATIVOS DEL PERÍODO
+        denom_tec = reparados_count + norep_count
+        resolucion = round((reparados_count / denom_tec * 100) if denom_tec else 100, 1)
+        
+        # Calcular autonomía basándonos en las sesiones de trabajo del técnico en este rango
+        sesiones_periodo = ticket.sesiones.filter(tecnico_id=tec_id, created_at__date__gte=desde, created_at__date__lte=hasta) if 'ticket' in locals() else []
+        nivel_mayor = sesiones_periodo.filter(requiere_nivel_mayor=True).count() if sesiones_periodo else 0
+        adicional = sesiones_periodo.filter(personal_adicional_requerido=True).count() if sesiones_periodo else 0
+        escalaciones = nivel_mayor + adicional
+        total_sesiones = sesiones_periodo.count() if sesiones_periodo else 0
+        autonomia = round(max(0, (total_sesiones - escalaciones) / total_sesiones * 100) if total_sesiones else 100, 1)
+
+        # 🚀 3. RECOPILACIÓN FILTRADA POR ACCIONES EN EL PERÍODO (SOLO CAMBIOS DE ESTADO ACTIVOS EN EL RANGO)
+        historial_modal = []
+        lista_norep = []
+        lista_reasignados = []
+        lista_reparados = []
+        
+        # CAPTURAR LOS QUE CAMBIARON A "NO REPARABLE" EN ESTE RANGO
+        norep_periodo = NoReparable.objects.filter(
+            tecnico_id=tec_id,
+            created_at__date__gte=desde,
+            created_at__date__lte=hasta
+        ).select_related('ticket', 'ticket__ubicacion')
+        
+        for nr in norep_periodo:
+            lista_norep.append({
+                'id': nr.ticket.id,
+                'titulo': nr.ticket.titulo,
+                'ubicacion': str(nr.ticket.ubicacion),
+                'tipo': 'No Reparable',
+                'badge_class': 'badge-red',
+                'motivo': nr.motivo_tecnico or 'Declarado como no reparable por razones técnicas.'
+            })
+
+        # CAPTURAR LOS QUE FUERON REASIGNADOS EN ESTE RANGO
+        reasignados_periodo = HistorialAcciones.objects.filter(
+            usuario_id=tec_id,
+            tipo_accion__in=['reasignacion', 'reasignacion_por_inasistencia'],
+            created_at__date__gte=desde,
+            created_at__date__lte=hasta
+        ).select_related('ticket', 'ticket__ubicacion')
+        
+        for hist in reasignados_periodo:
+            lista_reasignados.append({
+                'id': hist.ticket.id,
+                'titulo': hist.ticket.titulo,
+                'ubicacion': str(hist.ticket.ubicacion),
+                'tipo': 'Reasignado',
+                'badge_class': 'badge-yellow',
+                'motivo': hist.descripcion or 'Caso reasignado a otro operador en esta fecha.'
+            })
+            
+        # CAPTURAR LOS QUE ACTUALMENTE ESTÁN ACTIVOS EN SU BANDEJA ("EN MANTENCIÓN")
+        # Como están activos, es vital que el gestor los vea siempre para saber en qué está trabajando hoy
+        activos_bandeja = Ticket.objects.filter(
+            asignado_a_id=tec_id,
+            estado__codigo='en_mantencion',
+            deleted_at__isnull=True
+        ).select_related('ubicacion')
+        
+        for tk in activos_bandeja:
+            lista_reparados.append({
+                'id': tk.id,
+                'titulo': tk.titulo,
+                'ubicacion': str(tk.ubicacion),
+                'tipo': 'En Mantención (Activo)',
+                'badge_class': 'badge-blue',
+                'motivo': 'Trabajo actualmente activo en la bandeja del técnico.'
+            })
+
+        # CAPTURAR LOS QUE SE REPARARON/CERRARON EN ESTE RANGO
+        reparados_periodo = RegistroMantencion.objects.filter(
+            tecnico_id=tec_id,
+            fecha_registro__date__gte=desde,
+            fecha_registro__date__lte=hasta
+        ).select_related('ticket', 'ticket__ubicacion', 'ticket__estado')
+        
+        for reg in reparados_periodo:
+            lista_reparados.append({
+                'id': reg.ticket.id,
+                'titulo': reg.ticket.titulo,
+                'ubicacion': str(reg.ticket.ubicacion),
+                'tipo': 'Reparado / Cerrado',
+                'badge_class': 'badge-green',
+                'motivo': reg.causa_raiz or 'Reparación completada y firmada exitosamente.'
+            })
+
+        # Estructuramos el diccionario único por técnico
+        por_tecnico.append({
+            'tecnico__id': tec_id,
+            'tecnico__first_name': user_tec.first_name,
+            'tecnico__last_name': user_tec.last_name,
+            'total': reparados_count,
+            'nrep_count': norep_count,
+            'reasignados_count': reasignados_count,
+            'inasistencias_count': inasistencias_count,
+            'inasistencias_detalladas': lista_inasistencias,
+            'en_proceso_count': en_proceso_count,
+            'resolucion': resolucion,
+            'autonomia': autonomia,
+            'historial_completo': lista_norep + lista_reasignados + lista_reparados
+        })
 
     # ═══════════════════════════════════════════════════════════════
     # 🟢 NUEVO: DATOS PARA GRÁFICOS DE MATERIALES (NUEVOS GRÁFICOS DE TORTA)
@@ -1966,8 +2153,18 @@ def validar_ticket(request, pk):
 @login_required
 @rol_requerido('mantencion')
 def estimar_ticket(request, pk):
+    from django.http import Http404
+
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
-    asignacion = get_object_or_404(AsignacionTicket, ticket=ticket, usuario=request.user, rol_asignacion='mantencion')
+    
+    asignacion = AsignacionTicket.objects.filter(
+        ticket=ticket, 
+        usuario=request.user, 
+        rol_asignacion='mantencion'
+    ).first()
+
+    if not asignacion:
+        raise Http404("No se encontró una orden de asignación válida o activa para este técnico.")
 
     if request.method == 'POST':
         form = EstimarTicketForm(request.POST, instance=asignacion)
@@ -2016,9 +2213,9 @@ def tomar_trabajo(request, pk):
 @rol_requerido('mantencion')
 def completar_mantencion(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
-    if hasattr(ticket, 'mantencion'):
-        messages.info(request, 'Este ticket ya tiene registro de mantención.')
-        return redirect('app:dashboard')
+    
+    # En vez de un "if hasattr" que bloquea el rebote, capturamos el registro previo si existe
+    registro_previo = getattr(ticket, 'mantencion', None)
 
     todos_materiales = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
     tecnico = request.user
@@ -2043,7 +2240,8 @@ def completar_mantencion(request, pk):
     materiales_filtrados_json = json.dumps(serialize_mat(materiales_filtrados))
     todos_materiales_json = json.dumps(serialize_mat(todos_materiales))
 
-    form = MantencionForm(request.POST or None, request.FILES or None if request.method == 'POST' else None)
+    # Inyectamos instance=registro_previo para que herede la clave primaria en caso de UPDATE
+    form = MantencionForm(request.POST or None, request.FILES or None, instance=registro_previo)
     formset = MaterialUtilizadoFormSet(request.POST or None if request.method == 'POST' else None)
 
     if request.method == 'POST':
@@ -2076,7 +2274,7 @@ def completar_mantencion(request, pk):
             return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste en este turno (ej: Ninguna, destornillador, etc).')
         
         if not observaciones_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observación o nota de turno para el gestor.')
+            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observation o nota de turno para el gestor.')
         
         if len(observaciones_limpias) > 500:
             return responder_con_error('⚠️ El campo de observaciones no puede superar los 500 caracteres.')
@@ -2146,7 +2344,8 @@ def completar_mantencion(request, pk):
 
         elif tipo_rendicion == 'finalizar':
             foto = request.FILES.get('foto_final')
-            if not foto:
+            # Exigimos foto nueva solo si no existía una cargada en un intento previo
+            if not foto and not registro_previo:
                 return responder_con_error('⚠️ Operación rechazada: Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.')
             
             sesion_final = SesionTrabajo(
@@ -2182,8 +2381,19 @@ def completar_mantencion(request, pk):
                 registro = form.save(commit=False)
                 registro.ticket = ticket
                 registro.tecnico = request.user
-                registro.foto_final = foto
-                registro.save()
+                if foto:
+                    registro.foto_final = foto
+                registro.save() # Ejecuta UPDATE si existía, o INSERT si es nuevo. Cero colisiones UNIQUE.
+                
+                # Registramos la acción en la línea de tiempo histórica
+                HistorialAcciones.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    tipo_accion='completar_mantencion',
+                    estado_anterior=ticket.estado.codigo,
+                    estado_nuevo='reparado',
+                    descripcion=f"Reparación completada. Causa raíz: {registro.causa_raiz[:150]}..."
+                )
                 
                 ticket.estado = EstadoCatalogo.para('ticket', 'reparado')
                 ticket.sub_estado = None
@@ -2194,7 +2404,8 @@ def completar_mantencion(request, pk):
                 messages.success(request, '✓ ¡Excelente! El ticket ha sido cerrado y enviado al gestor para su revisión final.')
                 return redirect('app:dashboard')
     else:
-        form = MantencionForm()
+        # 🌟 Cargamos la instancia previa en el formulario si es que el ticket rebotó
+        form = MantencionForm(instance=registro_previo)
         formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
         for sub_form in formset:
             sub_form.fields['material'].queryset = materiales_filtrados
@@ -2210,29 +2421,50 @@ def completar_mantencion(request, pk):
         'todos_materiales_json': todos_materiales_json,
     })
 
-
 @login_required
 @rol_requerido('mantencion')
 def marcar_no_reparable(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
-    form = NoReparableForm(request.POST or None, request.FILES or None)
+    
+    # Buscamos si ya existe un descarte previo registrado para este ticket
+    no_rep_previo = getattr(ticket, 'no_reparable', None)
+
+    # Inyectamos instance=no_rep_previo para transformar el choque UNIQUE en un UPDATE limpio
+    form = NoReparableForm(request.POST or None, request.FILES or None, instance=no_rep_previo)
+    
     if request.method == 'POST' and form.is_valid():
         no_rep = form.save(commit=False)
         no_rep.ticket = ticket
         no_rep.tecnico = request.user
         no_rep.save()
+        
+        # Guardamos el hito en la bitácora cronológica acumulativa
+        HistorialAcciones.objects.create(
+            ticket=ticket,
+            usuario=request.user,
+            tipo_accion='no_reparable',
+            estado_anterior=ticket.estado.codigo,
+            estado_nuevo='no_reparado',
+            descripcion=f"Declarado No Reparable. Criticidad: {no_rep.criticidad}. Motivo: {no_rep.motivo_tecnico[:150]}..."
+        )
+        
         ticket.estado = EstadoCatalogo.para('ticket', 'no_reparado')
+        ticket.inicio_trabajo_at = None
         ticket.save()
+        
         registrar_log(ticket, request.user, 'Marcado como No Reparable',
                       estado_anterior='en_mantencion', estado_nuevo='no_reparado',
                       ip=get_client_ip(request), es_interno=True,
                       detalle=no_rep.motivo_tecnico)
+                      
         notificar_gestores('no_reparado', f'⚠ Ticket #{ticket.pk} no reparable',
                            f'{request.user.get_full_name()} marcó el ticket como no reparable.\n{no_rep.motivo_tecnico[:150]}',
                            ticket=ticket, prioridad='alta',
                            url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk}))
+                           
         messages.warning(request, '⚠ Ticket marcado como no reparable. Se notificó al gestor.')
         return redirect('app:dashboard')
+        
     return render(request, 'app/mantencion/no_reparable.html', {'form': form, 'ticket': ticket})
 
 
