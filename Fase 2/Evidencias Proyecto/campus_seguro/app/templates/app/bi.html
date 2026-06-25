@@ -1,4 +1,5 @@
 {% extends 'app/base.html' %}
+{% load static %}
 {% block title %}Business Intelligence · Campus Seguro{% endblock %}
 
 {% block styles %}
@@ -40,64 +41,30 @@
 .bi-tag-perf   { background:rgba(40,167,69,.1); color:var(--accent-green);border:1px solid rgba(40,167,69,.2); }
 .section-eyebrow { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
 
-/* ═══ ESTILOS PARA LA PESTAÑA GRÁFICOS ═══ */
+/* ═══ ESTILOS PARA LAS VENTANAS EMERGENTES (MODALS) ═══ */
+.bi-modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 2000; align-items: center; justify-content: center;
+}
+.bi-modal-content {
+  background: var(--bg-50); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 24px; max-width: 850px; width: 92%;
+  max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+}
+
+/* Styles para la pestaña gráficos */
 .grafico-card {
-  background: var(--bg-50);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 22px;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s;
+  background: var(--bg-50); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow-sm); transition: all 0.2s;
 }
-.grafico-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
-}
-.grafico-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.grafico-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-.grafico-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-.grafico-subtitle {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-.chart-container {
-  position: relative;
-  height: 280px;
-  width: 100%;
-}
-.grafico-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-@media (max-width: 900px) {
-  .grafico-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.grafico-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.grafico-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.grafico-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.grafico-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0; }
+.grafico-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.chart-container { position: relative; height: 280px; width: 100%; }
+.grafico-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 900px) { .grafico-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 
@@ -119,7 +86,6 @@
 <form method="get" id="filtroForm" style="margin-bottom:14px;">
   <input type="hidden" name="seccion" value="{{ seccion }}">
   <div style="background:var(--bg-50);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;box-shadow:var(--shadow-sm);">
-
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">PERÍODO</div>
       <div style="display:flex;gap:5px;">
@@ -133,11 +99,9 @@
     <div>
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">FECHA ESPECÍFICA</div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <input type="date" name="fecha_desde" id="fecha_desde" value="{{ fecha_desde_str }}"
-          style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
+        <input type="date" name="fecha_desde" id="fecha_desde" value="{{ fecha_desde_str }}" style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
         <span style="font-size:12px;color:var(--text-muted);">al</span>
-        <input type="date" name="fecha_hasta" id="fecha_hasta" value="{{ fecha_hasta_str }}"
-          style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
+        <input type="date" name="fecha_hasta" id="fecha_hasta" value="{{ fecha_hasta_str }}" style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
       </div>
     </div>
 
@@ -502,7 +466,6 @@
 
 {% endif %}{# /guardias #}
 
-
 {# ══════════════════════════════════════════════════════════ #}
 {# MANTENCIÓN                                                 #}
 {# ══════════════════════════════════════════════════════════ #}
@@ -559,102 +522,159 @@
 
 {% if por_tecnico %}
 <div class="card" style="margin-bottom:18px;">
-  <div class="card-title">🏆 Puntaje operativo por técnico
-    <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Resolución 40% · Autonomía 25% · Documentación 20% · Actividad 15%</span>
-    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
+  <div class="card-title">
+    <i class="fa-solid fa-scale-balanced" style="color:var(--accent-green); margin-right: 6px;"></i>
+    Tablero de control de tickets por técnico
+    <span class="bi-tag bi-tag-perf" style="margin-left:auto;">Métricas de Carga Real</span>
   </div>
-  {% for t in por_tecnico %}
-  <div style="background:var(--bg-100);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
-    <div class="score-badge {% if t.score >= 75 %}score-high{% elif t.score >= 50 %}score-mid{% else %}score-low{% endif %}">
-      {{ t.score }}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Técnico</th>
+          <th style="text-align:center;">Reparados</th>
+          <th style="text-align:center;">En Proceso</th>
+          <th style="text-align:center;">No Reparables</th>
+          <th style="text-align:center;">Reasignados</th>
+          <th style="text-align:center;">Inasistencias Aprobadas</th>
+          <th style="text-align:center;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in por_tecnico %}
+        <tr>
+          <td><strong>{{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</strong></td>
+          <td style="text-align:center;"><span class="badge badge-green">{{ t.total }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-blue">{{ t.en_proceso_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-red">{{ t.nrep_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-yellow">{{ t.reasignados_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-purple">{{ t.inasistencias_count }}</span></td>
+          <td style="text-align:center;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="abrirModalTecnico('{{ t.tecnico__id }}')">
+              <i class="fa-solid fa-eye"></i> Ver detalles
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for t in por_tecnico %}
+<div id="modal-tecnico-{{ t.tecnico__id }}" class="bi-modal">
+  <div class="bi-modal-content" style="text-align: left; max-height: 85vh; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;">
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px; flex-shrink: 0;">
+      <h3 style="margin:0; font-size:16px;">📋 Ficha de Control Técnico: {{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</h3>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="cerrarModalTecnico('{{ t.tecnico__id }}')">✕ Cerrar</button>
     </div>
-    <div style="flex:1;">
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</div>
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;">
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:var(--accent-green);">{{ t.total }}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Trabajos</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:{% if t.resolucion >= 80 %}var(--accent-green){% elif t.resolucion >= 60 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">{{ t.resolucion }}%</div>
-          <div style="font-size:10px;color:var(--text-muted);">Resolución</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:{% if t.autonomia >= 80 %}var(--accent-green){% elif t.autonomia >= 60 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">{{ t.autonomia }}%</div>
-          <div style="font-size:10px;color:var(--text-muted);">Autonomía</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:var(--accent-teal);">{{ t.hh_total|floatformat:1|default:'—' }}</div>
-          <div style="font-size:10px;color:var(--text-muted);">HH total</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:{% if t.nrep_count == 0 %}var(--accent-green){% else %}var(--accent-red){% endif %};">{{ t.nrep_count }}</div>
-          <div style="font-size:10px;color:var(--text-muted);">No-rep.</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:17px;font-weight:800;color:{% if t.foto_tasa >= 80 %}var(--accent-green){% else %}var(--accent-yellow){% endif %};">{{ t.foto_tasa }}%</div>
-          <div style="font-size:10px;color:var(--text-muted);">Con foto</div>
+    
+    <div style="display:flex; gap:8px; margin-bottom:16px; background:var(--bg-100); padding:6px; border-radius:8px; flex-shrink: 0;">
+      <button type="button" id="btn-tab-tk-{{ t.tecnico__id }}" class="btn btn-primary btn-sm" onclick="cambiarModalPestana('{{ t.tecnico__id }}', 'tickets')" style="padding:6px 14px; font-weight:600;">
+        <i class="fa-solid fa-ticket" style="margin-right:4px;"></i> Gestión de Tickets ({{ t.historial_completo|length }})
+      </button>
+      <button type="button" id="btn-tab-in-{{ t.tecnico__id }}" class="btn btn-ghost btn-sm" onclick="cambiarModalPestana('{{ t.tecnico__id }}', 'inasistencias')" style="padding:6px 14px; font-weight:600;">
+        <i class="fa-solid fa-calendar-xmark" style="margin-right:4px;"></i> Justificaciones de Inasistencia ({{ t.inasistencias_count }})
+      </button>
+    </div>
+    
+    <div style="overflow-y: auto; flex: 1; padding-right: 6px; box-sizing: border-box; position: relative;">
+      
+      <div id="modal-sec-tickets-{{ t.tecnico__id }}">
+        <div style="display: block; width: 100%; overflow: visible !important;">
+          <table style="border-collapse: separate !important; border-spacing: 0 !important; width: 100%;">
+            <thead>
+              <tr style="position: sticky !important; top: 0 !important; z-index: 10 !important;">
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Ticket</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Ubicación</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Tipo de Gestión</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Motivo Técnico / Detalle de Cierre</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Enlace</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in t.historial_completo %}
+              <tr>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>#{{ item.id }}</strong> - {{ item.titulo }}</td>
+                <td style="font-size:12px; color:var(--text-secondary); border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ item.ubicacion }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;"><span class="badge {{ item.badge_class }}">{{ item.tipo }}</span></td>
+                <td style="font-size:12px; color:var(--text-primary); text-align: left; border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ item.motivo }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;">
+                  <a href="{% url 'app:detalle_ticket' pk=item.id %}" class="btn btn-ghost btn-sm" style="white-space: nowrap; color: var(--accent-blue);">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver Ticket
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" style="padding: 30px; text-align: center; color: var(--text-muted);">No se registran cambios de estado ni tareas activas en este período.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-      {% if mant_total %}
-      <div style="margin-top:10px;">
-        <div style="height:4px;background:var(--bg-300);border-radius:2px;overflow:hidden;">
-          <div style="height:100%;background:var(--accent-green);width:{% widthratio t.total mant_total 100 %}%;border-radius:2px;"></div>
+
+      <div id="modal-sec-inasistencias-{{ t.tecnico__id }}" style="display:none;">
+        <div style="display: block; width: 100%; overflow: visible !important;">
+          <table style="border-collapse: separate !important; border-spacing: 0 !important; width: 100%;">
+            <thead>
+              <tr style="position: sticky !important; top: 0 !important; z-index: 10 !important;">
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Fecha Desde</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Fecha Hasta</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Motivo de Fuerza Mayor / Justificación Legal</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Estado Operacional</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ina in t.inasistencias_detalladas %}
+              <tr>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>📅 {{ ina.fecha_desde }}</strong></td>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>📅 {{ ina.fecha_hasta }}</strong></td>
+                <td style="font-size:13px; color:var(--text-primary); border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ ina.motivo }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;"><span class="badge badge-purple" style="background:rgba(111,66,193,0.15); color:var(--accent-purple);">Ausencia Justificada</span></td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" style="padding: 30px; text-align: center; color: var(--text-muted);">El técnico cumplió su jornada normal sin registrar ausencias aprobadas en este período.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">{{ t.total }} de {{ mant_total }} trabajos del período</div>
       </div>
-      {% endif %}
+      
+    </div> 
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if nrep_total > 0 %}
+<div class="card" style="border-left:3px solid var(--accent-red); margin-bottom:18px;">
+  <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación <span class="bi-tag bi-tag-source" style="margin-left:6px;">declarados por el técnico como irreparables</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+    <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:26px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ nrep_total }}</div>
+      <div style="font-size:11px;color:var(--text-muted);">No reparables</div>
     </div>
+    <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:26px;font-weight:800;color:#b38100;font-family:var(--font-mono);">{{ nrep_externalizacion }}</div>
+      <div style="font-size:11px;color:var(--text-muted);">Requieren externalización</div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:700;letter-spacing:0.5px;">POR CRITICIDAD</div>
+  {% for nr in nrep_por_criticidad %}
+  <div class="stat-row">
+    <span style="font-size:13px;text-transform:capitalize;color:{% if nr.criticidad == 'critica' or nr.criticidad == 'alta' %}var(--accent-red){% elif nr.criticidad == 'media' %}var(--accent-yellow){% else %}var(--text-secondary){% endif %};">{{ nr.criticidad|title }}</span>
+    <span style="font-weight:700;">{{ nr.total }}</span>
   </div>
   {% endfor %}
 </div>
 {% endif %}
 
-{% if nrep_total > 0 %}
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-  <div class="card" style="border-left:3px solid var(--accent-red);">
-    <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación <span class="bi-tag bi-tag-source" style="margin-left:6px;">declarados por el técnico como irreparables</span></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
-      <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
-        <div style="font-size:26px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ nrep_total }}</div>
-        <div style="font-size:11px;color:var(--text-muted);">No reparables</div>
-      </div>
-      <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
-        <div style="font-size:26px;font-weight:800;color:#b38100;font-family:var(--font-mono);">{{ nrep_externalizacion }}</div>
-        <div style="font-size:11px;color:var(--text-muted);">Requieren externalización</div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:700;letter-spacing:0.5px;">POR CRITICIDAD</div>
-    {% for nr in nrep_por_criticidad %}
-    <div class="stat-row">
-      <span style="font-size:13px;text-transform:capitalize;color:{% if nr.criticidad == 'critica' or nr.criticidad == 'alta' %}var(--accent-red){% elif nr.criticidad == 'media' %}var(--accent-yellow){% else %}var(--text-secondary){% endif %};">{{ nr.criticidad|title }}</span>
-      <span style="font-weight:700;">{{ nr.total }}</span>
-    </div>
-    {% endfor %}
-  </div>
-  <div class="card">
-    <div class="card-title">📊 Resolución vs No-reparación por técnico <span class="bi-tag bi-tag-formula" style="margin-left:6px;">completados vs no-rep</span></div>
-    {% for t in por_tecnico %}
-    {% if mant_total %}
-    <div style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
-        <span style="font-weight:600;">{{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</span>
-        <span style="color:var(--text-muted);">{{ t.resolucion }}% resolución</span>
-      </div>
-      <div style="height:8px;background:var(--bg-300);border-radius:4px;overflow:hidden;display:flex;">
-        {% if t.total and mant_total %}<div style="height:100%;background:var(--accent-green);width:{% widthratio t.total mant_total 100 %}%;"></div>{% endif %}
-        {% if t.nrep_count and mant_total %}<div style="height:100%;background:var(--accent-red);width:{% widthratio t.nrep_count mant_total 100 %}%;"></div>{% endif %}
-      </div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">✓ {{ t.total }} completados · ✗ {{ t.nrep_count }} no reparados</div>
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 {% endif %}{# /mantencion #}
-
 
 {# ══════════════════════════════════════════════════════════ #}
 {# MATERIALES                                                 #}
@@ -825,7 +845,6 @@
   <span class="bi-tag bi-tag-source">análisis visual para toma de decisiones estratégicas</span>
 </div>
 
-<!-- KPIs de Resumen -->
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
   <div class="kpi blue">
     <div class="kpi-label">Total Tickets</div>
@@ -849,9 +868,7 @@
   </div>
 </div>
 
-<!-- Fila 1: Distribución -->
 <div class="grafico-grid">
-  <!-- Gráfico 1: Tickets por Estado (Doughnut) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(255,184,0,0.15);color:#b38100;">
@@ -867,7 +884,6 @@
     </div>
   </div>
 
-  <!-- Gráfico 2: Tickets por Prioridad (Barras) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(220,53,69,0.15);color:var(--accent-red);">
@@ -884,9 +900,7 @@
   </div>
 </div>
 
-<!-- Fila 2: Tiempos -->
 <div class="grafico-grid">
-  <!-- Gráfico 3: Tiempo Promedio entre Estados (Línea) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(0,86,179,0.15);color:var(--accent-blue);">
@@ -902,7 +916,6 @@
     </div>
   </div>
 
-  <!-- Gráfico 4: Tickets por Tiempo de Espera (Barras) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(23,162,184,0.15);color:var(--accent-teal);">
@@ -919,9 +932,7 @@
   </div>
 </div>
 
-<!-- Fila 3: Análisis por Categorías -->
 <div class="grafico-grid">
-  <!-- Gráfico 5: Distribución por Categoría (Doughnut) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(40,167,69,0.15);color:var(--accent-green);">
@@ -937,7 +948,6 @@
     </div>
   </div>
 
-  <!-- Gráfico 6: Top Categorías Más Frecuentes (Barras) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(111,66,193,0.15);color:var(--accent-purple);">
@@ -954,9 +964,7 @@
   </div>
 </div>
 
-<!-- Fila 4: Gráficos de Materiales (NUEVOS) -->
 <div class="grafico-grid">
-  <!-- Gráfico 7: Top Materiales Más Consumidos (Torta) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(23,162,184,0.15);color:var(--accent-teal);">
@@ -972,7 +980,6 @@
     </div>
   </div>
 
-  <!-- Gráfico 8: Consumo por Categoría de Material (Torta) -->
   <div class="grafico-card">
     <div class="grafico-header">
       <div class="grafico-icon" style="background:rgba(111,66,193,0.15);color:var(--accent-purple);">
@@ -989,7 +996,6 @@
   </div>
 </div>
 
-<!-- Script de Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script>
@@ -1309,7 +1315,6 @@ new Chart(document.getElementById('chartCategoriaTop'), {
 const dataMaterialesTorta = {{ materiales_top_grafico|safe }};
 console.log('📊 Materiales:', dataMaterialesTorta);
 
-// Filtrar solo materiales con total > 0
 const materialesFiltrados = dataMaterialesTorta.filter(m => m.total > 0);
 
 if (materialesFiltrados.length > 0) {
@@ -1378,7 +1383,6 @@ if (materialesFiltrados.length > 0) {
 const dataCategoriaMaterial = {{ por_categoria_mat_grafico|safe }};
 console.log('📊 Categorías:', dataCategoriaMaterial);
 
-// Filtrar solo categorías con total > 0
 const categoriasFiltradas = dataCategoriaMaterial.filter(c => c.total > 0);
 
 if (categoriasFiltradas.length > 0) {
@@ -1445,7 +1449,9 @@ if (categoriasFiltradas.length > 0) {
 
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
+<script src="{% static 'app/js/gestor_bi.js' %}"></script>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // FUNCIONES PARA ACTUALIZAR PERÍODO Y FILTROS (DISPONIBLES EN TODAS LAS SECCIONES)
@@ -1481,4 +1487,4 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-{% endblock %}
+{% endblock scripts %}
