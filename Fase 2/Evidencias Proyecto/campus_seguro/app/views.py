@@ -124,7 +124,7 @@ def _preparar_contexto_ubicaciones():
     ubicaciones = Ubicacion.objects.all().order_by('piso__edificio__sede__nombre', 'piso__edificio__nombre', 'piso__numero', 'sala')
     edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
     
-    ubicaciones_json = json.dumps([
+    ubicaciones_json = [
         {
             'id': u.id,
             'edificio': u.piso.edificio.nombre,
@@ -134,8 +134,8 @@ def _preparar_contexto_ubicaciones():
         }
         for u in ubicaciones
         if u.piso and u.piso.edificio
-    ])
-    
+    ]
+
     urgencias = list(
         EstadoCatalogo.objects.filter(entidad='urgencia_ticket', activo=True)
         .order_by('orden').values_list('codigo', 'nombre_display')
@@ -761,7 +761,7 @@ def editar_ticket(request, pk):
     
     ubicaciones = Ubicacion.objects.select_related('piso__edificio', 'tipo').all()
     edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
-    ubicaciones_json = json.dumps([
+    ubicaciones_json = [
         {
             'id': u.id,
             'edificio': u.piso.edificio.nombre,
@@ -771,7 +771,7 @@ def editar_ticket(request, pk):
         }
         for u in ubicaciones
         if u.piso and u.piso.edificio
-    ])
+    ]
 
     return render(request, 'app/editar_ticket.html', {
         'form': form, 'ticket': ticket,
