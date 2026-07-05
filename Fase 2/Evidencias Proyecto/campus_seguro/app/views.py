@@ -432,7 +432,6 @@ def _cruce_riesgo_checklist():
         'accesibilidad':_cruce('riesgo_accesibilidad','checklist_accesibilidad'),
     }
 
-
 def dashboard_gestor(request):
     tickets = Ticket.objects.filter(deleted_at__isnull=True)
     hoy = timezone.now().date()
@@ -450,6 +449,8 @@ def dashboard_gestor(request):
         estado__codigo__in=['en_mantencion', 'en_validacion'],
         deleted_at__isnull=True
     ).select_related('asignado_a')
+
+    enviados_pendientes = tickets.filter(estado__codigo='enviado').select_related('creado_por')
 
     reparados_pendientes = tickets.filter(estado__codigo='reparado').select_related('creado_por', 'asignado_a')
     no_reparados_escalados = tickets.filter(estado__codigo='no_reparado').select_related('creado_por', 'asignado_a', 'no_reparable')
@@ -481,6 +482,7 @@ def dashboard_gestor(request):
         **stats,
         'tickets_recientes': tickets.order_by('-created_at')[:10],
         'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=_excluir).order_by('-created_at')[:5],
+        'enviados_pendientes': enviados_pendientes.order_by('-created_at'),
         'reparados_pendientes': reparados_pendientes.order_by('-created_at'),
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
@@ -506,7 +508,6 @@ def dashboard_gestor(request):
         'cruce_checklist': _cruce_riesgo_checklist(),
     }
     return render(request, 'app/dashboard_gestor.html', context)
-
 
 def dashboard_guardia(request):
     """
