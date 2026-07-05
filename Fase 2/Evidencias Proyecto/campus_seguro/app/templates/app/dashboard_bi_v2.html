@@ -1,11 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}Dashboard BI v2{% endblock %} {%block content%}
-<div class="topbar">
-  <div>
-    <div class="page-title">📊 Dashboard BI</div>
-    <div class="page-subtitle">Análisis operativo avanzado · Campus Seguro</div>
-  </div>
-  <a href="{% url 'app:gestor_bi' %}" class="btn btn-ghost">Ver BI completo</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Dashboard BI v2{% endblock %} 
+{% block page_title %}Dashboard BI{% endblock %}
+{% block page_subtitle %}Análisis operativo avanzado · Campus Seguro{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_bi' %}" class="btn btn-ghost">Ver BI completo</a>
+{% endblock %}
+
+{%block content%}
 
 <!-- KPIs -->
 <div class="kpi-grid">

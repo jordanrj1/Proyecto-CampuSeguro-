@@ -1,13 +1,9 @@
 {% extends 'app/base.html' %}
 {% block title %}Eliminar Ticket{% endblock %}
+{% block page_title %}Eliminar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}Esta acción no se puede deshacer{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Eliminar Ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">Esta acción no se puede deshacer</div>
-  </div>
-</div>
 
 <div class="card" style="max-width:560px;">
   <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:18px;">

@@ -5,15 +5,11 @@
   {% if request.user.rol == 'gestor' %}<a href="{% url 'app:gestor_tickets' %}">Tickets</a>{% else %}<a href="{% url 'app:mis_tickets' %}">Mis Tickets</a>{% endif %}
   <span class="sep">›</span> #{{ ticket.pk }}
 {% endblock %}
-{% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Ticket #{{ ticket.pk }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% block page_title %}Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>{% endblock %}
 
+{% block content %}
 <div
   style="
     display: flex;
@@ -737,7 +733,7 @@
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px;">
                       <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
-                      <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TURNO</span><br>{{ sesion.horas_hombre }} hrs</div>
+                      <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TRABAJO</span><br>{{ sesion.duracion_humana }}</div>
                     </div>
 
                     <div>
@@ -781,7 +777,7 @@
                         {% for mat in sesion.materiales_utilizados.all %}
                         <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                           <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
-                          <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}</td>
+                          <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}</td>
                         </tr>
                         {% endfor %}
                       </tbody>
@@ -826,6 +822,10 @@
         <div style="color: var(--text-secondary)">{{ r.causa_raiz }}</div>
       </div>
       {% endif %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">TIEMPO TOTAL DE TRABAJO</div>
+        <div style="color: var(--text-secondary)">{{ tiempo_total_trabajo }}</div>
+      </div>
       {% if sesiones %}
       <div style="font-size: 13px; margin-bottom: 6px">
         <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px">JORNADAS DE TRABAJO ({{ sesiones|length }})</div>
@@ -833,7 +833,7 @@
         <div style="padding: 8px 10px; background: var(--bg-700); border-radius: 6px; margin-bottom: 6px; font-size: 12px;">
           <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
             <span style="color:var(--text-secondary);">{{ s.inicio|date:"d/m/Y" }}</span>
-            {% if s.horas_hombre %}<span style="color:var(--accent-blue); font-weight:600;">{{ s.horas_hombre }} h</span>{% endif %}
+            {% if s.horas_hombre %}<span style="color:var(--accent-blue); font-weight:600;">{{ s.duracion_humana }}</span>{% endif %}
           </div>
           <div style="color:var(--text-primary);">{{ s.descripcion_avance|truncatechars:80 }}</div>
           {% if s.personal_adicional_requerido or s.requiere_nivel_mayor %}
@@ -858,7 +858,7 @@
           <div style="font-size:11px; color:var(--text-muted);">{{ mat.sesion_trabajo.inicio|date:"d/m" }}</div>
         </div>
         <div style="font-weight: 700; color: var(--accent-blue)">
-          {{ mat.cantidad_utilizada }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}
+          {{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}
         </div>
       </div>
       {% endfor %}

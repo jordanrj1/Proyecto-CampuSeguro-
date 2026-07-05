@@ -1,16 +1,15 @@
-{% extends 'app/base.html' %} {% block title %}Registrar Reparación · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Registrar reparación</div>
-    <div class="page-subtitle">
-      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
-    </div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Registrar Reparación · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Registrar reparación{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="form-section-title">📋 Información del incidente</div>
+  <div class="form-section-title">Información del incidente</div>
   <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; font-size: 13px; margin-bottom: 16px;">
     <div>
       <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
@@ -49,23 +48,23 @@
   {% csrf_token %} 
   
   <div class="card" style="margin-bottom: 18px; border-left: 4px solid var(--accent-blue);">
-    <div class="form-section-title">🎯 ¿Qué acción vas a registrar en este turno?</div>
+    <div class="form-section-title">¿Qué acción vas a registrar en este turno?</div>
     <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
       
-      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-800); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
+      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-50); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
         <input type="radio" name="tipo_rendicion" value="avance" checked style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-blue);">
         <div>
-          <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">⏱️ Registrar avance del día</div>
+          <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Registrar avance del día</div>
           <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
             Guarda las horas trabajadas hoy y los materiales consumidos. El ticket seguirá abierto.
           </div>
         </div>
       </label>
 
-      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-800); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
+      <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-50); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
         <input type="radio" name="tipo_rendicion" value="finalizar" style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-green);">
         <div>
-          <div style="font-weight: 700; font-size: 14px; color: var(--accent-green);">🏁 Finalizar y cerrar ticket</div>
+          <div style="font-weight: 700; font-size: 14px; color: var(--accent-green);">Finalizar y cerrar ticket</div>
           <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
             El trabajo está 100% terminado. Requiere causa raíz y foto de evidencia.
           </div>
@@ -76,7 +75,7 @@
   </div>
 
   <div class="card" style="margin-bottom: 18px">
-    <div class="form-section-title">🔧 Detalle de la reparación</div>
+    <div class="form-section-title">Detalle de la reparación</div>
     <div style="margin-bottom: 14px">
       <label class="form-label">Descripción del trabajo realizado *</label>
       <textarea name="descripcion_trabajo" class="form-control" rows="4" placeholder="Describe paso a paso lo que realizaste: qué revisaste, qué encontraste, cómo lo solucionaste…">
@@ -91,7 +90,7 @@
       <div>
         <label class="form-label">Horas hombre acumuladas en este turno</label>
         <div class="form-control" style="background: var(--bg-700); color: var(--accent-green); font-weight: 700;">
-          ⏱️ Se calcularán automáticamente al guardar
+          Se calcularán automáticamente al guardar
         </div>
       </div>
       <div>
@@ -124,14 +123,14 @@
   </div>
 
   <div class="card" style="margin-bottom: 18px" id="bloque-foto-final">
-    <div class="form-section-title">📷 Foto del trabajo terminado</div>
+    <div class="form-section-title">Foto del trabajo terminado</div>
     <div style="border: 2px dashed var(--border-strong); border-radius: 10px; padding: 24px; text-align: center; position: relative; cursor: pointer;" onmouseover="this.style.borderColor = 'var(--accent-green)'" onmouseout="this.style.borderColor = 'var(--border-strong)'">
       <input type="file" name="foto_final" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" onchange="previewFinal(this)" />
       <div id="previewFinalBox" style="display: none; margin-bottom: 12px">
         <img id="previewFinalImg" style="max-height: 180px; border-radius: 8px; max-width: 100%" />
       </div>
       <div id="fotoFinalHint">
-        <div style="font-size: 28px; margin-bottom: 6px">📸</div>
+        <div style="font-size: 28px; margin-bottom: 6px"></div>
         <div style="font-size: 13px; font-weight: 600">Foto del área reparada</div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">Evidencia visual del trabajo completado.</div>
       </div>
@@ -139,41 +138,47 @@
   </div>
 
   <div class="card" style="margin-bottom: 18px">
-    <div class="form-section-title">📦 Materiales utilizados</div>
+    <div class="form-section-title">Materiales utilizados</div>
     <div style="font-size: 12px; color: var(--accent-teal); margin-bottom: 14px">
       Registra cada material consumido. Si no usaste materiales, deja los campos vacíos.
-      <span style="color: var(--text-muted); font-weight: 500;">💡 El catálogo inicial se despliega según tu especialidad técnica asignada.</span>
+      <span style="color: var(--text-muted); font-weight: 500;">El catálogo inicial se despliega según tu especialidad técnica asignada.</span>
     </div>
+    
     {{ formset.management_form }}
+
+    <div id="material-headers" style="display: none; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; padding: 0 12px; margin-bottom: 6px;">
+      <label class="form-label" style="margin: 0; font-size: 12px; color: var(--text-muted)">Material *</label>
+      <label class="form-label" style="margin: 0; font-size: 12px; color: var(--text-muted)">Cantidad *</label>
+      <label class="form-label" style="margin: 0; font-size: 12px; color: var(--text-muted)">Observación</label>
+      <div></div>
+    </div>
+
     <div id="formset-container">
       {% for mat_form in formset %}
-      <div class="material-row" style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; align-items: start; margin-bottom: 10px; background: var(--bg-700); border-radius: 8px; padding: 12px;">
-        <div>
-          {% if forloop.first %}<label class="form-label" style="margin-bottom: 4px">Material</label>{% endif %} 
-          {{ mat_form.material }}
-          
-          {# 🔓 CHECKBOX DE BYPASS DE CATÁLOGO (NUEVO) #}
-          <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); margin-top: 5px; cursor: pointer; user-select: none;">
-            <input type="checkbox" class="bypass-catalog-checkbox" onchange="toggleBypassCatalog(this)" style="width:13px; height:13px; accent-color:var(--accent-teal);">
-            🔓 Mostrar todo el pañol
-          </label>
-        </div>
-        <div>
-          {% if forloop.first %}<label class="form-label" style="margin-bottom: 4px">Cantidad</label>{% endif %}
-          <input type="number" name="{{ mat_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad_utilizada.value|default:'' }}" />
-        </div>
-        <div>
-          {% if forloop.first %}<label class="form-label" style="margin-bottom: 4px">Observación</label>{% endif %} 
-          {{ mat_form.observacion }}
-        </div>
-        <div style="padding-top:{% if forloop.first %}22{% else %}0{% endif %}px;">
-          <button type="button" onclick="quitarFila(this)" class="btn btn-ghost btn-sm btn-icon" style="color: var(--accent-red); border-color: var(--accent-red)" title="Quitar">✕</button>
-          <div style="display: none;">
-            {% if mat_form.DELETE %}{{ mat_form.DELETE }}{% endif %}
-            {{ mat_form.id }}
+        {% if mat_form.instance.pk or mat_form.errors or mat_form.material.value %}
+        <div class="material-row" style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; align-items: start; margin-bottom: 10px; background: var(--bg-700); border-radius: 8px; padding: 12px;">
+          <div>
+            {{ mat_form.material }}
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); margin-top: 5px; cursor: pointer; user-select: none;">
+              <input type="checkbox" class="bypass-catalog-checkbox" onchange="toggleBypassCatalog(this)" style="width:13px; height:13px; accent-color:var(--accent-teal);">
+              Mostrar todo el pañol
+            </label>
+          </div>
+          <div>
+            <input type="number" name="{{ mat_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad_utilizada.value|default:'' }}" />
+          </div>
+          <div>
+            {{ mat_form.observacion }}
+          </div>
+          <div>
+            <button type="button" onclick="quitarFila(this)" class="btn btn-ghost btn-sm btn-icon" style="color: var(--accent-red); border-color: var(--accent-red)" title="Quitar">✕</button>
+            <div style="display: none;">
+              {% if mat_form.DELETE %}{{ mat_form.DELETE }}{% endif %}
+              {{ mat_form.id }}
+            </div>
           </div>
         </div>
-      </div>
+        {% endif %}
       {% endfor %}
     </div>
     <button type="button" id="btn-agregar-material" class="btn btn-ghost btn-sm" style="margin-top: 6px; color: var(--accent-teal); border-color: var(--accent-teal);">
@@ -192,29 +197,224 @@
 
 {% if logs %}
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🕐 Historial del ticket</div>
+  <div class="card-title">Historial del ticket</div>
   <div style="position: relative; padding-left: 22px">
     <div style="position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--border);"></div>
     {% for log in logs %}
-    <div style="position: relative; margin-bottom: 12px">
+    <div style="position: relative; margin-bottom: 16px">
       <div style="position: absolute; left: -18px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue); border: 2px solid var(--bg-850);"></div>
       <div style="font-size: 11px; color: var(--text-muted)">
         {{ log.created_at|date:"d/m/Y H:i" }} · {{log.usuario.get_full_name|default:'Sistema'}}
       </div>
-      <div style="font-size: 13px; font-weight: 500">{{ log.accion }}</div>
-      {% if log.detalle %}
-      <div style="font-size: 12px; color: var(--text-secondary)">
+      
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 2px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
+          {{ log.accion }}
+        </div>
+        {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+        <button type="button" class="btn-ver-historial" onclick="abrirModalHistorial('{{ log.pk }}')">
+          Ver bitácora
+        </button>
+        {% endif %}
+      </div>
+
+      {% if log.detalle and log.accion != "Avance de jornada registrado" and log.accion != "Reparación finalizada con éxito" %}
+      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
         {{ log.detalle|truncatechars:100 }}
       </div>
       {% endif %}
+
+      {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+      <div id="payload-log-{{ log.pk }}" style="display: none;">
+        <div class="data-titulo">{{ log.accion }}</div>
+        <div class="data-meta">Registrado por: {{ log.usuario.get_full_name|default:'Sistema' }} · El {{ log.created_at|date:"d/m/Y H:i" }}</div>
+        
+        <div class="data-cuerpo">
+          {% for sesion in sesiones %}
+            {% if sesion.tecnico == log.usuario and sesion.fin|date:"d/m/Y H:i" == log.created_at|date:"d/m/Y H:i" %}
+              <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="margin-bottom: 10px;">
+                  <span style="color: var(--text-muted); font-size: 11px; display: block;">DESCRIPCIÓN DEL TURNO</span>
+                  <strong style="color: var(--text-primary); font-size: 13px; white-space: pre-wrap;">{{ sesion.descripcion_avance }}</strong>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px;">
+                  <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
+                  <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TRABAJO</span><br>{{ sesion.duracion_humana }}</div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                  <span style="color: var(--text-muted); font-size: 11px; display: block;">NOTAS DE BITÁCORA</span>
+                  <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">{{ sesion.observaciones }}</p>
+                </div>
+
+                {% if sesion.materiales_jornada %}
+                  <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+                    <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">MATERIALES UTILIZADOS EN ESTE TURNO:</span>
+                    <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                      <thead>
+                        <tr style="color: var(--text-muted); text-align: left; border-bottom: 1px solid var(--border);">
+                          <th style="padding-bottom: 4px;">Material</th>
+                          <th style="padding-bottom: 4px; text-align: right;">Cantidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for mat in sesion.materiales_jornada %}
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                          <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
+                          <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">
+                            {{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.get_unidad_display|default:mat.material.unidad }}
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">ℹ️ No se retiraron materiales de pañol en este turno.</div>
+                {% endif %}
+
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
     </div>
     {% endfor %}
   </div>
 </div>
 {% endif %}
 
-{{ materiales_filtrados_json|json_script:"catalog-filtrado-data" }}
-{{ todos_materiales_json|json_script:"catalog-total-data" }}
+<div id="modalHistorial" class="modal-backdrop" onclick="cerrarModalHistorialExterno(event)">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modalTitulo" style="margin: 0; font-size: 15px; font-weight: 600;">Detalle</h3>
+      <button type="button" class="modal-close-btn" onclick="cerrarModalHistorial()">&times;</button>
+    </div>
+    <div class="modal-meta" id="modalMeta">Meta data</div>
+    <div class="modal-body" id="modalCuerpo"></div>
+  </div>
+</div>
+
+<template id="material-row-template">
+  <div class="material-row" style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; align-items: start; margin-bottom: 10px; background: var(--bg-700); border-radius: 8px; padding: 12px;">
+    <div>
+      {{ formset.empty_form.material }}
+      <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); margin-top: 5px; cursor: pointer; user-select: none;">
+        <input type="checkbox" class="bypass-catalog-checkbox" onchange="toggleBypassCatalog(this)" style="width:13px; height:13px; accent-color:var(--accent-teal);">
+        Mostrar todo el pañol
+      </label>
+    </div>
+    <div>
+      <input type="number" name="{{ formset.empty_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" />
+    </div>
+    <div>
+      {{ formset.empty_form.observacion }}
+    </div>
+    <div>
+      <button type="button" onclick="quitarFila(this)" class="btn btn-ghost btn-sm btn-icon" style="color: var(--accent-red); border-color: var(--accent-red)" title="Quitar">✕</button>
+      
+      <div style="display: none;">
+        {{ formset.empty_form.DELETE }}
+      </div>
+    </div>
+  </div>
+</template>
+
+{{ materiales_filtrados_data|json_script:"catalog-filtrado-data" }}
+{{ todos_materiales_data|json_script:"catalog-total-data" }}
+
+<style>
+  .btn-ver-historial {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: var(--accent-blue, #60a5fa);
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .btn-ver-historial:hover {
+    background: var(--accent-blue, #3b82f6);
+    border-color: var(--accent-blue, #3b82f6);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-backdrop {
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6); 
+    z-index: 2000; 
+    justify-content: center; 
+    align-items: center;
+    backdrop-filter: blur(3px);
+  }
+  
+  .modal-card {
+    background: var(--bg-100, #1e1e2f); 
+    border: 1px solid var(--border, #2d2d44); 
+    width: 90%; 
+    max-width: 550px;
+    border-radius: 8px; 
+    overflow: hidden; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: modalAnim 0.15s ease-out;
+  }
+  
+  .modal-header { 
+    padding: 14px 18px; 
+    border-bottom: 1px solid var(--border); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+  }
+  
+  .modal-close-btn { 
+    background: transparent; 
+    border: none; 
+    color: var(--text-muted); 
+    font-size: 22px; 
+    cursor: pointer; 
+  }
+  
+  .modal-close-btn:hover { 
+    color: var(--accent-red); 
+  }
+  
+  .modal-meta { 
+    padding: 6px 18px; 
+    background: rgba(0,0,0,0.2); 
+    font-size: 11px; 
+    color: var(--text-muted); 
+    border-bottom: 1px solid var(--border); 
+  }
+  
+  .modal-body { 
+    padding: 18px; 
+    max-height: 450px; 
+    overflow-y: auto; 
+    color: var(--text-primary);
+  }
+  
+  @keyframes modalAnim { 
+    from { transform: scale(0.97); opacity: 0; } 
+    to { transform: scale(1); opacity: 1; } 
+  }
+</style>
+
 <script>
   const catalogFiltrado = JSON.parse(document.getElementById('catalog-filtrado-data').textContent);
   const catalogTotal = JSON.parse(document.getElementById('catalog-total-data').textContent);
@@ -231,52 +431,52 @@
     }
   }
 
+  function toggleHeaders() {
+    const container = document.getElementById("formset-container");
+    const headers = document.getElementById("material-headers");
+    if (container.querySelectorAll(".material-row").length > 0) {
+      headers.style.display = "grid";
+    } else {
+      headers.style.display = "none";
+    }
+  }
+
   function quitarFila(btn) {
     const fila = btn.closest(".material-row");
     const deleteInput = fila.querySelector('input[type="checkbox"][name$="-DELETE"]');
     
     if (deleteInput) {
-      // Si el checkbox NO está marcado, procedemos a "eliminar"
       if (!deleteInput.checked) {
         deleteInput.checked = true;
         fila.style.opacity = "0.3";
-        
-        // Transformamos el botón en una acción de restauración
         btn.innerHTML = "↩️";
         btn.style.color = "var(--accent-green)";
         btn.style.borderColor = "var(--accent-green)";
         btn.title = "Deshacer eliminación";
         
-        // Bloqueamos los inputs internos para que no se alteren por error, excepto los de control
         fila.querySelectorAll('input:not([name$="-DELETE"]), select, textarea').forEach(el => {
           el.style.pointerEvents = "none";
           el.style.tabIndex = "-1";
         });
-      } 
-      // Si el checkbox YA estaba marcado, revertimos la eliminación
-      else {
+      } else {
         deleteInput.checked = false;
         fila.style.opacity = "1";
-        
-        // Devolvemos el botón a su estado original de eliminación
         btn.innerHTML = "✕";
         btn.style.color = "var(--accent-red)";
         btn.style.borderColor = "var(--accent-red)";
         btn.title = "Quitar";
         
-        // Desbloqueamos los campos para permitir su edición habitual
         fila.querySelectorAll('input, select, textarea').forEach(el => {
           el.style.pointerEvents = "";
           el.removeAttribute('tabIndex');
         });
       }
     } else {
-      // Si es una fila nueva creada con el botón "+ Agregar" (no existe en BD), se remueve directo
       fila.remove();
     }
+    toggleHeaders(); 
   }
 
-  // Lógica dinámica para conmutar las opciones del selector según el checkbox de la fila
   function toggleBypassCatalog(checkbox) {
     const row = checkbox.closest(".material-row");
     const selectEl = row.querySelector("select");
@@ -285,10 +485,8 @@
     const usarCatalogoGlobal = checkbox.checked;
     const datasource = usarCatalogoGlobal ? catalogTotal : catalogFiltrado;
     
-    // Limpiamos las opciones actuales
     selectEl.innerHTML = '<option value="">---------</option>';
     
-    // Poblamos el selector con los nuevos datos relacionales
     datasource.forEach(item => {
       const opt = document.createElement("option");
       opt.value = item.id;
@@ -300,41 +498,31 @@
     });
   }
 
-  // 2415; CLONADOR CORREGIDO Y BLINDADO ANTE PREFIJOS DINÁMICOS
   document.getElementById("btn-agregar-material").addEventListener("click", function () {
     const container = document.getElementById("formset-container");
-    
-    // Buscamos dinámicamente el input de control terminando en TOTAL_FORMS, sin importar su prefijo
     const totalInput = document.querySelector('input[id$="-TOTAL_FORMS"]');
     if (!totalInput) return;
     
     const prefix = totalInput.id.replace('id_', '').replace('-TOTAL_FORMS', '');
     const totalForms = parseInt(totalInput.value);
 
-    // Clonamos la primera fila como plantilla limpia
-    const template = container.querySelector(".material-row");
-    if (!template) return;
+    const templateEl = document.getElementById("material-row-template");
+    if (!templateEl) return;
 
-    const newRow = template.cloneNode(true);
+    const newRow = templateEl.content.cloneNode(true).querySelector(".material-row");
     const idx = totalForms;
 
-    // Actualizamos los atributos name e id usando el prefijo real detectado
-    const prefixRegex = new RegExp(`${prefix}-\\d+-`, 'g');
     newRow.querySelectorAll("input, select, textarea").forEach((el) => {
       ["name", "id"].forEach((attr) => {
         const val = el.getAttribute(attr);
         if (val) {
-          el.setAttribute(attr, val.replace(prefixRegex, `${prefix}-${idx}-`));
+          el.setAttribute(attr, val.replace(/__prefix__/g, idx).replace(new RegExp(`${prefix}-\\d+-`, 'g'), `${prefix}-${idx}-`));
         }
       });
       if (el.type !== "checkbox") el.value = "";
       if (el.type === "checkbox") el.checked = false;
     });
 
-    // Remover etiquetas duplicadas de la primera fila
-    newRow.querySelectorAll("label.form-label").forEach((l) => l.remove());
-
-    // Reiniciamos el selector de la nueva fila al catálogo filtrado por defecto y desmarcamos el desvío
     const newSelect = newRow.querySelector("select");
     if (newSelect) {
       newSelect.innerHTML = '<option value="">---------</option>';
@@ -346,62 +534,65 @@
       });
     }
 
-    const newBypassCheck = newRow.querySelector(".bypass-catalog-checkbox");
-    if (newBypassCheck) newBypassCheck.checked = false;
-
-    // Corregimos estilos de padding
-    const lastCol = newRow.querySelector('div[style*="padding-top"]');
-    if (lastCol) lastCol.style.paddingTop = "0px";
-
-    newRow.style.opacity = "1";
-    newRow.style.pointerEvents = "";
-
     container.appendChild(newRow);
     totalInput.value = idx + 1;
+    toggleHeaders(); 
   });
 
-  // ═══════════════════════════════════════════════════════════════
-  // LÓGICA DINÁMICA: Mostrar/Ocultar campos según Tipo de Rendición
-  // ═══════════════════════════════════════════════════════════════
   function alternarCamposFormulario() {
     const tipoSeleccionado = document.querySelector('input[name="tipo_rendicion"]:checked').value;
     const bloqueCausaRaiz = document.getElementById("bloque-causa-raiz");
     const bloqueFotoFinal = document.getElementById("bloque-foto-final");
     const btnSubmit = document.getElementById("btn-submit-reparacion");
-
     const fotoTitle = bloqueFotoFinal ? bloqueFotoFinal.querySelector(".form-section-title") : null;
 
     if (tipoSeleccionado === "avance") {
-      // Ocultamos lo que pertenece solo al Acta de Cierre Final
       if (bloqueCausaRaiz) bloqueCausaRaiz.style.display = "none";
       if (bloqueFotoFinal) bloqueFotoFinal.style.display = "none";
-      
-      // Adaptamos el botón de acción
       btnSubmit.innerHTML = "✓ Registrar Avance Diario →";
       btnSubmit.style.background = "var(--accent-blue)";
       btnSubmit.style.borderColor = "var(--accent-blue)";
     } else {
-      // Mostramos todo para el Acta de Cierre Final
       if (bloqueCausaRaiz) bloqueCausaRaiz.style.display = "block";
       if (bloqueFotoFinal) bloqueFotoFinal.style.display = "block";
-
-      if (fotoTitle) {
-        fotoTitle.innerHTML = "📷 Foto del trabajo terminado *";
-      }
-      
-      // Adaptamos el botón de acción a color de cierre (Verde)
-      btnSubmit.innerHTML = "🏁 Finalizar y Cerrar Ticket →";
+      if (fotoTitle) fotoTitle.innerHTML = "Foto del trabajo terminado *";
+      btnSubmit.innerHTML = "Finalizar y Cerrar Ticket →";
       btnSubmit.style.background = "var(--accent-green)";
       btnSubmit.style.borderColor = "var(--accent-green)";
     }
   }
 
-  // Escuchar los cambios en los radio buttons
   document.querySelectorAll('input[name="tipo_rendicion"]').forEach(radio => {
     radio.addEventListener("change", alternarCamposFormulario);
   });
 
-  // Ejecutar una vez al cargar la página para fijar el estado inicial (Avance)
+  // 🌟 NUEVO: COMPORTAMIENTO OPERATIVO DEL MODAL FLOTANTE
+  function abrirModalHistorial(logId) {
+    const payload = document.getElementById(`payload-log-${logId}`);
+    if (!payload) return;
+
+    const tituloHtml = payload.querySelector('.data-titulo').innerHTML;
+    const metaHtml = payload.querySelector('.data-meta').innerHTML;
+    const cuerpoHtml = payload.querySelector('.data-cuerpo').innerHTML;
+
+    document.getElementById('modalTitulo').innerHTML = tituloHtml;
+    document.getElementById('modalMeta').innerHTML = metaHtml;
+    document.getElementById('modalCuerpo').innerHTML = cuerpoHtml;
+
+    document.getElementById('modalHistorial').style.display = 'flex';
+  }
+
+  function cerrarModalHistorial() {
+    document.getElementById('modalHistorial').style.display = 'none';
+  }
+
+  function cerrarModalHistorialExterno(event) {
+    if (event.target.id === 'modalHistorial') {
+      cerrarModalHistorial();
+    }
+  }
+
   alternarCamposFormulario();
+  toggleHeaders();
 </script>
 {% endblock %}

@@ -1,22 +1,20 @@
 {% extends 'app/base.html' %}
 {% block title %}Estimar Trabajo - Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_title %}Planificación del Trabajo{% endblock %}
+{% block page_subtitle %}Ingresa la estimación inicial antes de activar el cronómetro{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver al panel</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">⏱️ Planificación del Trabajo</div>
-    <div class="page-subtitle">Ingresa la estimación inicial antes de activar el cronómetro</div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver al panel</a>
-</div>
 
 <div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--accent-blue);">
-  <div class="card-title" style="margin-bottom: 8px;">📋 Resumen del Incidente</div>
+  <div class="card-title" style="margin-bottom: 8px;">Resumen del Incidente</div>
   <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
     {{ ticket.titulo }}
   </div>
   <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
-    <strong>Ubicación:</strong> 📍 {{ ticket.ubicacion }}
+    <strong>Ubicación:</strong> {{ ticket.ubicacion }}
   </div>
   <div style="font-size: 13px; color: var(--text-muted); background: var(--bg-700); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
     {{ ticket.descripcion }}
@@ -24,7 +22,7 @@
 </div>
 
 <div class="card">
-  <div class="card-title">⚙️ Análisis Técnico Inicial</div>
+  <div class="card-title">Análisis Técnico Inicial</div>
   
   <form method="post" style="display: flex; flex-direction: column; gap: 20px; margin-top: 15px;">
     {% csrf_token %}

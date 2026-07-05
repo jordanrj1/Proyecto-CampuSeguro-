@@ -1,16 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}Panel de Mantención{% endblock %}
+{% extends 'app/base.html' %} 
+{% block title %}Panel de Mantención{% endblock %}
+{% block page_title %}Panel de Mantención{% endblock %}
+{% block page_subtitle %}Tus trabajos asignados · {{ request.user.get_full_name }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:registrar_inasistencia' %}" class="btn btn-ghost">Registrar inasistencia</a>
+{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Panel de Mantención</div>
-    <div class="page-subtitle">
-      Tus trabajos asignados · {{ request.user.get_full_name }}
-    </div>
-  </div>
-  <a href="{% url 'app:registrar_inasistencia' %}" class="btn btn-ghost"
-    >Registrar inasistencia</a
-  >
-</div>
 
 {% if inasistencia_activa %}
 <div
@@ -273,7 +269,7 @@
             {{ r.ticket.created_at|date:"d/m/Y H:i" }}
           </td>
           <td style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
-            {% if r.hh_reales %}{{ r.hh_reales }} hrs{% else %}—{% endif %}
+            {% if r.hh_reales %}{{ r.hh_reales|floatformat:2 }} hrs{% else %}—{% endif %}
           </td>
 
           <td style="font-size: 12px; color: var(--text-secondary)">

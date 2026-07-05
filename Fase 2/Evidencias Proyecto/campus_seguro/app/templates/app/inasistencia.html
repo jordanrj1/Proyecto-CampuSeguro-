@@ -1,21 +1,12 @@
-<!--
-  inasistencia.html — Gestion de inasistencias del personal operativo
-  Renderizado por: views.gestor_inasistencias()
-  Acceso: solo rol 'gestor', desde /gestor/inasistencias/
-  Muestra: inasistencias pendientes de revision + historial reciente
-  Acciones: aprobar o rechazar cada inasistencia
-  Nombre anterior: inacistencia.html (typo corregido en Sprint 2)
--->
-{% extends 'app/base.html' %} {% block title %}Inasistencias{% endblock %} {%block content%}
-<div class="topbar">
-  <div>
-    <div class="page-title">Inasistencias</div>
-    <div class="page-subtitle">Revisión y aprobación de ausencias</div>
-  </div>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Inasistencias{% endblock %} 
+{% block page_title %}Inasistencias{% endblock %}
+{% block page_subtitle %}Revisión y aprobación de ausencias{% endblock %}
+
+{%block content%}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">⏳ Pendientes ({{ pendientes.count }})</div>
+  <div class="card-title">Pendientes ({{ pendientes.count }})</div>
   {% if pendientes %}
   <div class="table-wrap">
     <table>
@@ -96,7 +87,7 @@
 </div>
 
 <div class="card">
-  <div class="card-title">📋 Historial reciente</div>
+  <div class="card-title">Historial reciente</div>
   {% if recientes %}
   <div class="table-wrap">
     <table>

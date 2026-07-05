@@ -1,19 +1,18 @@
 {% extends 'app/base.html' %}
 {% load static %}
 {% block title %}Derivar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Derivar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Derivar ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 <form method="post" id="formDerivar">
   {% csrf_token %}
   <div class="card" style="margin-bottom: 18px">
-    <div class="form-section-title">📋 Información del ticket</div>
+    <div class="form-section-title">Información del ticket</div>
     <div
       style="
         display: grid;
@@ -44,7 +43,7 @@
   </div>
 
   <div class="card" style="margin-bottom: 18px">
-    <div class="form-section-title">📤 Destino de derivación</div>
+    <div class="form-section-title">Destino de derivación</div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
       <label
         style="
@@ -123,7 +122,7 @@
               color: var(--accent-green);
             "
           >
-            🔧 Mantención directa
+            Mantención directa
           </div>
           <div
             style="
@@ -145,7 +144,7 @@
     <div id="guardiaBox" style="display: none; margin-top: 16px">
       <div style="background: var(--bg-700); border-radius: 10px; padding: 16px; border: 1px solid var(--border);">
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--accent-yellow);">
-          📅 Seleccionar fecha de validación
+          Seleccionar fecha de validación
         </div>
         <input
           type="date"
@@ -157,7 +156,7 @@
         />
         <div id="guardiasContainer" style="display: none;">
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">
-            🛡️ Guardias disponibles en esa fecha
+            Guardias disponibles en esa fecha
           </div>
           <div id="guardiasList" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
             <!-- Aquí se cargan los guardias vía AJAX -->
@@ -165,7 +164,7 @@
           <input type="hidden" name="guardia_id" id="guardiaIdInput" required />
         </div>
         <div id="guardiasLoading" style="display: none; text-align: center; padding: 20px; color: var(--text-muted);">
-          <div style="font-size: 13px;">⏳ Buscando guardias disponibles...</div>
+          <div style="font-size: 13px;">Buscando guardias disponibles...</div>
         </div>
         <div id="guardiasEmpty" style="display: none; text-align: center; padding: 20px; color: var(--accent-red);">
           <div style="font-size: 13px;">️ No hay guardias disponibles en esa fecha</div>
@@ -179,7 +178,7 @@
     <div id="tecnicoBox" style="display: none; margin-top: 16px">
       <div style="background: var(--bg-700); border-radius: 10px; padding: 16px; border: 1px solid var(--border);">
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--accent-green);">
-          📅 Seleccionar fecha de trabajo
+          Seleccionar fecha de trabajo
         </div>
         <input
           type="date"
@@ -191,7 +190,7 @@
         />
         <div id="tecnicosContainer" style="display: none;">
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--text-primary);">
-            🔧 Técnicos disponibles en esa fecha
+            Técnicos disponibles en esa fecha
           </div>
           <div id="tecnicosList" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
             <!-- Aquí se cargan los técnicos vía AJAX -->
@@ -199,10 +198,10 @@
           <input type="hidden" name="tecnico_id" id="tecnicoIdInput" required />
         </div>
         <div id="tecnicosLoading" style="display: none; text-align: center; padding: 20px; color: var(--text-muted);">
-          <div style="font-size: 13px;">⏳ Buscando técnicos disponibles...</div>
+          <div style="font-size: 13px;">Buscando técnicos disponibles...</div>
         </div>
         <div id="tecnicosEmpty" style="display: none; text-align: center; padding: 20px; color: var(--accent-red);">
-          <div style="font-size: 13px;">⚠️ No hay técnicos disponibles en esa fecha</div>
+          <div style="font-size: 13px;">No hay técnicos disponibles en esa fecha</div>
         </div>
       </div>
     </div>
@@ -286,7 +285,7 @@
                 <div style="font-weight: 600; font-size: 13px;">${g.nombre}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">Turno: ${g.turno}</div>
               </div>
-              <span style="font-size: 11px; color: var(--accent-green);">✅ Disponible</span>
+              <span style="font-size: 11px; color: var(--accent-green);">Disponible</span>
             `;
             list.appendChild(div);
           });
@@ -299,7 +298,7 @@
         console.error("Error al cargar guardias:", error);
         loading.style.display = "none";
         empty.style.display = "block";
-        empty.innerHTML = '<div style="font-size: 13px;">❌ Error al cargar guardias disponibles</div>';
+        empty.innerHTML = '<div style="font-size: 13px;">Error al cargar guardias disponibles</div>';
       });
   });
 
@@ -350,7 +349,7 @@
                 <div style="font-weight: 600; font-size: 13px;">${t.nombre}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">Especialidad: ${t.especialidad}</div>
               </div>
-              <span style="font-size: 11px; color: var(--accent-green);">✅ Disponible</span>
+              <span style="font-size: 11px; color: var(--accent-green);">Disponible</span>
             `;
             list.appendChild(div);
           });
@@ -363,7 +362,7 @@
         console.error("Error al cargar técnicos:", error);
         loading.style.display = "none";
         empty.style.display = "block";
-        empty.innerHTML = '<div style="font-size: 13px;">❌ Error al cargar técnicos disponibles</div>';
+        empty.innerHTML = '<div style="font-size: 13px;">Error al cargar técnicos disponibles</div>';
       });
   });
 

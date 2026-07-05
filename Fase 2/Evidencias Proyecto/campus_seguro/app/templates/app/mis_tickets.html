@@ -1,16 +1,12 @@
 {% extends 'app/base.html' %} {% block title %}Mis Tickets – Campus Seguro{%endblock%}
 {% block breadcrumb %}<span class="sep">›</span> Mis Tickets{% endblock %}
-{% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Mis Tickets</div>
-    <div class="page-subtitle">Historial completo de tus reportes</div>
-  </div>
-  <a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"
-    >➕ Nuevo ticket</a
-  >
-</div>
+{% block page_title %}Mis Tickets{% endblock %}
+{% block page_subtitle %}Historial completo de tus reportes{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Nuevo ticket</a>
+{% endblock %}
 
+{% block content %}
 <form method="get" class="filters-bar">
   <select name="estado" class="filter-input" onchange="this.form.submit()">
     <option value="">Todos los estados</option>

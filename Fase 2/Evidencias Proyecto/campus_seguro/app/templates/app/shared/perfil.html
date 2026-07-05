@@ -1,15 +1,9 @@
-{% extends 'app/base.html' %} {% block title %}Mi perfil{% endblock %} {%block content%}
-<div class="topbar">
-  <div>
-    <div class="page-title">Mi perfil</div>
-    <div class="page-subtitle">
-      {{ usuario.get_rol_display }} · {{ usuario.username }}
-    </div>
-  </div>
-  <a href="{% url 'app:cambiar_password' %}" class="btn btn-ghost"
-    >Cambiar contraseña</a
-  >
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Mi perfil{% endblock %} 
+{% block page_title %}Mi perfil{% endblock %}
+{% block page_subtitle %}{{ usuario.get_rol_display }} · {{ usuario.username }}{% endblock %}
+
+{%block content%}
 
 {% if messages %} {% for msg in messages %}
 <div
@@ -22,7 +16,7 @@
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
   <!-- Info de cuenta (solo lectura) -->
   <div class="card">
-    <div class="form-section-title">👤 Información de cuenta</div>
+    <div class="form-section-title">Información de cuenta</div>
     <div
       style="display: flex; flex-direction: column; gap: 14px; font-size: 13px"
     >
@@ -120,7 +114,7 @@
 
   <!-- Editar nombre -->
   <div class="card">
-    <div class="form-section-title">✏️ Editar nombre</div>
+    <div class="form-section-title">Editar nombre</div>
     <form method="post">
       {% csrf_token %}
       <div style="margin-bottom: 14px">
@@ -156,7 +150,7 @@
         border-top: 1px solid var(--border);
       "
     >
-      <div class="form-section-title">🔒 Seguridad</div>
+      <div class="form-section-title">Seguridad</div>
       <a
         href="{% url 'app:cambiar_password' %}"
         class="btn btn-ghost"

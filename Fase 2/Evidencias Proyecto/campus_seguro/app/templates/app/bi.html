@@ -1,6 +1,18 @@
 {% extends 'app/base.html' %}
 {% load static %}
 {% block title %}Business Intelligence · Campus Seguro{% endblock %}
+{% block page_title %}Business Intelligence{% endblock %}
+{% block page_subtitle %}
+  {% if seccion == 'general' %}Análisis general de tickets
+  {% elif seccion == 'guardias' %}Desempeño operativo de guardias
+  {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
+  {% elif seccion == 'materiales' %}Consumo y compras inteligentes
+  {% elif seccion == 'graficos' %}Visualización gráfica avanzada
+  {% elif seccion == 'comunidad' %}Perfil de la comunidad y cruce con incidencias{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+{% endblock %}
 
 {% block styles %}
 <style>
@@ -70,20 +82,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Business Intelligence</div>
-    <div class="page-subtitle">
-      {% if seccion == 'general' %}Análisis general de tickets
-      {% elif seccion == 'guardias' %}Desempeño operativo de guardias
-      {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
-      {% elif seccion == 'materiales' %}Consumo y compras inteligentes
-      {% elif seccion == 'graficos' %}Visualización gráfica avanzada
-      {% elif seccion == 'comunidad' %}Perfil de la comunidad y cruce con incidencias{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
-    </div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
-</div>
 
 <form method="get" id="filtroForm" style="margin-bottom:14px;">
   <input type="hidden" name="seccion" value="{{ seccion }}">

@@ -1,6 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Validar Reparación #{{ ticket.id }}{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> <a href="{% url 'app:gestor_tickets' %}">Tickets</a> <span class="sep">›</span> Validar Reparación #{{ ticket.id }}{% endblock %}
+{% block page_title %}Validar Reparación #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
 {% block styles %}
 <style>
 .sesion-card {
@@ -25,13 +31,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Validar Reparación #{{ ticket.id }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Volver</a>
-</div>
 
 {% if messages %}
   {% for msg in messages %}
@@ -42,7 +41,7 @@
 <!-- Info del ticket -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
   <div class="card">
-    <div class="form-section-title">📋 Información del ticket</div>
+    <div class="form-section-title">Información del ticket</div>
     <div style="display:grid;gap:10px;font-size:13px;">
       <div><strong style="color:var(--text-muted)">Solicitante:</strong> {{ ticket.creado_por.get_full_name }}</div>
       <div><strong style="color:var(--text-muted)">Ubicación:</strong> {{ ticket.ubicacion }}</div>
@@ -65,7 +64,7 @@
 
   <!-- Materiales: todos los consumidos en todas las sesiones -->
   <div class="card">
-    <div class="form-section-title">📦 Materiales utilizados</div>
+    <div class="form-section-title">Materiales utilizados</div>
     {% if todos_materiales_sesiones %}
     <div class="table-wrap">
       <table>
@@ -74,7 +73,7 @@
           {% for fila in todos_materiales_sesiones %}
           <tr>
             <td>{{ fila.material.nombre }}</td>
-            <td>{{ fila.cantidad_utilizada }} {{ fila.material.unidad_medida }}</td>
+            <td>{{ fila.cantidad_utilizada|floatformat:0 }} {{ fila.material.unidad_medida }}</td>
             <td style="font-size:11px;color:var(--text-muted);">{{ fila.sesion_trabajo.inicio|date:"d/m" }}</td>
           </tr>
           {% endfor %}
@@ -90,7 +89,7 @@
 <!-- Historial de sesiones -->
 {% if sesiones %}
 <div class="card" style="margin-bottom:18px;">
-  <div class="form-section-title">🗂 Historial de jornadas ({{ sesiones|length }} sesión{% if sesiones|length != 1 %}es{% endif %})</div>
+  <div class="form-section-title">Historial de jornadas ({{ sesiones|length }} sesión{% if sesiones|length != 1 %}es{% endif %})</div>
   <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
     {% for sesion in sesiones %}
     <div class="sesion-card {% if sesion.tipo_cierre == 'completado' %}completado{% elif sesion.personal_adicional_requerido or sesion.requiere_nivel_mayor %}advertencia{% else %}otro{% endif %}">
@@ -105,10 +104,10 @@
       </div>
       <div style="font-size:13px;color:var(--text-main);margin-bottom:4px;">{{ sesion.descripcion_avance }}</div>
       {% if sesion.herramientas_utilizadas %}
-      <div style="font-size:12px;color:var(--text-muted);">🔧 {{ sesion.herramientas_utilizadas }}</div>
+      <div style="font-size:12px;color:var(--text-muted);">{{ sesion.herramientas_utilizadas }}</div>
       {% endif %}
       {% if sesion.observaciones %}
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">📝 {{ sesion.observaciones }}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">{{ sesion.observaciones }}</div>
       {% endif %}
       {% if sesion.personal_adicional_requerido %}
       <div style="font-size:11px;color:var(--accent-yellow);margin-top:4px;font-weight:600;">⚠ Técnico indicó que requería personal adicional</div>
@@ -124,7 +123,7 @@
 
 <!-- Comparación fotos ANTES / DESPUÉS -->
 <div class="card" style="margin-bottom:18px;">
-  <div class="form-section-title">📷 Comparación fotográfica</div>
+  <div class="form-section-title">Comparación fotográfica</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
 
     <div>
@@ -164,7 +163,7 @@
 
 <!-- Decisión -->
 <div class="card">
-  <div class="form-section-title">⚖️ Decisión del gestor</div>
+  <div class="form-section-title">Decisión del gestor</div>
 
   <!-- Rechazar -->
   <div id="seccionRechazo" style="display:none;margin-bottom:18px;padding:16px;background:rgba(245,54,92,0.06);border:1px solid rgba(245,54,92,0.25);border-radius:10px;">

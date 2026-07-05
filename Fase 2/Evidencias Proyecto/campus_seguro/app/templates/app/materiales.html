@@ -1,14 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Materiales{% endblock %}
+{% block page_title %}Catálogo de Materiales{% endblock %}
+{% block page_subtitle %}Inventario para mantención y BI de compras{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:material_nuevo' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Nuevo material</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Catálogo de Materiales</div>
-    <div class="page-subtitle">Inventario para mantención y BI de compras</div>
-  </div>
-  <a href="{% url 'app:material_nuevo' %}" class="btn btn-primary">➕ Nuevo material</a>
-</div>
 
 <form method="get" class="filters-bar">
   <select name="categoria" class="filter-input">

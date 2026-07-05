@@ -1,13 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Confirmar cancelación - Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_title %}Cancelar Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:detalle_ticket' ticket.pk %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Cancelar Ticket #{{ ticket.pk }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:detalle_ticket' ticket.pk %}" class="btn btn-ghost">← Volver</a>
-</div>
 
 <div class="card" style="max-width: 600px; margin: 40px auto; border-left: 4px solid var(--accent-red);">
   <div class="form-section-title" style="color: var(--accent-red);">
