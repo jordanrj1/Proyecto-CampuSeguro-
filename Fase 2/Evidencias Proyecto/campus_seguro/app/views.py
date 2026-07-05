@@ -432,7 +432,6 @@ def _cruce_riesgo_checklist():
         'accesibilidad':_cruce('riesgo_accesibilidad','checklist_accesibilidad'),
     }
 
-
 def dashboard_gestor(request):
     tickets = Ticket.objects.filter(deleted_at__isnull=True)
     hoy = timezone.now().date()
@@ -450,6 +449,8 @@ def dashboard_gestor(request):
         estado__codigo__in=['en_mantencion', 'en_validacion'],
         deleted_at__isnull=True
     ).select_related('asignado_a')
+
+    enviados_pendientes = tickets.filter(estado__codigo='enviado').select_related('creado_por')
 
     reparados_pendientes = tickets.filter(estado__codigo='reparado').select_related('creado_por', 'asignado_a')
     no_reparados_escalados = tickets.filter(estado__codigo='no_reparado').select_related('creado_por', 'asignado_a', 'no_reparable')
@@ -481,6 +482,7 @@ def dashboard_gestor(request):
         **stats,
         'tickets_recientes': tickets.order_by('-created_at')[:10],
         'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=_excluir).order_by('-created_at')[:5],
+        'enviados_pendientes': enviados_pendientes.order_by('-created_at'),
         'reparados_pendientes': reparados_pendientes.order_by('-created_at'),
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
@@ -506,7 +508,6 @@ def dashboard_gestor(request):
         'cruce_checklist': _cruce_riesgo_checklist(),
     }
     return render(request, 'app/dashboard_gestor.html', context)
-
 
 def dashboard_guardia(request):
     """
@@ -2303,44 +2304,42 @@ def completar_mantencion(request, pk):
         sesion.materiales_jornada = sesion.materiales_utilizados.select_related('material').all()
 
     form = MantencionForm(request.POST or None, request.FILES or None, instance=registro_previo)
-    formset = MaterialUtilizadoFormSet(request.POST or None if request.method == 'POST' else None)
+    tipo_rendicion = request.POST.get('tipo_rendicion', 'avance') if request.method == 'POST' else 'avance'
+
+    if request.method == 'POST' and tipo_rendicion == 'avance':
+        form.fields['causa_raiz'].required = False
+        if 'foto_final' in form.fields:
+            form.fields['foto_final'].required = False
 
     if request.method == 'POST':
-        tipo_rendicion = request.POST.get('tipo_rendicion')
+        formset = MaterialUtilizadoFormSet(request.POST)
+    else:
+        formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
+        for sub_form in formset:
+            sub_form.fields['material'].queryset = materiales_filtrados
+
+    if request.method == 'POST':
         ahora = timezone.now()
         
         descripcion_limpia = request.POST.get('descripcion_trabajo', '').strip()
         herramientas_limpias = request.POST.get('herramientas_utilizadas', '').strip()
-        
+        observaciones_limpias = request.POST.get('observaciones', '').strip()
         personal_adicional = request.POST.get('personal_adicional_requerido') == 'on'
         nivel_mayor = request.POST.get('requiere_nivel_mayor') == 'on'
-        observaciones_limpias = request.POST.get('observaciones', '').strip()
 
-        def responder_con_error(mensaje):
-            messages.error(request, mensaje)
-            logs = ticket.logs.select_related('usuario').order_by('created_at')
-            return render(request, 'app/mantencion/completar.html', {
-                'form': form,
-                'formset': formset,
-                'ticket': ticket,
-                'logs': logs,
-                'materiales_filtrados_data': materiales_filtrados_data,
-                'todos_materiales_data': todos_materiales_data,
-                'sesiones': sesiones_historial,
-            })
+        form.errors 
 
         if not descripcion_limpia:
-            return responder_con_error('⚠️ Operación rechazada: Es obligatorio ingresar una descripción del trabajo realizado.')
+            form._errors['descripcion_trabajo'] = form.error_class(['Es obligatorio ingresar una descripción del trabajo realizado.'])
             
         if not herramientas_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste in este turno (ej: Ninguna, destornillador, etc).')
+            form._errors['herramientas_utilizadas'] = form.error_class(['Debes especificar qué herramientas utilizaste en este turno.'])
         
         if not observaciones_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observación o nota de turno para el gestor.')
-        
-        if len(observaciones_limpias) > 500:
-            return responder_con_error('⚠️ El campo de observaciones no puede superar los 500 caracteres.')
-        
+            form._errors['observaciones'] = form.error_class(['Es obligatorio dejar una observación o nota de turno para el gestor.'])
+        elif len(observaciones_limpias) > 500:
+            form._errors['observaciones'] = form.error_class(['El campo de observaciones no puede superar los 500 caracteres.'])
+
         if ticket.inicio_trabajo_at:
             delta = ahora - ticket.inicio_trabajo_at
             horas_hombre_limpio = delta.total_seconds() / 3600.0
@@ -2349,107 +2348,69 @@ def completar_mantencion(request, pk):
         
         if tipo_rendicion == 'avance':
             sesion = SesionTrabajo(
-                ticket=ticket,
-                tecnico=request.user,
-                inicio=ticket.inicio_trabajo_at or ahora,
-                fin=ahora,
-                horas_hombre=horas_hombre_limpio,
-                descripcion_avance=descripcion_limpia,
-                herramientas_utilizadas=herramientas_limpias,
-                personal_adicional_requerido=personal_adicional,
-                requiere_nivel_mayor=nivel_mayor,
-                observaciones=observaciones_limpias if observaciones_limpias else 'Sin observaciones',
+                ticket=ticket, tecnico=request.user,
+                inicio=ticket.inicio_trabajo_at or ahora, fin=ahora,
+                horas_hombre=horas_hombre_limpio, descripcion_avance=descripcion_limpia,
+                herramientas_utilizadas=herramientas_limpias, personal_adicional_requerido=personal_adicional,
+                requiere_nivel_mayor=nivel_mayor, observaciones=observaciones_limpias or 'Sin observaciones',
                 tipo_cierre='fin_turno'
             )
             formset = MaterialUtilizadoFormSet(request.POST, instance=sesion)
-            
             for sub_form in formset:
                 sub_form.fields['material'].queryset = todos_materiales
             
-            formset_valido = formset.is_valid()
-
-            if not formset_valido:
-                for errors in formset.errors:
-                    for field, error_list in errors.items():
-                        campo_nombre = "Cantidad" if field == "cantidad_utilizada" else field
-                        return responder_con_error(f"⚠️ Error en materiales: El campo '{campo_nombre}' tiene un problema: {error_list[0]}")
-
-            if formset.is_valid():
+            if not form.errors and formset.is_valid():
                 sesion.save()
                 formset.save()
-                
                 ticket.inicio_trabajo_at = None 
                 ticket.save()
                 
                 registrar_log(ticket, request.user, 'Avance de jornada registrado', ip=get_client_ip(request))
 
                 alertas = []
-                if personal_adicional:
-                    alertas.append('personal técnico adicional')
-                if nivel_mayor:
-                    alertas.append('intervención de nivel mayor')
+                if personal_adicional: alertas.append('personal técnico adicional')
+                if nivel_mayor: alertas.append('intervención de nivel mayor')
                 if alertas:
                     motivo_alerta = ' y '.join(alertas)
                     notificar_gestores(
-                        'general',
-                        f'⚠ Ticket #{ticket.pk} requiere atención del gestor',
-                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" pero indica que requiere {motivo_alerta}. El ticket sigue activo. Considera pausar o reasignar.',
-                        ticket=ticket,
-                        prioridad='alta',
-                        url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
+                        'general', f'⚠ Ticket #{ticket.pk} requiere atención del gestor',
+                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" pero indica que requiere {motivo_alerta}.',
+                        ticket=ticket, prioridad='alta', url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
                     )
 
-                messages.success(request, '✓ Avance diario guardado. El ticket sigue activo para tu próximo turno.')
+                messages.success(request, '✓ Avance diario guardado con éxito.')
                 return redirect('app:dashboard')
 
         elif tipo_rendicion == 'finalizar':
             foto = request.FILES.get('foto_final')
             if not foto and not registro_previo:
-                return responder_con_error('⚠️ Operación rechazada: Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.')
+                form._errors['foto final'] = form.error_class(['Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.'])
             
             sesion_final = SesionTrabajo(
-                ticket=ticket,
-                tecnico=request.user,
-                inicio=ticket.inicio_trabajo_at or ahora,
-                fin=ahora,
-                horas_hombre=horas_hombre_limpio,
-                descripcion_avance=descripcion_limpia,
-                herramientas_utilizadas=herramientas_limpias,
-                personal_adicional_requerido=personal_adicional,
-                requiere_nivel_mayor=nivel_mayor,
-                observaciones=observaciones_limpias if observaciones_limpias else 'Sin observaciones',
+                ticket=ticket, tecnico=request.user,
+                inicio=ticket.inicio_trabajo_at or ahora, fin=ahora,
+                horas_hombre=horas_hombre_limpio, descripcion_avance=descripcion_limpia,
+                herramientas_utilizadas=herramientas_limpias, personal_adicional_requerido=personal_adicional,
+                requiere_nivel_mayor=nivel_mayor, observaciones=observaciones_limpias or 'Sin observaciones',
                 tipo_cierre='completado'
             )
             formset = MaterialUtilizadoFormSet(request.POST, instance=sesion_final)
-            
             for sub_form in formset:
                 sub_form.fields['material'].queryset = todos_materiales
-            
-            formset_valido = formset.is_valid()
 
-            if not formset_valido:
-                for errors in formset.errors:
-                    for field, error_list in errors.items():
-                        campo_nombre = "Cantidad" if field == "cantidad_utilizada" else field
-                        return responder_con_error(f"⚠️ Error en materiales: El campo '{campo_nombre}' tiene un problema: {error_list[0]}")
-
-            if formset.is_valid():
+            if form.is_valid() and formset.is_valid():
                 sesion_final.save()
                 formset.save()
                 
                 registro = form.save(commit=False)
                 registro.ticket = ticket
                 registro.tecnico = request.user
-                if foto:
-                    registro.foto_final = foto
+                if foto: registro.foto_final = foto
                 registro.save()
                 
                 HistorialAcciones.objects.create(
-                    ticket=ticket,
-                    usuario=request.user,
-                    tipo_accion='completar_mantencion',
-                    estado_anterior=ticket.estado.codigo,
-                    estado_nuevo='reparado',
+                    ticket=ticket, usuario=request.user, tipo_accion='completar_mantencion',
+                    estado_anterior=ticket.estado.codigo, estado_nuevo='reparado',
                     descripcion=f"Reparación completada. Causa raíz: {registro.causa_raiz[:150]}..."
                 )
                 
@@ -2459,16 +2420,10 @@ def completar_mantencion(request, pk):
                 ticket.save()
                 
                 registrar_log(ticket, request.user, 'Reparación finalizada con éxito', ip=get_client_ip(request))
-                messages.success(request, '✓ ¡Excelente! El ticket ha sido cerrado y enviado al gestor para su revisión final.')
+                messages.success(request, '✓ ¡Excelente! El ticket ha sido completado con éxito.')
                 return redirect('app:dashboard')
-    else:
-        form = MantencionForm(instance=registro_previo)
-        formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
-        for sub_form in formset:
-            sub_form.fields['material'].queryset = materiales_filtrados
 
     logs = ticket.logs.select_related('usuario').order_by('created_at')
-    
     return render(request, 'app/mantencion/completar.html', {
         'form': form,
         'formset': formset,

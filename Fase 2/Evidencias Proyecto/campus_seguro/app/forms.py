@@ -413,6 +413,17 @@ class MaterialUtilizadoForm(forms.ModelForm):
     class Meta:
         model = MaterialUtilizado
         fields = ['material', 'cantidad_utilizada', 'observacion']
+        
+        error_messages = {
+            'material': {
+                'required': 'Debes seleccionar un artículo válido del pañol.',
+            },
+            'cantidad_utilizada': {
+                'required': 'La cantidad es obligatoria si registras un material.',
+                'min_value': 'La cantidad utilizada no puede ser inferior a 1 unidad.',
+            }
+        }
+        
         widgets = {
             'material': forms.Select(attrs={'class': 'form-control'}),
             'cantidad_utilizada': forms.NumberInput(attrs={'step': '1', 'min': '1', 'placeholder': 'Cant.'}),
