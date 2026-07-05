@@ -290,7 +290,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Infraestructura de Sede, Edificios, Pisos y Salas...'))
         
         # Sede
-        sede_institucional, _ = Sede.objects.get_or_create(nombre='Sede San Andrés de Concepción')
+        sede_institucional, _ = Sede.objects.get_or_create(nombre='San Andrés de Concepción')
         
         # Catálogo Maestro de Tipos de Ubicación
         tipos_dict = {
