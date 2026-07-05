@@ -359,7 +359,7 @@
                     {% for mat in sesion.materiales_utilizados.all %}
                     <tr style="border-bottom: 1px solid var(--border); color: var(--text-primary);">
                       <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
-                      <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada }} {{ mat.material.unidad }}</td>
+                      <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.unidad }}</td>
                     </tr>
                     {% endfor %}
                   </tbody>

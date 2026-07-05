@@ -2245,13 +2245,11 @@ def tomar_trabajo(request, pk):
             messages.info(request, 'Este trabajo ya fue iniciado.')
     return redirect('app:dashboard')
 
-
 @login_required
 @rol_requerido('mantencion')
 def completar_mantencion(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
     
-    # En vez de un "if hasattr" que bloquea el rebote, capturamos el registro previo si existe
     registro_previo = getattr(ticket, 'mantencion', None)
 
     todos_materiales = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
@@ -2274,10 +2272,36 @@ def completar_mantencion(request, pk):
             } for m in qs
         ]
 
-    materiales_filtrados_json = json.dumps(serialize_mat(materiales_filtrados))
-    todos_materiales_json = json.dumps(serialize_mat(todos_materiales))
+    materiales_filtrados_data = serialize_mat(materiales_filtrados)
+    todos_materiales_data = serialize_mat(todos_materiales)
 
-    # Inyectamos instance=registro_previo para que herede la clave primaria en caso de UPDATE
+    sesiones_historial = list(ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio'))
+    for sesion in sesiones_historial:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+        
+        sesion.materiales_jornada = sesion.materiales_utilizados.select_related('material').all()
+
     form = MantencionForm(request.POST or None, request.FILES or None, instance=registro_previo)
     formset = MaterialUtilizadoFormSet(request.POST or None if request.method == 'POST' else None)
 
@@ -2300,18 +2324,19 @@ def completar_mantencion(request, pk):
                 'formset': formset,
                 'ticket': ticket,
                 'logs': logs,
-                'materiales_filtrados_json': materiales_filtrados_json,
-                'todos_materiales_json': todos_materiales_json,
+                'materiales_filtrados_data': materiales_filtrados_data,
+                'todos_materiales_data': todos_materiales_data,
+                'sesiones': sesiones_historial,
             })
 
         if not descripcion_limpia:
             return responder_con_error('⚠️ Operación rechazada: Es obligatorio ingresar una descripción del trabajo realizado.')
             
         if not herramientas_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste en este turno (ej: Ninguna, destornillador, etc).')
+            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste in este turno (ej: Ninguna, destornillador, etc).')
         
         if not observaciones_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observation o nota de turno para el gestor.')
+            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observación o nota de turno para el gestor.')
         
         if len(observaciones_limpias) > 500:
             return responder_con_error('⚠️ El campo de observaciones no puede superar los 500 caracteres.')
@@ -2368,9 +2393,7 @@ def completar_mantencion(request, pk):
                     notificar_gestores(
                         'general',
                         f'⚠ Ticket #{ticket.pk} requiere atención del gestor',
-                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" '
-                        f'pero indica que requiere {motivo_alerta}. '
-                        f'El ticket sigue activo. Considera pausar o reasignar.',
+                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" pero indica que requiere {motivo_alerta}. El ticket sigue activo. Considera pausar o reasignar.',
                         ticket=ticket,
                         prioridad='alta',
                         url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
@@ -2381,7 +2404,6 @@ def completar_mantencion(request, pk):
 
         elif tipo_rendicion == 'finalizar':
             foto = request.FILES.get('foto_final')
-            # Exigimos foto nueva solo si no existía una cargada en un intento previo
             if not foto and not registro_previo:
                 return responder_con_error('⚠️ Operación rechazada: Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.')
             
@@ -2420,9 +2442,8 @@ def completar_mantencion(request, pk):
                 registro.tecnico = request.user
                 if foto:
                     registro.foto_final = foto
-                registro.save() # Ejecuta UPDATE si existía, o INSERT si es nuevo. Cero colisiones UNIQUE.
+                registro.save()
                 
-                # Registramos la acción en la línea de tiempo histórica
                 HistorialAcciones.objects.create(
                     ticket=ticket,
                     usuario=request.user,
@@ -2441,7 +2462,6 @@ def completar_mantencion(request, pk):
                 messages.success(request, '✓ ¡Excelente! El ticket ha sido cerrado y enviado al gestor para su revisión final.')
                 return redirect('app:dashboard')
     else:
-        # 🌟 Cargamos la instancia previa en el formulario si es que el ticket rebotó
         form = MantencionForm(instance=registro_previo)
         formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
         for sub_form in formset:
@@ -2454,8 +2474,9 @@ def completar_mantencion(request, pk):
         'formset': formset,
         'ticket': ticket,
         'logs': logs,
-        'materiales_filtrados_json': materiales_filtrados_json,
-        'todos_materiales_json': todos_materiales_json,
+        'materiales_filtrados_data': materiales_filtrados_data,
+        'todos_materiales_data': todos_materiales_data,
+        'sesiones': sesiones_historial,
     })
 
 @login_required
