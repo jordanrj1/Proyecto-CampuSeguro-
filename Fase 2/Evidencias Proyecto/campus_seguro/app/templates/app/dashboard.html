@@ -76,7 +76,7 @@
           <td><span class="id-mono">#{{ t.id }}</span></td>
           <td><strong>{{ t.titulo|truncatechars:40 }}</strong></td>
           <td>
-            {{ t.ubicacion.edificio }} P{{ t.ubicacion.piso }} {{t.ubicacion.sala|default:''}}
+            {{ t.ubicacion.edificio }} {{ t.ubicacion.piso }} {{t.ubicacion.sala|default:''}}
           </td>
           <td>
             <span class="urgencia-{{ t.urgencia }}"

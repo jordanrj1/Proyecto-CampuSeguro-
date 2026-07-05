@@ -31,10 +31,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField
-from django.db.models.functions import TruncWeek
+from django.db.models import Count, FloatField, OuterRef, Subquery, Sum, Q, Avg, F, ExpressionWrapper, DurationField, Value
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.core.paginator import Paginator
 from datetime import timedelta, datetime
@@ -717,7 +717,6 @@ def mis_tickets(request):
         'estado_filtro': estado,
     })
 
-
 @login_required
 def detalle_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
@@ -736,14 +735,58 @@ def detalle_ticket(request, pk):
         sesion_trabajo__ticket=ticket
     ).select_related('material', 'sesion_trabajo').order_by('sesion_trabajo__inicio')
 
+    total_horas_hombre = ticket.sesiones.aggregate(total=Sum('horas_hombre'))['total'] or 0
+
+    for sesion in sesiones:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+
+    total_segundos_acumulados = int(float(total_horas_hombre) * 3600)
+    
+    th_horas = total_segundos_acumulados // 3600
+    th_minutos = (total_segundos_acumulados % 3600) // 60
+    th_segundos = total_segundos_acumulados % 60
+    
+    if th_horas > 0:
+        tiempo_total_trabajo = f"{th_horas} {'hora' if th_horas == 1 else 'horas'}"
+        if th_minutos > 0:
+            tiempo_total_trabajo += f" y {th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+    elif th_minutos > 0:
+        tiempo_total_trabajo = f"{th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+        if th_segundos > 0:
+            tiempo_total_trabajo += f" y {th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    else:
+        tiempo_total_trabajo = f"{th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+
     return render(request, 'app/shared/ticket_detalle.html', {
         'ticket': ticket,
         'logs': logs,
         'es_operativo': es_operativo,
         'sesiones': sesiones,
         'todos_materiales_sesiones': todos_mat,
+        'total_horas_hombre': round(float(total_horas_hombre), 1),
+        'tiempo_total_trabajo': tiempo_total_trabajo, 
     })
-
 
 @login_required
 def editar_ticket(request, pk):
@@ -1537,12 +1580,19 @@ def reset_usuario_gestor(request, pk):
 @login_required
 @rol_requerido('gestor')
 def gestor_operativo(request):
+    hh_subquery = SesionTrabajo.objects.filter(
+        tecnico=OuterRef('pk')
+    ).values('tecnico').annotate(
+        total=Sum('horas_hombre')
+    ).values('total')
+
     rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
         total_trabajos=Count('cierres_firmados', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
         en_curso=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo='en_mantencion'), distinct=True),
         no_reparados=Count('noreparable', distinct=True),
-        hh_totales=Sum('sesiones_trabajo__horas_hombre'),
+        
+        hh_totales=Coalesce(Subquery(hh_subquery), Value(0.0), output_field=FloatField()),
     ).order_by('-trabajos_completados')
 
     rendimiento_guardia = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').annotate(
@@ -2268,9 +2318,9 @@ def completar_mantencion(request, pk):
         
         if ticket.inicio_trabajo_at:
             delta = ahora - ticket.inicio_trabajo_at
-            horas_hombre_limpio = max(0.1, round(delta.total_seconds() / 3600, 1))
+            horas_hombre_limpio = delta.total_seconds() / 3600.0
         else:
-            horas_hombre_limpio = 0.1
+            horas_hombre_limpio = 0.0
         
         if tipo_rendicion == 'avance':
             sesion = SesionTrabajo(
@@ -2676,6 +2726,47 @@ def trazabilidad_ticket(request, pk):
     materiales = MaterialUtilizado.objects.filter(sesion_trabajo__ticket=ticket).select_related('material', 'sesion_trabajo')
     total_horas_hombre = ticket.sesiones.aggregate(total=Sum('horas_hombre'))['total'] or 0
     
+    for sesion in sesiones:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+    
+    total_segundos_acumulados = int(float(total_horas_hombre) * 3600)
+    
+    th_horas = total_segundos_acumulados // 3600
+    th_minutos = (total_segundos_acumulados % 3600) // 60
+    th_segundos = total_segundos_acumulados % 60
+    
+    if th_horas > 0:
+        tiempo_total_trabajo = f"{th_horas} {'hora' if th_horas == 1 else 'horas'}"
+        if th_minutos > 0:
+            tiempo_total_trabajo += f" y {th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+    elif th_minutos > 0:
+        tiempo_total_trabajo = f"{th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+        if th_segundos > 0:
+            tiempo_total_trabajo += f" y {th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    else:
+        tiempo_total_trabajo = f"{th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    
     return render(request, 'app/mantencion/trazabilidad.html', {
         'ticket': ticket,
         'logs': logs,
@@ -2685,8 +2776,8 @@ def trazabilidad_ticket(request, pk):
         'materiales': materiales,
         'sesiones': sesiones,
         'total_horas_hombre': round(float(total_horas_hombre), 1),
+        'tiempo_total_trabajo': tiempo_total_trabajo,
     })
-
 
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN: REGISTRAR MATERIAL FALTANTE

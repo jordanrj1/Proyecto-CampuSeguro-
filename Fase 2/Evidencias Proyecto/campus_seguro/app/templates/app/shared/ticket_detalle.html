@@ -737,7 +737,7 @@
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px;">
                       <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
-                      <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TURNO</span><br>{{ sesion.horas_hombre }} hrs</div>
+                      <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TRABAJO</span><br>{{ sesion.duracion_humana }}</div>
                     </div>
 
                     <div>
@@ -826,6 +826,10 @@
         <div style="color: var(--text-secondary)">{{ r.causa_raiz }}</div>
       </div>
       {% endif %}
+      <div style="font-size: 13px; margin-bottom: 10px">
+        <div style="color: var(--text-muted); font-size: 11px">TIEMPO TOTAL DE TRABAJO</div>
+        <div style="color: var(--text-secondary)">{{ tiempo_total_trabajo }}</div>
+      </div>
       {% if sesiones %}
       <div style="font-size: 13px; margin-bottom: 6px">
         <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px">JORNADAS DE TRABAJO ({{ sesiones|length }})</div>
@@ -833,7 +837,7 @@
         <div style="padding: 8px 10px; background: var(--bg-700); border-radius: 6px; margin-bottom: 6px; font-size: 12px;">
           <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
             <span style="color:var(--text-secondary);">{{ s.inicio|date:"d/m/Y" }}</span>
-            {% if s.horas_hombre %}<span style="color:var(--accent-blue); font-weight:600;">{{ s.horas_hombre }} h</span>{% endif %}
+            {% if s.horas_hombre %}<span style="color:var(--accent-blue); font-weight:600;">{{ s.duracion_humana }}</span>{% endif %}
           </div>
           <div style="color:var(--text-primary);">{{ s.descripcion_avance|truncatechars:80 }}</div>
           {% if s.personal_adicional_requerido or s.requiere_nivel_mayor %}

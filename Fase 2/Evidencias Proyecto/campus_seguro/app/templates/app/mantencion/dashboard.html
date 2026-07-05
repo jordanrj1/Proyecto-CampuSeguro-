@@ -273,7 +273,7 @@
             {{ r.ticket.created_at|date:"d/m/Y H:i" }}
           </td>
           <td style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
-            {% if r.hh_reales %}{{ r.hh_reales }} hrs{% else %}—{% endif %}
+            {% if r.hh_reales %}{{ r.hh_reales|floatformat:2 }} hrs{% else %}—{% endif %}
           </td>
 
           <td style="font-size: 12px; color: var(--text-secondary)">
