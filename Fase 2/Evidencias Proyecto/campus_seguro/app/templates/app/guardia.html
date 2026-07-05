@@ -1,5 +1,7 @@
 {% extends 'app/base.html' %}
 {% block title %}Panel Guardia{% endblock %}
+{% block page_title %}Panel de Guardia{% endblock %}
+{% block page_subtitle %}Validaciones en terreno · {{ user.turno|default:"Turno general" }}{% endblock %}
 
 {% comment %}
    TEMPLATE: app/guardia.html
@@ -74,14 +76,6 @@
 {% endcomment %}
 
 {%block content%}
-<div class="topbar">
-  <div>
-    <div class="page-title">Panel de Guardia</div>
-    <div class="page-subtitle">
-      Validaciones en terreno · {{ user.turno|default:"Turno general" }}
-    </div>
-  </div>
-</div>
 
 <div class="kpi-grid">
   <div class="kpi yellow">

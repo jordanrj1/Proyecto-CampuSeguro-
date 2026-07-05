@@ -1,13 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}Reporte de Inasistencias{%endblock%} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">📅 Reporte de Inasistencias</div>
-    <div class="page-subtitle">Ausentismo de empleados operativos</div>
-  </div>
-  <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
-    >Gestionar inasistencias</a
-  >
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Reporte de Inasistencias{%endblock%} 
+{% block page_title %}Reporte de Inasistencias{% endblock %}
+{% block page_subtitle %}Ausentismo de empleados operativos{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost">Gestionar inasistencias</a>
+{% endblock %}
+
+{% block content %}
 
 <div class="kpi-grid">
   <div class="kpi blue">
@@ -29,7 +28,7 @@
 
 <!-- Por empleado -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">👷 Ausentismo por empleado</div>
+  <div class="card-title">Ausentismo por empleado</div>
   {% if por_empleado %}
   <div class="table-wrap">
     <table>
@@ -96,7 +95,7 @@
 
 <!-- Listado reciente -->
 <div class="card">
-  <div class="card-title">📋 Registros recientes</div>
+  <div class="card-title">Registros recientes</div>
   {% if inasistencias %}
   <div class="table-wrap">
     <table>

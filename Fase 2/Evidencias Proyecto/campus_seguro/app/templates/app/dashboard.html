@@ -1,18 +1,13 @@
-{% extends 'app/base.html' %} {% block title %}Mi Panel – Campus Seguro{% endblock %}
+{% extends 'app/base.html' %} 
+{% block title %}Mi Panel – Campus Seguro{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> Mi Panel{% endblock %}
-{% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Hola, {{ user.first_name }} 👋</div>
-    <div class="page-subtitle">Panel de seguimiento de tus reportes</div>
-  </div>
-  <div class="topbar-actions">
-    <a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"
-      ><i class="fa-solid fa-plus"></i> Crear ticket</a
-    >
-  </div>
-</div>
+{% block page_title %}Hola, {{ user.first_name }} 👋{% endblock %}
+{% block page_subtitle %}Panel de seguimiento de tus reportes{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Crear ticket</a>
+{% endblock %}
 
+{% block content %}
 <div class="kpi-grid">
   <div class="kpi blue">
     <div class="kpi-label">Total reportes</div>

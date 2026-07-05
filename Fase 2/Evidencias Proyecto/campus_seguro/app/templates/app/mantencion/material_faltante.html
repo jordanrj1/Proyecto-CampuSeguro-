@@ -1,14 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Registrar Material Faltante · Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_title %}Registrar material faltante{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Registrar material faltante</div>
-    <div class="page-subtitle">Ticket #{{ ticket.pk }} · {{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 <div class="card" style="margin-bottom:18px;">
   <div class="form-section-title">📋 Trabajo de mantención</div>

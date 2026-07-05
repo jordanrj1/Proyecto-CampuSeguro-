@@ -1,14 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Pausar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Pausar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Pausar ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 <form method="post" style="max-width:640px;">
   {% csrf_token %}

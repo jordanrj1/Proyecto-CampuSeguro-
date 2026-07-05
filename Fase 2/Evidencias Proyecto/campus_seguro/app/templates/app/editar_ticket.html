@@ -1,16 +1,12 @@
 {% extends 'app/base.html' %} 
 {% block title %}Editar Ticket #{{ ticket.id }} – Campus Seguro{% endblock %} 
+{% block page_title %}Editar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}Solo puedes editar tickets en estado "Enviado"{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:detalle_ticket' ticket.id %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Editar Ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">
-      Solo puedes editar tickets en estado "Enviado"
-    </div>
-  </div>
-  <a href="{% url 'app:detalle_ticket' ticket.id %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}

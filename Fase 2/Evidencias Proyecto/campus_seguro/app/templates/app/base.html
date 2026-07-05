@@ -66,7 +66,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100;
   box-shadow: var(--shadow-sm);
 }
-.main { margin-left: 270px; flex: 1; padding: 32px 36px; min-height: 100vh; }
+.main { margin-left: 270px; flex: 1; padding: 122px 32px 36px; min-height: 100vh; }
 
 /* ── SIDEBAR ── */
 .sb-brand {
@@ -174,6 +174,23 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 28px; gap: 16px;
 }
+
+.global-topbar {
+  position: fixed;
+  top: 0;
+  left: 270px;
+  right: 0;
+  height: 90px;
+  background: var(--bg-50);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  z-index: 95;
+  box-shadow: var(--shadow-sm);
+}
+
 .page-title { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); }
 .page-subtitle { font-size: 17px; color: var(--text-secondary); margin-top: 2px; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
@@ -365,13 +382,18 @@ select { cursor: pointer; }
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
+  .global-topbar {
+    left: 80px;
+    padding: 0 20px;
+    height: 80px;
+  }
   .sidebar { width: 80px; }
   .sidebar .name, .sidebar .sub, .sidebar .nav-label,
   .sidebar .user-info, .sidebar .sb-user-header { display: none; }
   .sidebar .nav-item { justify-content: center; }
   .sidebar .sb-logout span { display: none; }
   .sidebar .sb-logout { justify-content: center; }
-  .main { margin-left: 80px; padding: 20px; }
+  .main { margin-left: 80px; padding: 100px 20px 20px; }
 }
 </style>
 {% block styles %}{% endblock %}
@@ -510,16 +532,32 @@ select { cursor: pointer; }
   </div>
 
   <main class="main">
-    <!-- Breadcrumb automático -->
-    <div class="breadcrumb">
-      <a href="{% url 'app:dashboard' %}">Inicio</a>
-      {% block breadcrumb %}{% endblock %}
-    </div>
+    <header class="global-topbar">
+      <div>
+        <div class="breadcrumb" style="margin-bottom: 2px;">
+          <a href="{% url 'app:dashboard' %}">Inicio</a>
+          {% block breadcrumb %}{% endblock %}
+        </div>
+        <div class="page-title" style="font-size: 24px; margin: 0;">
+          {% block page_title %}Campus Seguro{% endblock %}
+        </div>
+        <div class="page-subtitle" style="font-size: 13px; margin: 0;">
+          {% block page_subtitle %}{% endblock %}
+        </div>
+      </div>
+      
+      <div class="topbar-actions">
+        {% block topbar_actions %}{% endblock %}
+      </div>
+    </header>
 
-    {% for message in messages %}
-    <div class="alert alert-{{ message.tags|default:'info' }}" data-autodismiss="{{ message.tags }}">{{ message }}</div>
-    {% endfor %}
-    {% block content %}{% endblock %}
+    <div class="content-body">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" data-autodismiss="{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+      
+      {% block content %}{% endblock %}
+    </div>
   </main>
 </div>
 {% else %}

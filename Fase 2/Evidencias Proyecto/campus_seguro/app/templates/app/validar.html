@@ -1,13 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Validar Ticket #{{ ticket.id }}{%endblock%}
+{% block page_title %}Validar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}Verificación en terreno · Guardia{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Validar Ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">Verificación en terreno · Guardia</div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
 
 <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 18px">
   <!-- Info del ticket -->

@@ -1,13 +1,9 @@
 {% extends 'app/base.html' %}
 {% block title %}Cerrar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Cerrar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Cerrar ticket #{{ ticket.id }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-</div>
 
 <div class="card" style="max-width:560px;">
   <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:18px;">

@@ -1,16 +1,15 @@
-{% extends 'app/base.html' %} {% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Trazabilidad del ticket</div>
-    <div class="page-subtitle">
-      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
-    </div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Trazabilidad del ticket{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="form-section-title">📋 Información general</div>
+  <div class="form-section-title">Información general</div>
   <div
     style="
       display: grid;
@@ -49,7 +48,7 @@
   class="card"
   style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
 >
-  <div class="card-title">🛡️ Validación de Guardia</div>
+  <div class="card-title">Validación de Guardia</div>
   <div
     style="
       display: grid;
@@ -84,7 +83,7 @@
 
 {% if mantencion %}
 <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
-  <div class="card-title">🔧 Registro de Mantención</div>
+  <div class="card-title">Registro de Mantención</div>
   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 13px; margin-bottom: 14px;">
     <div>
       <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
@@ -136,7 +135,7 @@
             {{ m.material.categoria.nombre_display }}
           </td>
           <td style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
-            {{ m.cantidad_utilizada }}
+            {{ m.cantidad_utilizada|floatformat:0 }}
           </td>
           <td style="font-size: 12px; color: var(--text-secondary)">
             {{ m.material.get_unidad_display|default:m.material.unidad }}
@@ -202,7 +201,7 @@
   class="card"
   style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
 >
-  <div class="card-title">⚠️ Diagnóstico: No Reparable</div>
+  <div class="card-title">Diagnóstico: No Reparable</div>
   <div
     style="
       display: grid;
@@ -250,7 +249,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="card-title">🕐 Línea de tiempo</div>
+  <div class="card-title">Línea de tiempo</div>
   {% if logs %}
   <div style="position: relative; padding-left: 24px">
     <div

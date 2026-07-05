@@ -5,15 +5,11 @@
   {% if request.user.rol == 'gestor' %}<a href="{% url 'app:gestor_tickets' %}">Tickets</a>{% else %}<a href="{% url 'app:mis_tickets' %}">Mis Tickets</a>{% endif %}
   <span class="sep">›</span> #{{ ticket.pk }}
 {% endblock %}
-{% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Ticket #{{ ticket.pk }}</div>
-    <div class="page-subtitle">{{ ticket.titulo }}</div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% block page_title %}Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>{% endblock %}
 
+{% block content %}
 <div
   style="
     display: flex;

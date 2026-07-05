@@ -1,5 +1,10 @@
 {% extends 'app/base.html' %}
 {% block title %}Revisar Solicitud – Campus Seguro{% endblock %}
+{% block page_title %}Revisar Solicitud de Cuenta{% endblock %}
+{% block page_subtitle %}Verificación y aprobación institucional{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_solicitudes_cuenta' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
 
 {# ═══════════════════════════════════════════════════════════════
    TEMPLATE: app/revisar_cuenta.html
@@ -72,13 +77,6 @@
    ═══════════════════════════════════════════════════════════════ #}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Revisar Solicitud de Cuenta</div>
-    <div class="page-subtitle">Verificación y aprobación institucional</div>
-  </div>
-  <a href="{% url 'app:gestor_solicitudes_cuenta' %}" class="btn btn-ghost">← Volver</a>
-</div>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;">
 

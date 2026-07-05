@@ -1,13 +1,9 @@
-{% extends 'app/base.html' %} {% block title %}Usuarios – Gestión{% endblock %}
+{% extends 'app/base.html' %} 
+{% block title %}Usuarios – Gestión{% endblock %}
+{% block page_title %}Gestión de Usuarios{% endblock %}
+{% block page_subtitle %}Administra, suspende y restablece contraseñas{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Gestión de Usuarios</div>
-    <div class="page-subtitle">
-      Administra, suspende y restablece contraseñas
-    </div>
-  </div>
-</div>
 
 <form method="get" class="filters-bar">
   <select name="rol" class="filter-input">
