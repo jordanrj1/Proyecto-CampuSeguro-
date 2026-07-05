@@ -1,13 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}{% if material %}Editar{% else %}Nuevo{% endif %} Material{% endblock %}
+{% block page_title %}{% if material %}Editar material{% else %}Nuevo material{% endif %}{% endblock %}
+{% block page_subtitle %}Ficha técnica del catálogo operativo{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">{% if material %}Editar material{% else %}Nuevo material{% endif %}</div>
-    <div class="page-subtitle">Ficha técnica del catálogo operativo</div> </div>
-  <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 <form method="post" style="max-width:640px;">
   {% csrf_token %}
@@ -41,7 +40,7 @@
 
   <div style="display:flex;justify-content:flex-end;gap:10px;">
     <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">Cancelar</a>
-    <button type="submit" class="btn btn-primary">💾 Guardar</button>
+    <button type="submit" class="btn btn-primary">Guardar</button>
   </div>
 </form>
 {% endblock %}

@@ -31,19 +31,22 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField
-from django.db.models.functions import TruncWeek
+from django.db.models import Count, FloatField, OuterRef, Subquery, Sum, Q, Avg, F, ExpressionWrapper, DurationField, Value
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.core.paginator import Paginator
 from datetime import timedelta, datetime
 from functools import wraps
 from django.conf import settings
+# transaction se usa en varias vistas para agrupar escrituras — se centraliza
+# aquí para no repetir el mismo import adentro de cada función
+from django.db import transaction
 from decimal import Decimal
 
 from .models import (
-    CategoriaMaterial, CategoriaTicket, Edificio, Especialidad, Piso, Sede, SesionTrabajo, TipoUbicacion, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    Carrera, CategoriaMaterial, CategoriaTicket, Edificio, Especialidad, Piso, Sede, SesionTrabajo, TipoUbicacion, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -121,17 +124,18 @@ def _preparar_contexto_ubicaciones():
     ubicaciones = Ubicacion.objects.all().order_by('piso__edificio__sede__nombre', 'piso__edificio__nombre', 'piso__numero', 'sala')
     edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
     
-    ubicaciones_json = json.dumps([
+    ubicaciones_json = [
         {
             'id': u.id,
             'edificio': u.piso.edificio.nombre,
             'piso': u.piso.numero,
             'sala': u.sala,
-            'tipo': u.tipo.nombre_display
+            'tipo': u.tipo.nombre_display if u.tipo else ''
         }
         for u in ubicaciones
-    ])
-    
+        if u.piso and u.piso.edificio
+    ]
+
     urgencias = list(
         EstadoCatalogo.objects.filter(entidad='urgencia_ticket', activo=True)
         .order_by('orden').values_list('codigo', 'nombre_display')
@@ -203,7 +207,7 @@ def login_view(request):
                     pass
 
         if user:
-            estado = user.estado_cuenta.codigo
+            estado = user.estado_cuenta.codigo if user.estado_cuenta else 'activa'
             if estado == 'pendiente':
                 messages.warning(request, 'Tu cuenta está pendiente de aprobación por un gestor.')
             elif estado == 'suspendida':
@@ -261,14 +265,14 @@ def registro_view(request):
                     messages.error(request, f'Error al crear cuenta: {e.message}')
                 return render(request, 'app/registro.html', {'form': form})
 
-        user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
-
-        LogAuditoria.objects.create(
-            usuario=user,
-            accion='Solicitud de cuenta creada' + (' (Auth0)' if usar_auth0 else ' (local)'),
-            ip_address=get_client_ip(request),
-            modulo='cuenta',
-        )
+        with transaction.atomic():
+            user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
+            LogAuditoria.objects.create(
+                usuario=user,
+                accion='Solicitud de cuenta creada' + (' (Auth0)' if usar_auth0 else ' (local)'),
+                ip_address=get_client_ip(request),
+                modulo='cuenta',
+            )
 
         notificar_gestores(
             'cuenta_solicitud',
@@ -284,10 +288,23 @@ def registro_view(request):
         )
         return redirect('app:login')
 
+    # Construir dict {escuela: [{id, nombre}, ...]} para el selector en dos pasos
+    from collections import OrderedDict
+    _carreras_qs = (
+        Carrera.objects
+        .filter(activa=True)
+        .order_by('escuela', 'nombre')
+        .values('id', 'nombre', 'escuela')
+    )
+    _por_escuela: dict = OrderedDict()
+    for c in _carreras_qs:
+        _por_escuela.setdefault(c['escuela'], []).append({'id': c['id'], 'nombre': c['nombre']})
+
     return render(request, 'app/registro.html', {
         'form': form,
         'sedes': Sede.objects.all().order_by('nombre'),
-        })
+        'carreras_data': dict(_por_escuela),  # dict Python — json_script lo serializa en el template
+    })
 
 
 def olvide_contrasena_view(request):
@@ -301,7 +318,8 @@ def olvide_contrasena_view(request):
                 reverse('app:restablecer_contrasena', kwargs={'token': token.token})
             )
             messages.success(request, f'✓ Se ha generado un enlace de recuperación. Revisa tu correo institucional.')
-            messages.info(request, f'🔗 [DEV] Enlace de recuperación: {link}')
+            if settings.DEBUG:
+                messages.info(request, f'🔗 [DEV] Enlace de recuperación: {link}')
             LogAuditoria.objects.create(
                 usuario=user, accion='Solicitud de recuperación de contraseña',
                 ip_address=get_client_ip(request), modulo='cuenta'
@@ -326,10 +344,15 @@ def restablecer_contrasena_view(request, token):
 
     form = RestablecerContrasenaForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        tk.usuario.set_password(form.cleaned_data['password1'])
-        tk.usuario.save()
-        tk.usado = True
-        tk.save()
+        with transaction.atomic():
+            tk_locked = TokenRecuperacion.objects.select_for_update().get(pk=tk.pk)
+            if not tk_locked.es_valido:
+                messages.error(request, 'Este enlace ya fue utilizado.')
+                return redirect('app:login')
+            tk_locked.usuario.set_password(form.cleaned_data['password1'])
+            tk_locked.usuario.save()
+            tk_locked.usado = True
+            tk_locked.save()
         LogAuditoria.objects.create(
             usuario=tk.usuario, accion='Contraseña restablecida',
             ip_address=get_client_ip(request), modulo='cuenta'
@@ -432,20 +455,32 @@ def dashboard_gestor(request):
     no_reparados_escalados = tickets.filter(estado__codigo='no_reparado').select_related('creado_por', 'asignado_a', 'no_reparable')
     validados_pendientes = tickets.filter(estado__codigo='validado').select_related('creado_por', 'validado_por')
 
+    # Antes el dashboard pedía cada contador por separado a la base de datos,
+    # lo que eran como 15 viajes distintos en cada carga. Ahora se piden todos
+    # juntos de una sola vez. Visualmente no cambia nada, pero escala mucho mejor.
+    _excluir = ['cerrado', 'eliminado']
+    stats = tickets.aggregate(
+        total_tickets=Count('id'),
+        activos=Count('id', filter=~Q(estado__codigo__in=_excluir)),
+        pausados=Count('id', filter=Q(estado__codigo='pausado')),
+        cerrados=Count('id', filter=Q(estado__codigo='cerrado')),
+        criticos=Count('id', filter=Q(urgencia='critica') & ~Q(estado__codigo__in=_excluir)),
+        no_reparados=Count('id', filter=Q(estado__codigo='no_reparado')),
+        reparados_pendientes_count=Count('id', filter=Q(estado__codigo='reparado')),
+        validados_count=Count('id', filter=Q(estado__codigo='validado')),
+        sin_asignar=Count('id', filter=Q(estado__codigo='enviado')),
+        tickets_hoy=Count('id', filter=Q(created_at__date=hoy)),
+        cerrados_semana=Count('id', filter=Q(estado__codigo='cerrado', cerrado_at__gte=semana)),
+        r_afecta_clase=Count('id', filter=Q(afecta_clase=True) & ~Q(estado__codigo__in=_excluir)),
+        r_electrico=Count('id', filter=Q(riesgo_electrico=True) & ~Q(estado__codigo__in=_excluir)),
+        r_estructural=Count('id', filter=Q(riesgo_estructural=True) & ~Q(estado__codigo__in=_excluir)),
+        r_accesibilidad=Count('id', filter=Q(riesgo_accesibilidad=True) & ~Q(estado__codigo__in=_excluir)),
+    )
+
     context = {
-        'total_tickets': tickets.count(),
-        'activos': tickets.exclude(estado__codigo__in=['cerrado', 'eliminado']).count(),
-        'pausados': tickets.filter(estado__codigo='pausado').count(),
-        'cerrados': tickets.filter(estado__codigo='cerrado').count(),
-        'criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=['cerrado', 'eliminado']).count(),
-        'no_reparados': tickets.filter(estado__codigo='no_reparado').count(),
-        'reparados_pendientes_count': tickets.filter(estado__codigo='reparado').count(),
-        'validados_count': tickets.filter(estado__codigo='validado').count(),
-        'sin_asignar': tickets.filter(estado__codigo='enviado').count(),
-        'tickets_hoy': tickets.filter(created_at__date=hoy).count(),
-        'cerrados_semana': tickets.filter(estado__codigo='cerrado', cerrado_at__gte=semana).count(),
+        **stats,
         'tickets_recientes': tickets.order_by('-created_at')[:10],
-        'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=['cerrado', 'eliminado']).order_by('-created_at')[:5],
+        'tickets_criticos': tickets.filter(urgencia='critica').exclude(estado__codigo__in=_excluir).order_by('-created_at')[:5],
         'reparados_pendientes': reparados_pendientes.order_by('-created_at'),
         'no_reparados_escalados': no_reparados_escalados.order_by('-created_at'),
         'validados_pendientes': validados_pendientes.order_by('-created_at'),
@@ -458,11 +493,6 @@ def dashboard_gestor(request):
         'trabajadores_ausentes': trabajadores_ausentes,
         'tickets_con_ausentes': tickets_con_ausentes,
         'pausa_choices': Ticket.PAUSA_CHOICES,
-        # ── Riesgos e impacto ────────────────────────────────────
-        'r_afecta_clase':     tickets.filter(afecta_clase=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_electrico':        tickets.filter(riesgo_electrico=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_estructural':      tickets.filter(riesgo_estructural=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
-        'r_accesibilidad':    tickets.filter(riesgo_accesibilidad=True).exclude(estado__codigo__in=['cerrado','eliminado']).count(),
         'riesgos_por_edificio': list(
             tickets.filter(
                 Q(riesgo_electrico=True) | Q(riesgo_estructural=True) | Q(riesgo_accesibilidad=True)
@@ -687,7 +717,6 @@ def mis_tickets(request):
         'estado_filtro': estado,
     })
 
-
 @login_required
 def detalle_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
@@ -706,14 +735,58 @@ def detalle_ticket(request, pk):
         sesion_trabajo__ticket=ticket
     ).select_related('material', 'sesion_trabajo').order_by('sesion_trabajo__inicio')
 
+    total_horas_hombre = ticket.sesiones.aggregate(total=Sum('horas_hombre'))['total'] or 0
+
+    for sesion in sesiones:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+
+    total_segundos_acumulados = int(float(total_horas_hombre) * 3600)
+    
+    th_horas = total_segundos_acumulados // 3600
+    th_minutos = (total_segundos_acumulados % 3600) // 60
+    th_segundos = total_segundos_acumulados % 60
+    
+    if th_horas > 0:
+        tiempo_total_trabajo = f"{th_horas} {'hora' if th_horas == 1 else 'horas'}"
+        if th_minutos > 0:
+            tiempo_total_trabajo += f" y {th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+    elif th_minutos > 0:
+        tiempo_total_trabajo = f"{th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+        if th_segundos > 0:
+            tiempo_total_trabajo += f" y {th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    else:
+        tiempo_total_trabajo = f"{th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+
     return render(request, 'app/shared/ticket_detalle.html', {
         'ticket': ticket,
         'logs': logs,
         'es_operativo': es_operativo,
         'sesiones': sesiones,
         'todos_materiales_sesiones': todos_mat,
+        'total_horas_hombre': round(float(total_horas_hombre), 1),
+        'tiempo_total_trabajo': tiempo_total_trabajo, 
     })
-
 
 @login_required
 def editar_ticket(request, pk):
@@ -730,8 +803,24 @@ def editar_ticket(request, pk):
         return redirect('app:detalle_ticket', pk=pk)
     
     ubicaciones = Ubicacion.objects.select_related('piso__edificio', 'tipo').all()
-    
-    return render(request, 'app/editar_ticket.html', {'form': form, 'ticket': ticket, 'ubicaciones': ubicaciones})
+    edificios = Ubicacion.objects.values_list('piso__edificio__nombre', flat=True).distinct().order_by('piso__edificio__nombre')
+    ubicaciones_json = [
+        {
+            'id': u.id,
+            'edificio': u.piso.edificio.nombre,
+            'piso': u.piso.numero,
+            'sala': u.sala,
+            'tipo': u.tipo.nombre_display if u.tipo else ''
+        }
+        for u in ubicaciones
+        if u.piso and u.piso.edificio
+    ]
+
+    return render(request, 'app/editar_ticket.html', {
+        'form': form, 'ticket': ticket,
+        'ubicaciones': ubicaciones, 'edificios': edificios,
+        'ubicaciones_json': ubicaciones_json,
+    })
 
 
 @login_required
@@ -770,26 +859,28 @@ def cancelar_ticket(request, pk):
         return render(request, 'app/confirmar_cancelar.html', {'ticket': ticket})
     
     estado_anterior = ticket.estado
-    ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
-    ticket.save()
-    
-    HistorialAcciones.objects.create(
-        ticket=ticket,
-        usuario=request.user,
-        tipo_accion='cancelacion',
-        estado_anterior=estado_anterior,
-        estado_nuevo=ticket.estado,
-        descripcion=f'Ticket cancelado por {request.user.get_full_name() or request.user.username}',
-        es_global=True,
-        ip_address=get_client_ip(request),
-    )
-    
-    registrar_log(
-        ticket, request.user, 'Ticket cancelado por usuario',
-        estado_anterior=estado_anterior.codigo,
-        estado_nuevo='cancelado',
-        ip=get_client_ip(request)
-    )
+    with transaction.atomic():
+        ticket.estado = EstadoCatalogo.para('ticket', 'cancelado')
+        ticket.cancelado_at = timezone.now()
+        ticket.save()
+
+        HistorialAcciones.objects.create(
+            ticket=ticket,
+            usuario=request.user,
+            tipo_accion='cancelacion',
+            estado_anterior=estado_anterior,
+            estado_nuevo=ticket.estado,
+            descripcion=f'Ticket cancelado por {request.user.get_full_name() or request.user.username}',
+            es_global=True,
+            ip_address=get_client_ip(request),
+        )
+
+        registrar_log(
+            ticket, request.user, 'Ticket cancelado por usuario',
+            estado_anterior=estado_anterior.codigo,
+            estado_nuevo='cancelado',
+            ip=get_client_ip(request)
+        )
     
     notificar_gestores(
         'ticket_cancelado',
@@ -878,31 +969,30 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{guardia.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            asignacion = AsignacionTicket.objects.create(
-                ticket=ticket,
-                usuario=guardia,
-                rol_asignacion='guardia',
-                asignado_por=request.user,
-                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
-                fecha_programada=fecha_programada
-            )
-            
-            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
-            ticket.save()
-            
-            HistorialAcciones.objects.create(
-                ticket=ticket,
-                usuario=request.user,
-                tipo_accion='asignacion',
-                estado_anterior=estado_anterior,
-                estado_nuevo='en_validacion',
-                sub_estado_nuevo='asignado_guardia',
-                descripcion=f'Ticket asignado a guardia {guardia.get_full_name()} para validación el {fecha_programada.strftime("%d/%m/%Y")}',
-                es_global=True,
-                ip_address=get_client_ip(request),
-            )
-            
+            with transaction.atomic():
+                AsignacionTicket.objects.create(
+                    ticket=ticket,
+                    usuario=guardia,
+                    rol_asignacion='guardia',
+                    asignado_por=request.user,
+                    estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                    fecha_programada=fecha_programada
+                )
+                ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_guardia')
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_validacion')
+                ticket.save()
+                HistorialAcciones.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    tipo_accion='asignacion',
+                    estado_anterior=estado_anterior,
+                    estado_nuevo='en_validacion',
+                    sub_estado_nuevo='asignado_guardia',
+                    descripcion=f'Ticket asignado a guardia {guardia.get_full_name()} para validación el {fecha_programada.strftime("%d/%m/%Y")}',
+                    es_global=True,
+                    ip_address=get_client_ip(request),
+                )
+
             notificar(
                 guardia, 'asignacion',
                 f'Te asignaron el ticket #{ticket.pk} para validar',
@@ -941,32 +1031,31 @@ def derivar_ticket(request, pk):
                 messages.error(request, f'{tecnico.get_full_name()} tiene una inasistencia aprobada en esa fecha.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            asignacion = AsignacionTicket.objects.create(
-                ticket=ticket,
-                usuario=tecnico,
-                rol_asignacion='mantencion',
-                asignado_por=request.user,
-                estado=EstadoCatalogo.para('asignacion', 'pendiente'),
-                fecha_programada=fecha_programada
-            )
-            
-            ticket.asignado_a = tecnico
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
-            ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_tecnico')
-            ticket.save()
-            
-            HistorialAcciones.objects.create(
-                ticket=ticket,
-                usuario=request.user,
-                tipo_accion='asignacion',
-                estado_anterior=estado_anterior,
-                estado_nuevo='en_mantencion',
-                sub_estado_nuevo='asignado_tecnico',
-                descripcion=f'Ticket asignado a técnico {tecnico.get_full_name()} para trabajo el {fecha_programada.strftime("%d/%m/%Y")}',
-                es_global=True,
-                ip_address=get_client_ip(request),
-            )
-            
+            with transaction.atomic():
+                AsignacionTicket.objects.create(
+                    ticket=ticket,
+                    usuario=tecnico,
+                    rol_asignacion='mantencion',
+                    asignado_por=request.user,
+                    estado=EstadoCatalogo.para('asignacion', 'pendiente'),
+                    fecha_programada=fecha_programada
+                )
+                ticket.asignado_a = tecnico
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+                ticket.sub_estado = EstadoCatalogo.para('ticket_sub', 'asignado_tecnico')
+                ticket.save()
+                HistorialAcciones.objects.create(
+                    ticket=ticket,
+                    usuario=request.user,
+                    tipo_accion='asignacion',
+                    estado_anterior=estado_anterior,
+                    estado_nuevo='en_mantencion',
+                    sub_estado_nuevo='asignado_tecnico',
+                    descripcion=f'Ticket asignado a técnico {tecnico.get_full_name()} para trabajo el {fecha_programada.strftime("%d/%m/%Y")}',
+                    es_global=True,
+                    ip_address=get_client_ip(request),
+                )
+
             notificar(
                 tecnico, 'asignacion',
                 f'Te asignaron el ticket #{ticket.pk} para reparación',
@@ -1016,23 +1105,21 @@ def guardias_disponibles_ajax(request):
     guardias = Usuario.objects.filter(
         rol='guardia',
         estado_cuenta__codigo='activa',
-        activo=True
-    ).order_by('first_name', 'last_name')
-    
-    guardias_disponibles = []
-    for g in guardias:
-        tiene_inasistencia = g.inasistencias.filter(
-            estado__codigo='aprobada',
-            fecha_desde__lte=fecha,
-            fecha_hasta__gte=fecha
-        ).exists()
-        
-        if not tiene_inasistencia:
-            guardias_disponibles.append({
-                'id': g.id,
-                'nombre': f'{g.get_full_name()} ({g.turno})' if g.turno else g.get_full_name(),
-                'turno': g.turno or 'General'
-            })
+        activo=True,
+    ).exclude(
+        inasistencias__estado__codigo='aprobada',
+        inasistencias__fecha_desde__lte=fecha,
+        inasistencias__fecha_hasta__gte=fecha,
+    ).distinct().order_by('first_name', 'last_name')
+
+    guardias_disponibles = [
+        {
+            'id': g.id,
+            'nombre': f'{g.get_full_name()} ({g.turno})' if g.turno else g.get_full_name(),
+            'turno': g.turno or 'General',
+        }
+        for g in guardias
+    ]
     
     return JsonResponse({
         'fecha': fecha_str,
@@ -1057,26 +1144,21 @@ def tecnicos_disponibles_ajax(request):
     tecnicos = Usuario.objects.filter(
         rol='mantencion',
         estado_cuenta__codigo='activa',
-        activo=True
-    ).order_by('first_name', 'last_name')
-    
+        activo=True,
+    ).exclude(
+        inasistencias__estado__codigo='aprobada',
+        inasistencias__fecha_desde__lte=fecha,
+        inasistencias__fecha_hasta__gte=fecha,
+    ).distinct().prefetch_related('especialidades').order_by('first_name', 'last_name')
+
     tecnicos_disponibles = []
     for t in tecnicos:
-        tiene_inasistencia = t.inasistencias.filter(
-            estado__codigo='aprobada',
-            fecha_desde__lte=fecha,
-            fecha_hasta__gte=fecha
-        ).exists()
-        
-        if not tiene_inasistencia:
-            especialidades = list(t.especialidades.values_list('nombre', flat=True))
-            especialidad_texto = ', '.join(especialidades) if especialidades else 'General'
-            
-            tecnicos_disponibles.append({
-                'id': t.id,
-                'nombre': t.get_full_name(),
-                'especialidad': especialidad_texto
-            })
+        especialidades = list(t.especialidades.values_list('nombre', flat=True))
+        tecnicos_disponibles.append({
+            'id': t.id,
+            'nombre': t.get_full_name(),
+            'especialidad': ', '.join(especialidades) if especialidades else 'General',
+        })
     
     return JsonResponse({
         'fecha': fecha_str,
@@ -1088,6 +1170,10 @@ def tecnicos_disponibles_ajax(request):
 @rol_requerido('gestor')
 def reasignar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, deleted_at__isnull=True)
+    _estados_reasignables = {'enviado', 'en_validacion', 'en_mantencion', 'pausado'}
+    if ticket.estado.codigo not in _estados_reasignables:
+        messages.error(request, 'Este ticket no puede reasignarse desde su estado actual.')
+        return redirect('app:gestor_tickets')
     roles_destino = ['mantencion'] if ticket.estado.codigo == 'en_mantencion' else ['guardia', 'mantencion']
 
     form = ReasignarForm(request.POST or None, roles=roles_destino)
@@ -1155,15 +1241,16 @@ def pausar_ticket(request, pk):
         pausa_labels = {e.codigo: e.nombre_display for e in EstadoCatalogo.objects.filter(entidad='pausa_ticket')} or dict(Ticket.PAUSA_CHOICES)
         razones_texto = ' | '.join(pausa_labels.get(r, r) for r in razones)
 
-        ticket.estado = EstadoCatalogo.para('ticket', 'pausado')
-        ticket.estado_pausa = ','.join(razones)
-        ticket.motivo_pausa = form.cleaned_data['motivo_pausa']
-        ticket.save()
-        registrar_log(ticket, request.user,
-                      f'Ticket pausado — {razones_texto}',
-                      estado_anterior=estado_anterior, estado_nuevo='pausado',
-                      ip=get_client_ip(request), es_interno=True,
-                      detalle=f'Razones: {razones_texto}\nDetalle: {ticket.motivo_pausa}')
+        with transaction.atomic():
+            ticket.estado = EstadoCatalogo.para('ticket', 'pausado')
+            ticket.estado_pausa = ','.join(razones)
+            ticket.motivo_pausa = form.cleaned_data['motivo_pausa']
+            ticket.save()
+            registrar_log(ticket, request.user,
+                          f'Ticket pausado — {razones_texto}',
+                          estado_anterior=estado_anterior, estado_nuevo='pausado',
+                          ip=get_client_ip(request), es_interno=True,
+                          detalle=f'Razones: {razones_texto}\nDetalle: {ticket.motivo_pausa}')
         if ticket.asignado_a:
             notificar(ticket.asignado_a, 'pausa', f'Ticket #{ticket.pk} pausado',
                       f'Motivo: {razones_texto}', ticket=ticket)
@@ -1178,7 +1265,14 @@ def reactivar_ticket(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='pausado', deleted_at__isnull=True)
     form = ReactivacionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        codigo_destino = 'en_mantencion' if ticket.asignado_a and ticket.asignado_a.rol == 'mantencion' else 'validado' if ticket.validado_por else 'enviado'
+        if ticket.asignado_a and ticket.asignado_a.rol == 'mantencion':
+            codigo_destino = 'en_mantencion'
+        elif ticket.asignado_a and ticket.asignado_a.rol == 'guardia':
+            codigo_destino = 'en_validacion'
+        elif ticket.validado_por:
+            codigo_destino = 'validado'
+        else:
+            codigo_destino = 'enviado'
         ticket.estado = EstadoCatalogo.para('ticket', codigo_destino)
         ticket.comentario_reactivacion = form.cleaned_data['comentario']
         ticket.estado_pausa = None
@@ -1206,12 +1300,13 @@ def cerrar_ticket(request, pk):
         return redirect('app:gestor_tickets')
     if request.method == 'POST':
         estado_anterior = ticket.estado.codigo
-        ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
-        ticket.cerrado_at = timezone.now()
-        ticket.save()
-        registrar_log(ticket, request.user, 'Ticket cerrado por gestor',
-                      estado_anterior=estado_anterior, estado_nuevo='cerrado',
-                      ip=get_client_ip(request))
+        with transaction.atomic():
+            ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
+            ticket.cerrado_at = timezone.now()
+            ticket.save()
+            registrar_log(ticket, request.user, 'Ticket cerrado por gestor',
+                          estado_anterior=estado_anterior, estado_nuevo='cerrado',
+                          ip=get_client_ip(request))
         notificar(ticket.creado_por, 'ticket_cerrado', f'Ticket #{ticket.pk} cerrado',
                   'Tu reporte fue resuelto satisfactoriamente.', ticket=ticket)
         messages.success(request, '✓ Ticket cerrado.')
@@ -1230,12 +1325,13 @@ def validar_reparacion(request, pk):
 
         if accion == 'aprobar':
             estado_anterior = ticket.estado.codigo
-            ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
-            ticket.cerrado_at = timezone.now()
-            ticket.save()
-            registrar_log(ticket, request.user, 'Reparación aprobada por gestor — ticket cerrado',
-                          estado_anterior=estado_anterior, estado_nuevo='cerrado',
-                          ip=get_client_ip(request))
+            with transaction.atomic():
+                ticket.estado = EstadoCatalogo.para('ticket', 'cerrado')
+                ticket.cerrado_at = timezone.now()
+                ticket.save()
+                registrar_log(ticket, request.user, 'Reparación aprobada por gestor — ticket cerrado',
+                              estado_anterior=estado_anterior, estado_nuevo='cerrado',
+                              ip=get_client_ip(request))
             notificar(ticket.creado_por, 'ticket_cerrado',
                       f'Ticket #{ticket.pk} cerrado',
                       'La reparación fue aprobada por el gestor. Tu reporte quedó resuelto.',
@@ -1261,13 +1357,14 @@ def validar_reparacion(request, pk):
                     'sesiones': sesiones, 'todos_materiales_sesiones': todos_mat,
                 })
             estado_anterior = ticket.estado.codigo
-            ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
-            ticket.save()
-            registrar_log(ticket, request.user,
-                          f'Reparación rechazada por gestor — devuelta a mantención',
-                          estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
-                          ip=get_client_ip(request), es_interno=True,
-                          detalle=comentario)
+            with transaction.atomic():
+                ticket.estado = EstadoCatalogo.para('ticket', 'en_mantencion')
+                ticket.save()
+                registrar_log(ticket, request.user,
+                              f'Reparación rechazada por gestor — devuelta a mantención',
+                              estado_anterior=estado_anterior, estado_nuevo='en_mantencion',
+                              ip=get_client_ip(request), es_interno=True,
+                              detalle=comentario)
             if mantencion:
                 notificar(mantencion.tecnico, 'rechazo_validacion',
                           f'Reparación #{ticket.pk} rechazada',
@@ -1411,8 +1508,10 @@ def gestor_usuarios(request):
         qs = qs.filter(rol=rol_filtro)
     if estado_filtro:
         qs = qs.filter(estado_cuenta__codigo=estado_filtro)
+    paginator = Paginator(qs, 30)
+    usuarios_page = paginator.get_page(request.GET.get('page', 1))
     return render(request, 'app/usuarios.html', {
-        'usuarios': qs,
+        'usuarios': usuarios_page,
         'roles': Usuario.ROL_CHOICES,
         'estados': EstadoCatalogo.objects.filter(entidad='cuenta').order_by('orden').values_list('codigo', 'nombre_display'),
         'filtros': {'rol': rol_filtro, 'estado': estado_filtro},
@@ -1481,12 +1580,19 @@ def reset_usuario_gestor(request, pk):
 @login_required
 @rol_requerido('gestor')
 def gestor_operativo(request):
+    hh_subquery = SesionTrabajo.objects.filter(
+        tecnico=OuterRef('pk')
+    ).values('tecnico').annotate(
+        total=Sum('horas_hombre')
+    ).values('total')
+
     rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
         total_trabajos=Count('cierres_firmados', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
         en_curso=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo='en_mantencion'), distinct=True),
         no_reparados=Count('noreparable', distinct=True),
-        hh_totales=Sum('sesiones_trabajo__horas_hombre'),
+        
+        hh_totales=Coalesce(Subquery(hh_subquery), Value(0.0), output_field=FloatField()),
     ).order_by('-trabajos_completados')
 
     rendimiento_guardia = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').annotate(
@@ -1702,7 +1808,7 @@ def gestor_bi(request):
     tasa_nrep = round((nrep_total / denominador * 100) if denominador else 0, 1)
 
     tecnicos_activos_ids = Usuario.objects.filter(
-        rol='mantencion', 
+        rol='mantencion',
         estado_cuenta__codigo='activa'
     ).values_list('id', flat=True).distinct()
 
@@ -1733,9 +1839,9 @@ def gestor_bi(request):
             fecha_desde__gte=desde,
             fecha_hasta__lte=hasta
         ).order_by('-fecha_desde')
-        
+
         inasistencias_count = inasistencias_qs.count()
-        
+
         lista_inasistencias = []
         for ina in inasistencias_qs:
             lista_inasistencias.append({
@@ -1752,7 +1858,7 @@ def gestor_bi(request):
 
         denom_tec = reparados_count + norep_count
         resolucion = round((reparados_count / denom_tec * 100) if denom_tec else 100, 1)
-        
+
         sesiones_periodo = ticket.sesiones.filter(tecnico_id=tec_id, created_at__date__gte=desde, created_at__date__lte=hasta) if 'ticket' in locals() else []
         nivel_mayor = sesiones_periodo.filter(requiere_nivel_mayor=True).count() if sesiones_periodo else 0
         adicional = sesiones_periodo.filter(personal_adicional_requerido=True).count() if sesiones_periodo else 0
@@ -1760,15 +1866,14 @@ def gestor_bi(request):
         total_sesiones = sesiones_periodo.count() if sesiones_periodo else 0
         autonomia = round(max(0, (total_sesiones - escalaciones) / total_sesiones * 100) if total_sesiones else 100, 1)
 
-        historial_modal = []
         lista_norep = []
         lista_reasignados = []
         lista_reparados = []
-        
+
         norep_periodo = NoReparable.objects.filter(
             tecnico_id=tec_id, created_at__date__gte=desde, created_at__date__lte=hasta
         ).select_related('ticket', 'ticket__ubicacion')
-        
+
         for nr in norep_periodo:
             lista_norep.append({
                 'id': nr.ticket.id, 'titulo': nr.ticket.titulo, 'ubicacion': str(nr.ticket.ubicacion),
@@ -1779,17 +1884,17 @@ def gestor_bi(request):
             usuario_id=tec_id, tipo_accion__in=['reasignacion', 'reasignacion_por_inasistencia'],
             created_at__date__gte=desde, created_at__date__lte=hasta
         ).select_related('ticket', 'ticket__ubicacion')
-        
+
         for hist in reasignados_periodo:
             lista_reasignados.append({
                 'id': hist.ticket.id, 'titulo': hist.ticket.titulo, 'ubicacion': str(hist.ticket.ubicacion),
                 'tipo': 'Reasignado', 'badge_class': 'badge-yellow', 'motivo': hist.descripcion
             })
-            
+
         activos_bandeja = Ticket.objects.filter(
             asignado_a_id=tec_id, estado__codigo='en_mantencion', deleted_at__isnull=True
         ).select_related('ubicacion')
-        
+
         for tk in activos_bandeja:
             lista_reparados.append({
                 'id': tk.id, 'titulo': tk.titulo, 'ubicacion': str(tk.ubicacion),
@@ -1799,7 +1904,7 @@ def gestor_bi(request):
         reparados_periodo = RegistroMantencion.objects.filter(
             tecnico_id=tec_id, fecha_registro__date__gte=desde, fecha_registro__date__lte=hasta
         ).select_related('ticket', 'ticket__ubicacion', 'ticket__estado')
-        
+
         for reg in reparados_periodo:
             lista_reparados.append({
                 'id': reg.ticket.id, 'titulo': reg.ticket.titulo, 'ubicacion': str(reg.ticket.ubicacion),
@@ -1864,17 +1969,30 @@ def gestor_bi(request):
     categorias_materiales = list(CategoriaMaterial.objects.filter(activo=True).values_list('codigo', 'nombre_display'))
 
     if seccion == 'materiales':
-        todos_materiales_tabla = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
+        consumo_dict = {
+            c['material_id']: c
+            for c in MaterialUtilizado.objects
+            .filter(
+                sesion_trabajo__ticket__created_at__date__gte=desde,
+                sesion_trabajo__ticket__created_at__date__lte=hasta,
+            )
+            .values('material_id')
+            .annotate(
+                total_consumido=Sum('cantidad_utilizada'),
+                veces_usado=Count('id'),
+                en_tickets=Count('sesion_trabajo__ticket', distinct=True),
+            )
+        }
+
         materiales_top = []
-        for material in todos_materiales_tabla:
-            consumo = MaterialUtilizado.objects.filter(
-                material=material, sesion_trabajo__ticket__created_at__date__gte=desde, sesion_trabajo__ticket__created_at__date__lte=hasta
-            ).aggregate(total=Sum('cantidad_utilizada'), veces=Count('id'), tickets=Count('sesion_trabajo__ticket', distinct=True))
-            
+        for material in Material.objects.filter(activo=True).select_related('categoria').order_by('categoria__nombre_display', 'nombre'):
+            c = consumo_dict.get(material.pk, {})
             materiales_top.append({
                 'material__codigo': material.codigo, 'material__nombre': material.nombre, 'material__unidad': material.unidad,
                 'categoria_nombre': material.categoria.nombre_display if material.categoria else 'General',
-                'total_consumido': consumo['total'] or 0, 'veces_usado': consumo['veces'] or 0, 'en_tickets': consumo['tickets'] or 0,
+                'total_consumido': c.get('total_consumido') or 0,
+                'veces_usado': c.get('veces_usado') or 0,
+                'en_tickets': c.get('en_tickets') or 0,
             })
         materiales_top.sort(key=lambda x: x['total_consumido'], reverse=True)
     else:
@@ -1898,18 +2016,50 @@ def gestor_bi(request):
     tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
 
     # ═══════════════════════════════════════════════════════════════
-    # 🌟 3. CONSULTAR LAS TABLAS MAESTRAS DE INFRAESTRUCTURA RELACIONAL
+    # SECCIÓN COMUNIDAD — cruces con perfil del solicitante
+    # ═══════════════════════════════════════════════════════════════
+    com_por_vinculo = list(
+        Usuario.objects
+        .exclude(vinculo__isnull=True).exclude(vinculo='')
+        .values('vinculo').annotate(total=Count('id')).order_by('-total')
+    )
+    com_tickets_por_vinculo = list(
+        tickets.exclude(creado_por__vinculo__isnull=True)
+        .values('creado_por__vinculo').annotate(total=Count('id')).order_by('-total')
+    )
+    com_tickets_por_escuela = list(
+        tickets
+        .filter(creado_por__vinculo__in=['alumno', 'docente'])
+        .exclude(creado_por__carrera__isnull=True)
+        .values('creado_por__carrera__escuela')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    com_afectacion_por_escuela = list(
+        tickets
+        .filter(afecta_clase=True, creado_por__vinculo__in=['alumno', 'docente'])
+        .exclude(creado_por__carrera__isnull=True)
+        .values('creado_por__carrera__escuela')
+        .annotate(total=Count('id'))
+        .order_by('-total')
+    )
+    com_tickets_por_jornada = list(
+        tickets.exclude(creado_por__jornada__isnull=True).exclude(creado_por__jornada='')
+        .values('creado_por__jornada').annotate(total=Count('id')).order_by('-total')
+    )
+    _com_total_vinculo = sum(v['total'] for v in com_tickets_por_vinculo) or 1
+    _com_total_escuela = sum(v['total'] for v in com_tickets_por_escuela) or 1
+    _com_max_escuela_af = max((v['total'] for v in com_afectacion_por_escuela), default=1)
+
+    # ═══════════════════════════════════════════════════════════════
+    # INFRAESTRUCTURA RELACIONAL — filtros en cascada para drill-down
     # ═══════════════════════════════════════════════════════════════
     edificios_lista = Edificio.objects.all().order_by('nombre')
-    
-    # Filtro inteligente en cascada: si hay edificio seleccionado, trae solo sus pisos
     if edificio_seleccionado:
         pisos_lista = Piso.objects.filter(edificio_id=edificio_seleccionado).values('numero').distinct().order_by('numero')
     else:
         pisos_lista = Piso.objects.values('numero').distinct().order_by('numero')
-        
     tipos_ubicacion_lista = TipoUbicacion.objects.all().order_by('nombre_display')
-    # ═══════════════════════════════════════════════════════════════
 
     return render(request, 'app/bi.html', {
         'rango': rango, 'desde': desde, 'hasta': hasta, 'seccion': seccion,
@@ -1937,8 +2087,14 @@ def gestor_bi(request):
         't_0_2': t_0_2, 't_3_5': t_3_5, 't_6_10': t_6_10, 't_mas_10': t_mas_10, 'top_edificios': top_edificios,
         'materiales_top_grafico': materiales_top_grafico, 'por_categoria_mat_grafico': por_categoria_mat_grafico,
         'guardias': guardias, 'tecnicos': tecnicos,
-        
-        # 🌟 4. ENVIAR LOS ELEMENTOS DE INFRAESTRUCTURA AL CONTEXTO DEL TEMPLATE
+        'com_por_vinculo': com_por_vinculo,
+        'com_tickets_por_vinculo': com_tickets_por_vinculo,
+        'com_tickets_por_escuela': com_tickets_por_escuela,
+        'com_afectacion_por_escuela': com_afectacion_por_escuela,
+        'com_tickets_por_jornada': com_tickets_por_jornada,
+        'com_total_vinculo': _com_total_vinculo,
+        'com_total_escuela': _com_total_escuela,
+        'com_max_escuela_af': _com_max_escuela_af,
         'edificios_lista': edificios_lista,
         'pisos_lista': pisos_lista,
         'tipos_ubicacion_lista': tipos_ubicacion_lista,
@@ -1958,27 +2114,38 @@ def validar_ticket(request, pk):
         messages.info(request, 'Este ticket ya fue validado.')
         return redirect('app:dashboard')
 
+    # Verificar que el guardia que accede es el asignado al ticket
+    es_asignado = AsignacionTicket.objects.filter(
+        ticket=ticket,
+        usuario=request.user,
+        rol_asignacion='guardia',
+    ).exists()
+    if not es_asignado:
+        messages.error(request, 'No tienes asignación para validar este ticket.')
+        return redirect('app:dashboard')
+
     form = ValidacionForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        validacion = form.save(commit=False)
-        validacion.ticket = ticket
-        validacion.guardia = request.user
-        validacion.save()
+        with transaction.atomic():
+            validacion = form.save(commit=False)
+            validacion.ticket = ticket
+            validacion.guardia = request.user
+            validacion.save()
 
-        estado_anterior = ticket.estado.codigo
-        
-        try:
-            asignacion = AsignacionTicket.objects.get(
-                ticket=ticket,
-                usuario=request.user,
-                rol_asignacion='guardia',
-                estado__codigo='pendiente'
-            )
-            asignacion.estado = EstadoCatalogo.para('asignacion', 'completada')
-            asignacion.fecha_completado = timezone.now()
-            asignacion.save()
-        except AsignacionTicket.DoesNotExist:
-            pass
+            estado_anterior = ticket.estado.codigo
+
+            try:
+                asignacion = AsignacionTicket.objects.get(
+                    ticket=ticket,
+                    usuario=request.user,
+                    rol_asignacion='guardia',
+                    estado__codigo='pendiente'
+                )
+                asignacion.estado = EstadoCatalogo.para('asignacion', 'completada')
+                asignacion.fecha_completado = timezone.now()
+                asignacion.save()
+            except AsignacionTicket.DoesNotExist:
+                pass
 
         if validacion.resultado == 'valido':
             ticket.estado = EstadoCatalogo.para('ticket', 'validado')
@@ -2062,8 +2229,10 @@ def tomar_trabajo(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
     if request.method == 'POST':
         if not ticket.inicio_trabajo_at:
-            ticket.inicio_trabajo_at = timezone.now()
-            ticket.save()
+            # Si algo falla al guardar, el ticket no queda a mitad de camino
+            with transaction.atomic():
+                ticket.inicio_trabajo_at = timezone.now()
+                ticket.save()
             registrar_log(ticket, request.user, 'Trabajo iniciado',
                           ip=get_client_ip(request), es_interno=True,
                           detalle=f'Técnico {request.user.get_full_name()} inició la reparación')
@@ -2076,13 +2245,11 @@ def tomar_trabajo(request, pk):
             messages.info(request, 'Este trabajo ya fue iniciado.')
     return redirect('app:dashboard')
 
-
 @login_required
 @rol_requerido('mantencion')
 def completar_mantencion(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, estado__codigo='en_mantencion', asignado_a=request.user, deleted_at__isnull=True)
     
-    # En vez de un "if hasattr" que bloquea el rebote, capturamos el registro previo si existe
     registro_previo = getattr(ticket, 'mantencion', None)
 
     todos_materiales = Material.objects.filter(activo=True).order_by('categoria__nombre_display', 'nombre')
@@ -2105,10 +2272,36 @@ def completar_mantencion(request, pk):
             } for m in qs
         ]
 
-    materiales_filtrados_json = json.dumps(serialize_mat(materiales_filtrados))
-    todos_materiales_json = json.dumps(serialize_mat(todos_materiales))
+    materiales_filtrados_data = serialize_mat(materiales_filtrados)
+    todos_materiales_data = serialize_mat(todos_materiales)
 
-    # Inyectamos instance=registro_previo para que herede la clave primaria en caso de UPDATE
+    sesiones_historial = list(ticket.sesiones.prefetch_related('materiales_utilizados__material').order_by('inicio'))
+    for sesion in sesiones_historial:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+        
+        sesion.materiales_jornada = sesion.materiales_utilizados.select_related('material').all()
+
     form = MantencionForm(request.POST or None, request.FILES or None, instance=registro_previo)
     formset = MaterialUtilizadoFormSet(request.POST or None if request.method == 'POST' else None)
 
@@ -2131,27 +2324,28 @@ def completar_mantencion(request, pk):
                 'formset': formset,
                 'ticket': ticket,
                 'logs': logs,
-                'materiales_filtrados_json': materiales_filtrados_json,
-                'todos_materiales_json': todos_materiales_json,
+                'materiales_filtrados_data': materiales_filtrados_data,
+                'todos_materiales_data': todos_materiales_data,
+                'sesiones': sesiones_historial,
             })
 
         if not descripcion_limpia:
             return responder_con_error('⚠️ Operación rechazada: Es obligatorio ingresar una descripción del trabajo realizado.')
             
         if not herramientas_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste en este turno (ej: Ninguna, destornillador, etc).')
+            return responder_con_error('⚠️ Operación rechazada: Debes especificar qué herramientas utilizaste in este turno (ej: Ninguna, destornillador, etc).')
         
         if not observaciones_limpias:
-            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observation o nota de turno para el gestor.')
+            return responder_con_error('⚠️ Operación rechazada: Es obligatorio dejar una observación o nota de turno para el gestor.')
         
         if len(observaciones_limpias) > 500:
             return responder_con_error('⚠️ El campo de observaciones no puede superar los 500 caracteres.')
         
         if ticket.inicio_trabajo_at:
             delta = ahora - ticket.inicio_trabajo_at
-            horas_hombre_limpio = max(0.1, round(delta.total_seconds() / 3600, 1))
+            horas_hombre_limpio = delta.total_seconds() / 3600.0
         else:
-            horas_hombre_limpio = 0.1
+            horas_hombre_limpio = 0.0
         
         if tipo_rendicion == 'avance':
             sesion = SesionTrabajo(
@@ -2199,9 +2393,7 @@ def completar_mantencion(request, pk):
                     notificar_gestores(
                         'general',
                         f'⚠ Ticket #{ticket.pk} requiere atención del gestor',
-                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" '
-                        f'pero indica que requiere {motivo_alerta}. '
-                        f'El ticket sigue activo. Considera pausar o reasignar.',
+                        f'{request.user.get_full_name()} registró avance en "{ticket.titulo}" pero indica que requiere {motivo_alerta}. El ticket sigue activo. Considera pausar o reasignar.',
                         ticket=ticket,
                         prioridad='alta',
                         url_accion=reverse('app:detalle_ticket', kwargs={'pk': ticket.pk})
@@ -2212,7 +2404,6 @@ def completar_mantencion(request, pk):
 
         elif tipo_rendicion == 'finalizar':
             foto = request.FILES.get('foto_final')
-            # Exigimos foto nueva solo si no existía una cargada en un intento previo
             if not foto and not registro_previo:
                 return responder_con_error('⚠️ Operación rechazada: Es obligatorio subir una foto de evidencia para poder finalizar y cerrar el ticket.')
             
@@ -2251,9 +2442,8 @@ def completar_mantencion(request, pk):
                 registro.tecnico = request.user
                 if foto:
                     registro.foto_final = foto
-                registro.save() # Ejecuta UPDATE si existía, o INSERT si es nuevo. Cero colisiones UNIQUE.
+                registro.save()
                 
-                # Registramos la acción en la línea de tiempo histórica
                 HistorialAcciones.objects.create(
                     ticket=ticket,
                     usuario=request.user,
@@ -2272,7 +2462,6 @@ def completar_mantencion(request, pk):
                 messages.success(request, '✓ ¡Excelente! El ticket ha sido cerrado y enviado al gestor para su revisión final.')
                 return redirect('app:dashboard')
     else:
-        # 🌟 Cargamos la instancia previa en el formulario si es que el ticket rebotó
         form = MantencionForm(instance=registro_previo)
         formset = MaterialUtilizadoFormSet(instance=SesionTrabajo())
         for sub_form in formset:
@@ -2285,8 +2474,9 @@ def completar_mantencion(request, pk):
         'formset': formset,
         'ticket': ticket,
         'logs': logs,
-        'materiales_filtrados_json': materiales_filtrados_json,
-        'todos_materiales_json': todos_materiales_json,
+        'materiales_filtrados_data': materiales_filtrados_data,
+        'todos_materiales_data': todos_materiales_data,
+        'sesiones': sesiones_historial,
     })
 
 @login_required
@@ -2301,25 +2491,24 @@ def marcar_no_reparable(request, pk):
     form = NoReparableForm(request.POST or None, request.FILES or None, instance=no_rep_previo)
     
     if request.method == 'POST' and form.is_valid():
-        no_rep = form.save(commit=False)
-        no_rep.ticket = ticket
-        no_rep.tecnico = request.user
-        no_rep.save()
-        
-        # Guardamos el hito en la bitácora cronológica acumulativa
-        HistorialAcciones.objects.create(
-            ticket=ticket,
-            usuario=request.user,
-            tipo_accion='no_reparable',
-            estado_anterior=ticket.estado.codigo,
-            estado_nuevo='no_reparado',
-            descripcion=f"Declarado No Reparable. Criticidad: {no_rep.criticidad}. Motivo: {no_rep.motivo_tecnico[:150]}..."
-        )
-        
-        ticket.estado = EstadoCatalogo.para('ticket', 'no_reparado')
-        ticket.inicio_trabajo_at = None
-        ticket.save()
-        
+        with transaction.atomic():
+            no_rep = form.save(commit=False)
+            no_rep.ticket = ticket
+            no_rep.tecnico = request.user
+            no_rep.save()
+
+            HistorialAcciones.objects.create(
+                ticket=ticket,
+                usuario=request.user,
+                tipo_accion='no_reparable',
+                estado_anterior=ticket.estado.codigo,
+                estado_nuevo='no_reparado',
+                descripcion=f"Declarado No Reparable. Criticidad: {no_rep.criticidad}. Motivo: {no_rep.motivo_tecnico[:150]}..."
+            )
+
+            ticket.estado = EstadoCatalogo.para('ticket', 'no_reparado')
+            ticket.inicio_trabajo_at = None
+            ticket.save()
         registrar_log(ticket, request.user, 'Marcado como No Reparable',
                       estado_anterior='en_mantencion', estado_nuevo='no_reparado',
                       ip=get_client_ip(request), es_interno=True,
@@ -2447,6 +2636,9 @@ def notif_accion(request, pk, accion):
     elif accion == 'eliminar':
         notif.deleted_at = timezone.now()
     notif.save()
+    # Invalida el cache del context processor para que el badge se actualice de inmediato
+    from django.core.cache import cache
+    cache.delete(f'notif_count_{request.user.pk}')
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'ok': True})
     return redirect('app:notificaciones')
@@ -2455,6 +2647,9 @@ def notif_accion(request, pk, accion):
 @login_required
 def marcar_todas_leidas(request):
     Notificacion.objects.filter(destinatario=request.user, leida=False).update(leida=True)
+    # Invalida el cache del context processor
+    from django.core.cache import cache
+    cache.delete(f'notif_count_{request.user.pk}')
     messages.success(request, '✓ Todas las notificaciones marcadas como leídas.')
     return redirect('app:notificaciones')
 
@@ -2552,6 +2747,47 @@ def trazabilidad_ticket(request, pk):
     materiales = MaterialUtilizado.objects.filter(sesion_trabajo__ticket=ticket).select_related('material', 'sesion_trabajo')
     total_horas_hombre = ticket.sesiones.aggregate(total=Sum('horas_hombre'))['total'] or 0
     
+    for sesion in sesiones:
+        if sesion.inicio and sesion.fin:
+            diferencia = sesion.fin - sesion.inicio
+            segundos_totales = int(diferencia.total_seconds())
+            
+            horas = segundos_totales // 3600
+            minutos = (segundos_totales % 3600) // 60
+            segundos = segundos_totales % 60
+            
+            if horas > 0:
+                texto = f"{horas} {'hora' if horas == 1 else 'horas'}"
+                if minutos > 0:
+                    texto += f" y {minutos} {'minuto' if minutos == 1 else 'minutos'}"
+            elif minutos > 0:
+                texto = f"{minutos} {'minuto' if minutos == 1 else 'minutos'}"
+                if segundos > 0:
+                    texto += f" y {segundos} {'segundo' if segundos == 1 else 'segundos'}"
+            else:
+                texto = f"{segundos} {'segundo' if segundos == 1 else 'segundos'}"
+                
+            sesion.duracion_humana = texto
+        else:
+            sesion.duracion_humana = "En progreso"
+    
+    total_segundos_acumulados = int(float(total_horas_hombre) * 3600)
+    
+    th_horas = total_segundos_acumulados // 3600
+    th_minutos = (total_segundos_acumulados % 3600) // 60
+    th_segundos = total_segundos_acumulados % 60
+    
+    if th_horas > 0:
+        tiempo_total_trabajo = f"{th_horas} {'hora' if th_horas == 1 else 'horas'}"
+        if th_minutos > 0:
+            tiempo_total_trabajo += f" y {th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+    elif th_minutos > 0:
+        tiempo_total_trabajo = f"{th_minutos} {'minuto' if th_minutos == 1 else 'minutos'}"
+        if th_segundos > 0:
+            tiempo_total_trabajo += f" y {th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    else:
+        tiempo_total_trabajo = f"{th_segundos} {'segundo' if th_segundos == 1 else 'segundos'}"
+    
     return render(request, 'app/mantencion/trazabilidad.html', {
         'ticket': ticket,
         'logs': logs,
@@ -2561,8 +2797,8 @@ def trazabilidad_ticket(request, pk):
         'materiales': materiales,
         'sesiones': sesiones,
         'total_horas_hombre': round(float(total_horas_hombre), 1),
+        'tiempo_total_trabajo': tiempo_total_trabajo,
     })
-
 
 # ═══════════════════════════════════════════════════════════════
 # MANTENCIÓN: REGISTRAR MATERIAL FALTANTE
@@ -2576,6 +2812,7 @@ def registrar_material_faltante(request, pk):
     if request.method == 'POST' and form.is_valid():
         faltante = form.save(commit=False)
         faltante.sesion_trabajo = sesion
+        faltante.estado = EstadoCatalogo.para('material_faltante', 'pendiente')
         faltante.save()
         notificar_gestores('general', f'Material faltante – Ticket #{ticket.pk}',
                            f'{request.user.get_full_name()} reportó material faltante: {faltante.material.nombre}',

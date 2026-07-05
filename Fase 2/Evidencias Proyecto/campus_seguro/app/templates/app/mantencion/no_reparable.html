@@ -1,13 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}No reparable · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Registrar: No pude repararlo</div>
-    <div class="page-subtitle">
-      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
-    </div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}No reparable · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Registrar: No pude repararlo{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
 
 <!-- Info del ticket -->
 <div class="card" style="margin-bottom: 18px">

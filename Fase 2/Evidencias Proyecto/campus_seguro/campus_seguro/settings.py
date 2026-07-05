@@ -28,16 +28,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ── Seguridad ────────────────────────────────────────────────
 # SECRET_KEY: leído desde .env para no tener claves en el código fuente.
 # En desarrollo usa el valor por defecto si .env no tiene el valor.
-SECRET_KEY = os.getenv(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-campus-seguro-dev-key-cambiar-en-produccion'
-)
+_secret_key = os.getenv('DJANGO_SECRET_KEY', '')
+if not _secret_key:
+    import warnings
+    warnings.warn(
+        'DJANGO_SECRET_KEY no está definida. Usando clave de desarrollo insegura. '
+        'Define DJANGO_SECRET_KEY en tu .env antes de desplegar en producción.',
+        stacklevel=2,
+    )
+    _secret_key = 'django-insecure-campus-seguro-dev-key-cambiar-en-produccion'
+SECRET_KEY = _secret_key
 
 # DEBUG: en producción debe ser False.
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 # ALLOWED_HOSTS: en producción lista los dominios reales (ej: campus-seguro.duoc.cl)
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
+_allowed_raw = os.getenv('DJANGO_ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in _allowed_raw.split(',') if h.strip()] or (['localhost', '127.0.0.1'] if DEBUG else [])
 
 # ── Aplicaciones instaladas ──────────────────────────────────
 INSTALLED_APPS = [
@@ -213,3 +220,16 @@ AUTH0_ENABLED = bool(AUTH0_DOMAIN and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET)
 # Configurar en Auth0: Monitoring → Log Streams → Custom Webhook → Authorization.
 # Si está vacío, el endpoint acepta cualquier request (solo para desarrollo).
 AUTH0_WEBHOOK_SECRET = os.getenv('AUTH0_WEBHOOK_SECRET', '')
+
+# ── Seguridad HTTPS (solo activas en producción) ─────────────
+# En desarrollo estas opciones quedan desactivadas para no romper
+# el servidor local (HTTP). En producción con DJANGO_DEBUG=False
+# y detrás de HTTPS, se activan automáticamente.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'

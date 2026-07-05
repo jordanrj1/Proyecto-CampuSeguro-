@@ -1,16 +1,15 @@
-{% extends 'app/base.html' %} {% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Trazabilidad del ticket</div>
-    <div class="page-subtitle">
-      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
-    </div>
-  </div>
-  <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Trazabilidad del ticket{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="form-section-title">📋 Información general</div>
+  <div class="form-section-title">Información general</div>
   <div
     style="
       display: grid;
@@ -41,10 +40,6 @@
       <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
       {{ ticket.ubicacion }}
     </div>
-    <div>
-      <div style="color: var(--text-muted); font-size: 11px">ACTIVO SAP</div>
-      {{ ticket.id_activo_sap|default:'—' }}
-    </div>
   </div>
 </div>
 
@@ -53,7 +48,7 @@
   class="card"
   style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
 >
-  <div class="card-title">🛡️ Validación de Guardia</div>
+  <div class="card-title">Validación de Guardia</div>
   <div
     style="
       display: grid;
@@ -88,15 +83,15 @@
 
 {% if mantencion %}
 <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
-  <div class="card-title">🔧 Registro de Mantención</div>
+  <div class="card-title">Registro de Mantención</div>
   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 13px; margin-bottom: 14px;">
     <div>
       <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
       {{ mantencion.tecnico.get_full_name }}
     </div>
     <div>
-      <div style="color: var(--text-muted); font-size: 11px">HORAS HOMBRE TOTALES</div>
-      {{ total_horas_hombre }} hrs
+      <div style="color: var(--text-muted); font-size: 11px">TIEMPO TOTAL DE TRABAJO</div>
+      {{ tiempo_total_trabajo }}
     </div>
     
     <div style="grid-column: 1/-1">
@@ -140,7 +135,7 @@
             {{ m.material.categoria.nombre_display }}
           </td>
           <td style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
-            {{ m.cantidad_utilizada }}
+            {{ m.cantidad_utilizada|floatformat:0 }}
           </td>
           <td style="font-size: 12px; color: var(--text-secondary)">
             {{ m.material.get_unidad_display|default:m.material.unidad }}
@@ -206,7 +201,7 @@
   class="card"
   style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
 >
-  <div class="card-title">⚠️ Diagnóstico: No Reparable</div>
+  <div class="card-title">Diagnóstico: No Reparable</div>
   <div
     style="
       display: grid;
@@ -254,7 +249,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="card-title">🕐 Línea de tiempo</div>
+  <div class="card-title">Línea de tiempo</div>
   {% if logs %}
   <div style="position: relative; padding-left: 24px">
     <div
@@ -319,7 +314,7 @@
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--text-primary);">
                   <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
-                  <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TURNO</span><br>{{ sesion.horas_hombre }} hrs</div>
+                  <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TRABAJO</span><br>{{ sesion.duracion_humana }}</div>
                 </div>
 
                 <div>
@@ -363,7 +358,7 @@
                     {% for mat in sesion.materiales_utilizados.all %}
                     <tr style="border-bottom: 1px solid var(--border); color: var(--text-primary);">
                       <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
-                      <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada }} {{ mat.material.unidad }}</td>
+                      <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.unidad }}</td>
                     </tr>
                     {% endfor %}
                   </tbody>

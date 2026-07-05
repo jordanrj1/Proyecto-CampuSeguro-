@@ -1,22 +1,19 @@
-{% extends 'app/base.html' %} {% block title %}Reasignar por Inasistencia{%endblock%} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Reasignar por inasistencia</div>
-    <div class="page-subtitle">
-      {{ inasistencia.usuario.get_full_name }} · {{inasistencia.get_motivo_display}}
-    </div>
-  </div>
-  <a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost"
-    >← Cancelar</a
-  >
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Reasignar por Inasistencia{%endblock%} 
+{% block page_title %}Reasignar por inasistencia{% endblock %}
+{% block page_subtitle %}{{ inasistencia.usuario.get_full_name }} · {{inasistencia.get_motivo_display}}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_inasistencias' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
 
 <!-- Info inasistencia -->
 <div
   class="card"
   style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
 >
-  <div class="form-section-title">📅 Detalles de la inasistencia</div>
+  <div class="form-section-title">Detalles de la inasistencia</div>
   <div
     style="
       display: grid;
@@ -54,7 +51,7 @@
 
 <!-- Tickets afectados -->
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">🎫 Tickets activos del empleado ausente</div>
+  <div class="card-title">Tickets activos del empleado ausente</div>
   {% if tickets %}
   <div class="table-wrap">
     <table>
@@ -101,7 +98,7 @@
 <form method="post">
   {% csrf_token %}
   <div class="card" style="margin-bottom: 18px">
-    <div class="form-section-title">👷 Seleccionar nuevo responsable</div>
+    <div class="form-section-title">Seleccionar nuevo responsable</div>
     <div style="margin-bottom: 14px">
       <label class="form-label">Nuevo responsable *</label>
       <select name="nuevo_responsable" class="form-control" required>

@@ -1,13 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}Vincular Activo SAP · Ticket #{{ticket.pk}}{% endblock %} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Vincular Activo SAP</div>
-    <div class="page-subtitle">
-      Ticket #{{ ticket.pk }} · {{ ticket.titulo }}
-    </div>
-  </div>
-  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Vincular Activo SAP · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Vincular Activo SAP{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
 
 <div class="card" style="margin-bottom: 18px">
   <div class="form-section-title">📋 Información del ticket</div>

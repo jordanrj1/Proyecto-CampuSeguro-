@@ -1,14 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Reporte de Materiales{% endblock %}
+{% block page_title %}Reporte de Materiales{% endblock %}
+{% block page_subtitle %}Inventario, consumo y stock crítico{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">Gestionar materiales</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">📦 Reporte de Materiales</div>
-    <div class="page-subtitle">Inventario, consumo y stock crítico</div>
-  </div>
-  <a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost">Gestionar materiales</a>
-</div>
 
 <div class="kpi-grid">
   <div class="kpi blue">
@@ -25,7 +23,7 @@
 
 {% if total_bajo_stock %}
 <div class="card" style="margin-bottom:18px;border-left:3px solid var(--accent-red);">
-  <div class="card-title">⚠️ Materiales bajo stock mínimo</div>
+  <div class="card-title">Materiales bajo stock mínimo</div>
   <div class="table-wrap">
     <table>
       <thead>
@@ -50,7 +48,7 @@
 
 <!-- Consumo por material -->
 <div class="card" style="margin-bottom:18px;">
-  <div class="card-title">📊 Materiales más consumidos</div>
+  <div class="card-title">Materiales más consumidos</div>
   {% if consumo %}
   <div class="table-wrap">
     <table>
@@ -77,7 +75,7 @@
 
 <!-- Inventario completo -->
 <div class="card">
-  <div class="card-title">📋 Inventario completo</div>
+  <div class="card-title">Inventario completo</div>
   <div class="table-wrap">
     <table>
       <thead>

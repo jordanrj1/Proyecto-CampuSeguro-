@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.utils import timezone
 from django.utils.crypto import get_random_string
+from functools import lru_cache
 
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO GLOBAL DE ESTADOS (normalización – feedback profesora)
@@ -39,8 +40,13 @@ class EstadoCatalogo(models.Model):
         return self.nombre_display
 
     @classmethod
+    @lru_cache(maxsize=64)
     def para(cls, entidad, codigo):
-        """Shortcut para obtener un estado por entidad y código (sin hardcodear IDs)."""
+        """
+        Busca un estado por entidad y código. Se cachea en memoria porque esta
+        función se llama decenas de veces por request (cada cambio de estado de
+        ticket la llama) y los registros del catálogo casi nunca cambian.
+        """
         return cls.objects.get(entidad=entidad, codigo=codigo)
 
 
@@ -128,6 +134,26 @@ class Sede(models.Model):
     class Meta:
         verbose_name = 'Sede'
         verbose_name_plural = 'Sedes'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Carrera(models.Model):
+    """Catálogo de carreras impartidas en cada sede. Escalable vía Django Admin."""
+    nombre  = models.CharField(max_length=150, unique=True)
+    escuela = models.CharField(max_length=150, blank=True)
+    sede    = models.ForeignKey(
+        'Sede', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='carreras',
+        help_text='Sede donde se imparte. Null = disponible en todas.',
+    )
+    activa  = models.BooleanField(default=True, help_text='Desmarcar para ocultarla del formulario de registro.')
+
+    class Meta:
+        verbose_name = 'Carrera'
+        verbose_name_plural = 'Carreras'
+        ordering = ['escuela', 'nombre']
 
     def __str__(self):
         return self.nombre
@@ -344,7 +370,10 @@ class Usuario(AbstractUser):
 
     # Datos académicos (para usuario base)
     vinculo = models.CharField(max_length=20, choices=VINCULO_CHOICES, blank=True, null=True)
-    carrera = models.CharField(max_length=100, blank=True, null=True)
+    carrera = models.ForeignKey(
+        'Carrera', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='alumnos',
+    )
     jornada = models.CharField(max_length=15, choices=JORNADA_CHOICES, blank=True, null=True)
     sede = models.ForeignKey(Sede, on_delete=models.SET_NULL, blank=True, null=True, related_name='estudiantes_funcionarios')
     departamento = models.CharField(max_length=100, blank=True, null=True)
@@ -399,15 +428,6 @@ class Usuario(AbstractUser):
         return self.estado_cuenta.codigo == 'activa' and self.activo
 
     @property
-    def tiene_inasistencia_activa(self):
-        hoy = timezone.now().date()
-        return self.inasistencias.filter(
-            fecha_desde__lte=hoy,
-            fecha_hasta__gte=hoy,
-            estado__codigo='aprobada'
-        ).exists()
-
-    @property
     def inasistencia_activa_detalle(self):
         hoy = timezone.now().date()
         return self.inasistencias.filter(
@@ -415,6 +435,10 @@ class Usuario(AbstractUser):
             fecha_hasta__gte=hoy,
             estado__codigo='aprobada'
         ).first()
+
+    @property
+    def tiene_inasistencia_activa(self):
+        return self.inasistencia_activa_detalle is not None
 
     def puede_asumir_tickets(self):
         return not self.tiene_inasistencia_activa and self.estado_cuenta.codigo == 'activa' and self.activo
@@ -489,8 +513,8 @@ class Material(models.Model):
     
     @property
     def total_utilizado(self):
-        """Calcula el total histórico consumido sumando los registros de MaterialUtilizado"""
-        return sum(consumo.cantidad_utilizada for consumo in self.consumos.all())
+        from django.db.models import Sum
+        return self.consumos.aggregate(total=Sum('cantidad_utilizada'))['total'] or 0
 
 class EspecialidadMaterial(models.Model):
     """Tabla intermedia para cumplir con el DER y mapear qué materiales ve cada oficio"""
@@ -552,7 +576,8 @@ class Ticket(models.Model):
     # Clasificación
     # 🔗 RELACIÓN CAMBIADA: De CharField plano a Llave Foránea Real hacia el catálogo dinámico
     categoria = models.ForeignKey(CategoriaTicket, on_delete=models.PROTECT, related_name='tickets')
-    urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media')
+    # db_index=True porque el dashboard filtra por urgencia en casi todas las vistas
+    urgencia = models.CharField(max_length=10, choices=URGENCIA_CHOICES, default='media', db_index=True)
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField()
 
@@ -576,7 +601,8 @@ class Ticket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     cerrado_at = models.DateTimeField(null=True, blank=True)
     cancelado_at = models.DateTimeField(null=True, blank=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    # db_index=True en deleted_at porque todos los listados excluyen tickets eliminados con deleted_at__isnull=True
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -691,6 +717,7 @@ class AsignacionTicket(models.Model):
 
     class Meta:
         db_table = 'asignacion_ticket'
+        unique_together = [('ticket', 'usuario', 'rol_asignacion')]
         ordering = ['-fecha_asignacion']
 
     def get_estado_display(self):
@@ -854,9 +881,10 @@ class Notificacion(models.Model):
     titulo = models.CharField(max_length=200)
     mensaje = models.TextField()
     url_accion = models.CharField(max_length=300, blank=True, null=True)
-    leida = models.BooleanField(default=False)
-    archivada = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    # db_index=True en estos tres porque el context processor los filtra en cada request del sistema
+    leida = models.BooleanField(default=False, db_index=True)
+    archivada = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

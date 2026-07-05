@@ -19,7 +19,8 @@ pillow==11.3.0
 # ── Auth0 / JWT ──────────────────────────────────────────────
 # requests: llamadas HTTP a Auth0 API (login ROPC, Management API, webhook)
 # PyJWT: decodificacion de id_token JWT recibido de Auth0 en el login
-requests==2.34.0
+# Nota: se corrigió de 2.34.0 a 2.32.3 porque 2.34.0 no existe en PyPI y rompía la instalación
+requests==2.32.3
 PyJWT==2.12.1
 
 # ── Utilidades HTTP ─────────────────────────────────────────

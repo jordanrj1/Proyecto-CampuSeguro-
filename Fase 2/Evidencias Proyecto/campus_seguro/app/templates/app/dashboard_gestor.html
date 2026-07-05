@@ -1,28 +1,15 @@
-<!--
-  dashboard_gestor.html — Panel operativo del gestor
-  Renderizado por: views.dashboard_gestor()
-  Acceso: dashboard() redirige aquí cuando user.rol == 'gestor' o is_superuser
-  Muestra: tickets activos/críticos, personal ausente, solicitudes de cuenta pendientes
-  Acciones: ver todos los tickets, ir al panel BI, revisar solicitudes
-  Nombre anterior: dashboarddd.html (renombrado en Sprint 2 para claridad)
--->
 {% extends 'app/base.html' %} {% block title %}Dashboard Gestor · Campus Seguro{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> Panel de Gestión{% endblock %}
-{% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Panel de Gestión</div>
-    <div class="page-subtitle">
-      Vista operativa en tiempo real · Campus Seguro
-    </div>
-  </div>
-  <div style="display: flex; gap: 10px">
-    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost"
-      >Ver todos los tickets</a
-    >
-    <a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">BI →</a>
-  </div>
+{% block page_title %}Panel de Gestión{% endblock %}
+{% block page_subtitle %}Vista operativa en tiempo real · Campus Seguro{% endblock %}
+{% block topbar_actions %}
+<div style="display: flex; gap: 10px">
+  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Ver todos los tickets</a>
+  <a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">BI →</a>
 </div>
+{% endblock %}
+
+{% block content %}
 
 {% if tickets_con_ausentes %}
 <div

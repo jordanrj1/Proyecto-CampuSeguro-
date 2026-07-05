@@ -1,15 +1,12 @@
-{% extends 'app/base.html' %} {% block title %}Solicitudes de Cuenta{%endblock%} {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Solicitudes de cuenta</div>
-    <div class="page-subtitle">
-      Aprueba o rechaza las solicitudes de registro
-    </div>
-  </div>
-</div>
+{% extends 'app/base.html' %} 
+{% block title %}Solicitudes de Cuenta{%endblock%} 
+{% block page_title %}Solicitudes de cuenta{% endblock %}
+{% block page_subtitle %}Aprueba o rechaza las solicitudes de registro{% endblock %}
+
+{% block content %}
 
 <div class="card" style="margin-bottom: 18px">
-  <div class="card-title">⏳ Pendientes ({{ pendientes.count }})</div>
+  <div class="card-title">Pendientes ({{ pendientes.count }})</div>
   {% if pendientes %}
   <div class="table-wrap">
     <table>
@@ -31,7 +28,7 @@
             <strong>{{ u.get_full_name }}</strong>
             {% if u.carrera or u.departamento %}<br /><span
               style="font-size: 11px; color: var(--text-muted)"
-              >{{ u.carrera|default:u.departamento }}</span
+              >{{ u.carrera.nombre|default:u.departamento }}</span
             >{% endif %}
           </td>
           <td>
@@ -79,7 +76,7 @@
 </div>
 
 <div class="card">
-  <div class="card-title">📋 Historial reciente</div>
+  <div class="card-title">Historial reciente</div>
   {% if recientes %}
   <div class="table-wrap">
     <table>

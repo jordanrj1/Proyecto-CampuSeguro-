@@ -1,12 +1,9 @@
 {% extends 'app/base.html' %} {% block title %}Tickets – Gestión{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> Gestión <span class="sep">›</span> Tickets{% endblock %}
+{% block page_title %}Todos los tickets{% endblock %}
+{% block page_subtitle %}Gestión, derivación y supervisión{% endblock %}
+
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Todos los tickets</div>
-    <div class="page-subtitle">Gestión, derivación y supervisión</div>
-  </div>
-</div>
 
 <form method="get">
   <div
@@ -15,7 +12,7 @@
       gap: 10px;
       flex-wrap: wrap;
       align-items: flex-end;
-      background: var(--bg-850);
+      background: var(--bg-50);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 14px 16px;

@@ -1,15 +1,10 @@
 {% extends 'app/base.html' %}
 {% block title %}Reportar Incidente · Campus Seguro{% endblock %}
 {% block breadcrumb %}<span class="sep">›</span> <a href="{% url 'app:mis_tickets' %}">Mis Tickets</a> <span class="sep">›</span> Nuevo Ticket{% endblock %}
+{% block page_title %}Reportar Incidente{% endblock %}
+{% block page_subtitle %}Completa todos los campos para que el equipo pueda actuar rápido{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <h2 class="page-title">Reportar Incidente</h2>
-    <p class="text-muted">Completa todos los campos para que el equipo pueda actuar rápido</p>
-  </div>
-  <a href="{% url 'app:mis_tickets' %}" class="btn btn-ghost">← Cancelar</a>
-</div>
 
 {% if messages %}
   {% for message in messages %}
@@ -211,6 +206,7 @@
 .riesgo-sub { font-size: 11px; color: var(--text-muted); }
 </style>
 
+{{ ubicaciones_json|json_script:"ubicaciones-data" }}
 <script>
 // ── CONTROL DE CARGA DE IMÁGENES ─────────────────────────────────
 const uploadArea = document.getElementById('uploadArea');
@@ -249,7 +245,7 @@ function removeImage(e) {
 }
 
 // ── CASCADA LIMPIA DE 4 NIVELES (RESOLUCIÓN DE CONFLICTO) ────────
-const ubicacionesData  = {{ ubicaciones_json|safe }};
+const ubicacionesData  = JSON.parse(document.getElementById('ubicaciones-data').textContent);
 const edificioSelect   = document.getElementById('edificio');
 const pisoSelect       = document.getElementById('piso');
 const tipoSelect       = document.getElementById('tipo_ubicacion');

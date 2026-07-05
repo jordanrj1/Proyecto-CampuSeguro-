@@ -1,14 +1,12 @@
 {% extends 'app/base.html' %}
 {% block title %}Rendimiento Operativo{% endblock %}
+{% block page_title %}Rendimiento Operativo{% endblock %}
+{% block page_subtitle %}Gestión y evaluación del desempeño de los trabajadores{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">Ver Business Intelligence</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Rendimiento Operativo</div>
-    <div class="page-subtitle">Gestión y evaluación del desempeño de los trabajadores</div>
-  </div>
-  <a href="{% url 'app:gestor_bi' %}" class="btn btn-primary">📈 Ver Business Intelligence</a>
-</div>
 
 <!-- Mantención -->
 <div class="card" style="margin-bottom:18px;">

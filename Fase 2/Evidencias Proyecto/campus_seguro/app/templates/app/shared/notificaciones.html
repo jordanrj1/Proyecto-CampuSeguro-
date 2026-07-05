@@ -1,17 +1,13 @@
 {% extends 'app/base.html' %}
 {% block title %}Notificaciones{% endblock %}
+{% block breadcrumb %}<span class="sep">›</span> Mi Panel{% endblock %}
+{% block page_title %}Notificaciones{% endblock %}
+{% block page_subtitle %}Revisa tus alertas y mensajes recientes{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:marcar_todas_leidas' %}" class="btn btn-primary">Marcar todo leído</a>
+{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div>
-    <div class="page-title">Notificaciones</div>
-    <div class="page-subtitle">Revisa tus alertas y mensajes recientes</div>
-  </div>
-  <div class="topbar-actions">
-    <a href="{% url 'app:marcar_todas_leidas' %}" class="btn btn-primary">Marcar todo leído</a>
-  </div>
-</div>
-
 <div class="filters-bar" style="margin-bottom:18px; display:flex; gap:10px; flex-wrap:wrap;">
   <a href="?filtro=todas" class="btn btn-ghost {% if filtro == 'todas' %}active{% endif %}">Todas</a>
   <a href="?filtro=no_leidas" class="btn btn-ghost {% if filtro == 'no_leidas' %}active{% endif %}">No leídas</a>

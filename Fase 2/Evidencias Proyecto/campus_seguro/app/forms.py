@@ -120,7 +120,7 @@ class RegistroUsuarioForm(forms.ModelForm):
             'rut': forms.TextInput(attrs={'placeholder': '12.345.678-9'}),
             'correo_institucional': forms.EmailInput(attrs={'placeholder': 'tu.correo@duoc.cl'}),
             'telefono': forms.TextInput(attrs={'placeholder': '+56 9 1234 5678'}),
-            'carrera': forms.TextInput(attrs={'placeholder': 'Ej: Ingeniería en Informática'}),
+            'carrera': forms.Select(attrs={'id': 'carreraSelect'}),
         }
 
     def clean_password1(self):
@@ -159,10 +159,31 @@ class RegistroUsuarioForm(forms.ModelForm):
         return correo
 
     def clean_rut(self):
-        rut = self.cleaned_data['rut'].replace('.', '').replace('-', '').upper()
+        rut_raw = self.cleaned_data['rut'].strip()
+        rut = rut_raw.replace('.', '').replace('-', '').replace(' ', '').upper()
+        # 7-9 dígitos de cuerpo + 1 dígito verificador (K o 0-9)
+        if not re.match(r'^\d{7,9}[0-9K]$', rut):
+            raise ValidationError('RUT inválido. Ingrese entre 7 y 9 dígitos seguidos del dígito verificador, ej: 12.345.678-9.')
+        cuerpo, dv = rut[:-1], rut[-1]
+        suma, mult = 0, 2
+        for c in reversed(cuerpo):
+            suma += int(c) * mult
+            mult = mult + 1 if mult < 7 else 2  # ciclo: 2-3-4-5-6-7-2-3...
+        resto = 11 - (suma % 11)
+        dv_esperado = '0' if resto == 11 else 'K' if resto == 10 else str(resto)
+        if dv != dv_esperado:
+            raise ValidationError(f'Dígito verificador incorrecto. El correcto es -{dv_esperado}.')
         if Usuario.objects.filter(rut__iexact=rut).exists():
             raise ValidationError('Este RUT ya está registrado.')
-        return rut
+        # Guardar siempre en formato XX.XXX.XXX-D (con puntos y guión)
+        cuerpo_fmt = re.sub(r'(?<=\d)(?=(\d{3})+$)', '.', cuerpo)
+        return f'{cuerpo_fmt}-{dv}'
+
+    def clean_telefono(self):
+        telefono = self.cleaned_data.get('telefono', '').strip()
+        if telefono and not re.match(r'^[\d\s\+\-\(\)]+$', telefono):
+            raise ValidationError('El teléfono solo puede contener dígitos, espacios y los caracteres +, -, ().')
+        return telefono
 
     def save(self, commit=True, auth0_sub=None, usar_auth0=False):
         """
@@ -366,7 +387,9 @@ class ValidacionForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        if not cleaned.get('foto_evidencia'):
+        foto_nueva = cleaned.get('foto_evidencia')
+        foto_existente = self.instance.foto_evidencia if self.instance and self.instance.pk else None
+        if not foto_nueva and not foto_existente:
             raise ValidationError('La evidencia fotográfica es obligatoria.')
         if not cleaned.get('comentario'):
             raise ValidationError('El comentario es obligatorio.')
@@ -424,10 +447,7 @@ class NoReparableForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from app.models import EstadoCatalogo
-        db = list(EstadoCatalogo.objects.filter(entidad='criticidad', activo=True)
-                  .order_by('orden').values_list('codigo', 'nombre_display'))
-        self.fields['criticidad'].choices = db or NoReparable.CRITICIDAD_CHOICES
+        self.fields['criticidad'].choices = NoReparable.CRITICIDAD_CHOICES
 
 
 class PausaForm(forms.Form):
