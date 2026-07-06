@@ -81,6 +81,191 @@
 </div>
 {% endif %}
 
+  {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">
+         Evidencia fotográfica
+        <span
+          style="
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 8px;
+          "
+          >trazabilidad completa</span
+        >
+      </div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 14px;
+        "
+      >
+        {% if ticket.foto_evidencia %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-blue);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              📸 INCIDENTE
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.creado_por.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.validacion and ticket.validacion.foto_evidencia%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.validacion.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.validacion.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-yellow);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+               VALIDACIÓN GUARDIA
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.validacion.guardia.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.validacion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {% if ticket.mantencion and ticket.mantencion.foto_final %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.mantencion.foto_final.url }}" target="_blank">
+            <img
+              src="{{ ticket.mantencion.foto_final.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-green);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔧 TRABAJO COMPLETADO
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.mantencion.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.mantencion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.no_reparable and ticket.no_reparable.foto_diagnostico%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a
+            href="{{ ticket.no_reparable.foto_diagnostico.url }}"
+            target="_blank"
+          >
+            <img
+              src="{{ ticket.no_reparable.foto_diagnostico.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-red);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔍 DIAGNÓSTICO (NO REPARABLE)
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.no_reparable.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.no_reparable.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
 {% if mantencion %}
 <div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
   <div class="card-title">Registro de Mantención</div>
