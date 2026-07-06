@@ -32,16 +32,16 @@
             >{% endif %}
           </td>
           <td>
-            {% if u.rol == 'usuario' %}<span class="badge badge-blue"
+            {% if u.rol.codigo == 'usuario' %}<span class="badge badge-blue"
               >Usuario</span
             >
-            {% elif u.rol == 'gestor' %}<span class="badge badge-teal"
+            {% elif u.rol.codigo == 'gestor' %}<span class="badge badge-teal"
               >Gestor</span
             >
-            {% elif u.rol == 'guardia' %}<span class="badge badge-yellow"
+            {% elif u.rol.codigo == 'guardia' %}<span class="badge badge-yellow"
               >Guardia</span
             >
-            {% elif u.rol == 'mantencion' %}<span class="badge badge-green"
+            {% elif u.rol.codigo == 'mantencion' %}<span class="badge badge-green"
               >Mantención</span
             >{% endif %}
           </td>
@@ -93,7 +93,7 @@
         {% for u in recientes %}
         <tr>
           <td>{{ u.get_full_name }}</td>
-          <td>{{ u.get_rol_display }}</td>
+          <td>{{ u.rol.nombre|default:"Sin Rol" }}</td>
           <td>
             {% if u.estado_cuenta.codigo == 'activa' %}<span
               class="badge badge-green"

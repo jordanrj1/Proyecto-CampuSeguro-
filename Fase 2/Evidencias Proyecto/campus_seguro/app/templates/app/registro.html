@@ -1,67 +1,6 @@
 {% extends 'app/base.html' %}
 {% block title %}Solicitar Cuenta – Campus Seguro{% endblock %}
 
-{% comment %}
-   TEMPLATE: app/registro.html
-   ─────────────────────────────────────────────────────────────
-   CONTROLADOR (views.py):
-     Función: registro_view(request)
-     URL:     /registro/
-     Acceso:  Público (no requiere login).
-
-   PROPÓSITO:
-     Formulario de solicitud de cuenta institucional. El usuario
-     ingresa sus datos personales y académicos. NO elige su rol
-     (fue eliminado en esta sesión). El gestor asigna el rol al aprobar.
-
-   CAMBIO VS. VERSIÓN ANTERIOR:
-     - Eliminados los role-cards (usuario/gestor/guardia/mantención).
-     - El campo oculto 'rol' siempre envía 'usuario' (línea ~138).
-     - Eliminadas las secciones de campos específicos por rol.
-     - Simplificado a: datos personales + datos académicos + seguridad.
-     - Agregado banner informativo sobre el proceso de aprobación.
-     - Agregada validación visual de contraseña en tiempo real (JS al final).
-
-   VARIABLES DE CONTEXTO (enviadas desde registro_view):
-     form (RegistroUsuarioForm)
-       → Instancia del formulario. Se usa para:
-           form.errors         → Errores de validación del servidor.
-           form.first_name.value  → Repoblar campos tras error.
-           form.rut.value, form.correo_institucional.value, etc.
-       → El formulario tiene 'rol' ELIMINADO de sus campos. El campo oculto
-         <input type="hidden" name="rol" value="usuario"> lo envía directamente.
-
-     messages (built-in Django)
-       → Mensajes flash del sistema. Se usan para mostrar errores o éxito.
-       → Ejemplo: "Solicitud enviada correctamente." después de registrarse.
-       → Se accede con {% for message in messages %}.
-
-   FLUJO POST-SUBMIT:
-     1. POST → registro_view() valida RegistroUsuarioForm.
-     2. Si Auth0 habilitado: llama auth0_service.crear_usuario_auth0()
-        → La contraseña se envía a Auth0, NO se guarda en BD local.
-        → Auth0 retorna auth0_sub (ej: 'auth0|66a1b2...').
-     3. form.save(auth0_sub=..., usar_auth0=True) crea Usuario en BD:
-        → rol='usuario', estado='pendiente', is_active=False
-        → set_unusable_password() → campo password = '!' en BD
-     4. Redirect a /login/ con mensaje de éxito.
-     5. El gestor revisa en /gestor/solicitudes/ y asigna rol.
-
-   VALIDACIÓN DE CONTRASEÑA (JavaScript, líneas ~257-295):
-     El JS valida la contraseña en tiempo real según la política de Auth0:
-       - Mínimo 8 caracteres.
-       - Al menos 3 de estos 4 grupos: minúsculas, MAYÚSCULAS, números, especiales.
-     Indicadores visuales: 🔴 (falta) / ✅ (cumple) por cada grupo.
-     El botón "Enviar Solicitud" se deshabilita hasta que se cumplan los requisitos.
-     Esta validación es CLIENTE (JS). El servidor también valida en clean_password1().
-
-   CONEXIONES:
-     - Controlador:   app/views.py → registro_view()
-     - Formulario:    app/forms.py → RegistroUsuarioForm
-     - Auth0 service: app/auth0_service.py → crear_usuario_auth0()
-     - Flujo siguiente: gestor en app/templates/app/revisar_cuenta.html
-{% endcomment %}
-
 {% block auth_content %}
 <style>
 body { display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; min-height: 100vh; }
@@ -88,7 +27,7 @@ body::before {
   border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
 }
 .reg-header h1 { font-size: 18px; font-weight: 800; }
-.reg-header .sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+.reg-header .sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
 .reg-back { color: var(--text-secondary); font-size: 13px; text-decoration: none; }
 .reg-back:hover { color: var(--accent-blue); }
 
@@ -142,7 +81,6 @@ body::before {
     <h2 class="reg-title">Solicitar Acceso</h2>
     <p class="reg-desc">Completa el formulario para solicitar una cuenta institucional. Un gestor revisará tu solicitud y te asignará el acceso correspondiente.</p>
 
-    {# ── Banner informativo sobre el proceso de aprobación ── #}
     <div class="info-banner">
       <div class="info-icon">ℹ️</div>
       <div class="info-text">
@@ -152,12 +90,10 @@ body::before {
       </div>
     </div>
 
-    {# ── Mensajes del sistema ── #}
     {% for message in messages %}
     <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
     {% endfor %}
 
-    {# ── Errores de validación del formulario ── #}
     {% if form.errors %}
     <div class="alert alert-error">
       <strong>Revisa los siguientes campos:</strong>
@@ -172,7 +108,6 @@ body::before {
     <form method="post" id="regForm">
       {% csrf_token %}
 
-      {# Campo oculto: siempre 'usuario'. El gestor asigna el rol real al aprobar. #}
       <input type="hidden" name="rol" value="usuario">
 
       {# ── Sección: Datos Personales ── #}
@@ -208,8 +143,8 @@ body::before {
                value="{{ form.correo_institucional.value|default:'' }}">
       </div>
 
-      {# ── Sección: Datos Académicos ── #}
-      <div class="section-title">Datos Académicos</div>
+      {# ── Sección: Datos Académicos / Laborales ── #}
+      <div class="section-title">Datos Institucionales</div>
 
       <div class="field-grid">
         <div class="form-group">
@@ -233,27 +168,37 @@ body::before {
         </div>
       </div>
 
-      {# Selector de carrera en dos pasos: Escuela → Carrera (solo alumno/docente) #}
+      {# Selector de carrera en dos pasos (solo alumno/docente) #}
       {{ carreras_data|json_script:"carreras-data" }}
       <div id="carreraGroup" style="display:none;margin-top:14px;">
         <div class="field-grid">
           <div class="form-group">
-            <label class="form-label">Escuela
-              <span id="escuelaReq" style="color:var(--accent-red);"> *</span>
-            </label>
+            <label class="form-label">Escuela <span id="escuelaReq" style="color:var(--accent-red);"> *</span></label>
             <select id="escuelaSelect">
               <option value="">Seleccionar escuela...</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">
-              <span id="carreraLabel">Carrera</span>
-              <span id="carreraReq" style="color:var(--accent-red);"> *</span>
-            </label>
+            <label class="form-label"><span id="carreraLabel">Carrera</span> <span id="carreraReq" style="color:var(--accent-red);"> *</span></label>
             <select name="carrera" id="carreraSelect">
               <option value="">Selecciona una escuela primero...</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      {# 🌟 NUEVA SECCIÓN: Selector de Departamento (solo administrativo/funcionario) #}
+      <div id="deptoGroup" style="display:none;margin-top:14px;">
+        <div class="form-group">
+          <label class="form-label">Departamento Asignado <span style="color:var(--accent-red)">*</span></label>
+          <select name="departamento" id="deptoSelect">
+            <option value="">Seleccionar departamento...</option>
+            {% for d in departamentos %}
+              <option value="{{ d.id }}" {% if form.departamento.value|stringformat:"s" == d.id|stringformat:"s" %}selected{% endif %}>
+                {{ d.nombre }}
+              </option>
+            {% endfor %}
+          </select>
         </div>
       </div>
 
@@ -274,7 +219,6 @@ body::before {
       {# ── Sección: Seguridad (contraseña) ── #}
       <div class="section-title">Seguridad</div>
 
-      {# Requisitos de contraseña — alineados con la política de Auth0 #}
       <div style="background:rgba(45,206,137,0.07);border:1px solid rgba(45,206,137,0.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);">
         <strong style="color:var(--accent-teal);">Requisitos de contraseña:</strong>
         <span style="margin-left:6px;">Mínimo 8 caracteres con al menos 3 de estos 4 grupos:</span>
@@ -300,7 +244,6 @@ body::before {
         Las contraseñas no coinciden
       </div>
 
-      {# ── Términos y condiciones ── #}
       <div class="form-check" style="margin-top:16px;">
         <input type="checkbox" name="acepta_terminos" id="terminos" required>
         <label for="terminos">
@@ -325,7 +268,6 @@ const pw2 = document.getElementById('pw2');
 const msg = document.getElementById('pw-match-msg');
 const btn = document.getElementById('btnSubmit');
 
-// Indicadores de requisito de contraseña (alineados con política Auth0)
 const reqs = {
   lower: { el: document.getElementById('req-lower'), re: /[a-z]/, label: '✅ minúsculas (abc)' },
   upper: { el: document.getElementById('req-upper'), re: /[A-Z]/, label: '✅ MAYÚSCULAS (ABC)' },
@@ -347,11 +289,8 @@ function checkPasswords() {
   const strong = checkStrength(pw1.value);
   const match  = !pw2.value || pw1.value === pw2.value;
 
-  if (pw2.value && !match) {
-    msg.style.display = 'block';
-  } else {
-    msg.style.display = 'none';
-  }
+  if (pw2.value && !match) { msg.style.display = 'block'; } 
+  else { msg.style.display = 'none'; }
 
   btn.disabled = !(strong && match);
   btn.style.opacity = btn.disabled ? '0.6' : '1';
@@ -360,7 +299,7 @@ function checkPasswords() {
 pw1.addEventListener('input', checkPasswords);
 pw2.addEventListener('input', checkPasswords);
 
-// ── RUT: auto-formato al perder el foco ────────────────────
+// ── RUT auto-formato ────────────────────
 const rutInput  = document.getElementById('rutInput');
 const rutMsg    = document.getElementById('rut-msg');
 
@@ -368,29 +307,23 @@ function calcDv(cuerpo) {
   let suma = 0, mult = 2;
   for (let i = cuerpo.length - 1; i >= 0; i--) {
     suma += parseInt(cuerpo[i]) * mult;
-    mult = mult < 7 ? mult + 1 : 2;  // ciclo: 2-3-4-5-6-7-2-3...
+    mult = mult < 7 ? mult + 1 : 2;
   }
   const resto = 11 - (suma % 11);
   return resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
 }
 
-function limpiarRut(val) {
-  // Quita todo excepto dígitos y K (acepta k minúscula)
-  return val.replace(/[^0-9Kk]/g, '').toUpperCase();
-}
+function limpiarRut(val) { return val.replace(/[^0-9Kk]/g, '').toUpperCase(); }
 
 function formatRut(raw) {
-  // raw = solo dígitos + K, sin puntos ni guión
   if (raw.length < 2) return raw;
-  const dv   = raw.slice(-1);        // último char = dígito verificador
-  const body = raw.slice(0, -1);     // resto = cuerpo
-  // Agrega puntos cada 3 dígitos desde la derecha
+  const dv   = raw.slice(-1);
+  const body = raw.slice(0, -1);
   const bodyFmt = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${bodyFmt}-${dv}`;
 }
 
 rutInput.addEventListener('input', function () {
-  // Mientras escribe: solo permite dígitos, K, puntos y guión
   this.value = this.value.replace(/[^0-9Kk.\-]/g, '');
   rutMsg.style.display = 'none';
 });
@@ -398,21 +331,15 @@ rutInput.addEventListener('input', function () {
 rutInput.addEventListener('blur', function () {
   const raw = limpiarRut(this.value);
   if (!raw) { rutMsg.style.display = 'none'; return; }
-
-  // Formato visual siempre (aunque sea inválido)
   this.value = formatRut(raw);
-
-  // Validar longitud: cuerpo 7-9 dígitos + 1 DV = 8-10 chars totales
   if (raw.length < 8 || raw.length > 10) {
     rutMsg.textContent = '⚠ El cuerpo del RUT debe tener entre 7 y 9 dígitos.';
     rutMsg.style.color = 'var(--accent-yellow)';
     rutMsg.style.display = 'block';
     return;
   }
-
   const dvIngresado   = raw.slice(-1);
   const dvCalculado   = calcDv(raw.slice(0, -1));
-
   if (dvIngresado !== dvCalculado) {
     rutMsg.textContent = `✗ Dígito verificador incorrecto. El correcto es -${dvCalculado}.`;
     rutMsg.style.color = 'var(--accent-red)';
@@ -424,31 +351,26 @@ rutInput.addEventListener('blur', function () {
   }
 });
 
-// ── Teléfono: solo dígitos y caracteres telefónicos ────────
 document.getElementById('telefonoInput').addEventListener('input', function () {
   this.value = this.value.replace(/[^0-9\s\+\-\(\)]/g, '');
 });
 
-// ── Vínculo dinámico ────────────────────────────────────────
-// carrera (FK → Carrera) → alumno y docente  (select agrupado por escuela)
-// jornada (choices)       → todos los vínculos
-// sede    (FK)            → todos los vínculos
-
+// ── Vínculo dinámico (Con soporte para Departamento) ────────────────
 const vinculoSelect  = document.getElementById('vinculoSelect');
-const jornadaGroup  = document.getElementById('jornadaGroup');
-const jornadaSelect = document.getElementById('jornadaSelect');
-const carreraGroup  = document.getElementById('carreraGroup');
-const carreraLabel  = document.getElementById('carreraLabel');
-const carreraReq    = document.getElementById('carreraReq');
-const escuelaReq    = document.getElementById('escuelaReq');
-const escuelaSelect = document.getElementById('escuelaSelect');
-const carreraSelect = document.getElementById('carreraSelect');
-const sedeSelect    = document.getElementById('sedeSelect');
+const jornadaGroup   = document.getElementById('jornadaGroup');
+const jornadaSelect  = document.getElementById('jornadaSelect');
+const carreraGroup   = document.getElementById('carreraGroup');
+const deptoGroup     = document.getElementById('deptoGroup');     // 🌟 NUEVO
+const deptoSelect    = document.getElementById('deptoSelect');    // 🌟 NUEVO
+const carreraLabel   = document.getElementById('carreraLabel');
+const carreraReq     = document.getElementById('carreraReq');
+const escuelaReq     = document.getElementById('escuelaReq');
+const escuelaSelect  = document.getElementById('escuelaSelect');
+const carreraSelect  = document.getElementById('carreraSelect');
+const sedeSelect     = document.getElementById('sedeSelect');
 
-// Dict {escuela: [{id, nombre}, ...]} inyectado de forma segura desde el servidor
 const CARRERAS_DATA = JSON.parse(document.getElementById('carreras-data').textContent);
 
-// Poblar el select de escuelas al cargar la página (orden alfabético)
 Object.keys(CARRERAS_DATA).sort().forEach(esc => {
   const opt = document.createElement('option');
   opt.value       = esc;
@@ -456,7 +378,6 @@ Object.keys(CARRERAS_DATA).sort().forEach(esc => {
   escuelaSelect.appendChild(opt);
 });
 
-// Al cambiar escuela → llenar carreraSelect con las carreras de esa escuela
 escuelaSelect.addEventListener('change', () => {
   const escuela = escuelaSelect.value;
   carreraSelect.innerHTML = '';
@@ -470,17 +391,16 @@ escuelaSelect.addEventListener('change', () => {
       carreraSelect.appendChild(opt);
     });
   } else {
-    const ph = document.createElement('option');
-    ph.value = ''; ph.textContent = 'Selecciona una escuela primero...';
-    carreraSelect.appendChild(ph);
+    carreraSelect.innerHTML = '<option value="">Selecciona una escuela primero...</option>';
   }
 });
 
+// 🌟 CONFIGURACIÓN ACTUALIZADA: Mapea qué roles ven carreras o departamentos
 const VINCULO_CFG = {
-  alumno:        { carrera: true,  jornada: true,  label: 'Carrera', req: true  },
-  docente:       { carrera: true,  jornada: true,  label: 'Carrera', req: false },
-  administrativo:{ carrera: false, jornada: true  },
-  funcionario:   { carrera: false, jornada: true  },
+  alumno:         { carrera: true,  jornada: true,  depto: false, label: 'Carrera', req: true  },
+  docente:        { carrera: true,  jornada: true,  depto: false, label: 'Carrera', req: false },
+  administrativo:{ carrera: false, jornada: true,  depto: true,  req_depto: true },
+  funcionario:    { carrera: false, jornada: true,  depto: true,  req_depto: true },
 };
 
 function resetCarrera() {
@@ -489,17 +409,23 @@ function resetCarrera() {
   carreraSelect.required  = false;
 }
 
+function resetDepto() {
+  deptoSelect.value = '';
+  deptoSelect.required = false;
+}
+
 function actualizarCamposVinculo() {
   const cfg = VINCULO_CFG[vinculoSelect.value];
 
-  // Siempre limpiar al cambiar vínculo
   jornadaSelect.value = '';
   resetCarrera();
+  resetDepto(); // 🌟 NUEVO
   sedeSelect.value = '';
 
   if (!cfg) {
     jornadaGroup.style.display = 'none';
     carreraGroup.style.display = 'none';
+    deptoGroup.style.display = 'none'; // 🌟 NUEVO
     return;
   }
 
@@ -511,6 +437,12 @@ function actualizarCamposVinculo() {
     carreraSelect.required   = cfg.req;
     carreraReq.style.display = cfg.req ? 'inline' : 'none';
     escuelaReq.style.display = cfg.req ? 'inline' : 'none';
+  }
+
+  // 🌟 NUEVO: Muestra/Oculta y exige el departamento dinámicamente
+  deptoGroup.style.display = cfg.depto ? '' : 'none';
+  if (cfg.depto) {
+    deptoSelect.required = cfg.req_depto;
   }
 }
 

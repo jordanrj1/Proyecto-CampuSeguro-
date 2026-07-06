@@ -8,6 +8,50 @@
 
 {% block content %}
 
+{% if form.errors or formset.errors %}
+<div class="error-toast" style="position: fixed; top: 75px; right: 24px; background: #ffffff; color: #1a1a24; border-left: 4px solid var(--accent-red, #ef4444); padding: 16px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 2500; min-width: 320px; max-width: 420px; transition: all 0.4s ease; animation: slideInToast 0.3s ease;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+    <strong style="color: #ef4444; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+      ⚠️ Errores en el formulario
+    </strong>
+    <button type="button" onclick="this.parentElement.parentElement.remove()" style="background: transparent; border: none; color: #999; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1;">✕</button>
+  </div>
+  <div style="font-size: 12px; color: #444444; line-height: 1.5;">
+    <ul style="margin: 0; padding-left: 16px; list-style-type: disc;">
+      {% for field, errors in form.errors.items %}
+        <li>
+          <strong>
+            {% if field == 'descripcion_trabajo' %}Descripción del trabajo
+            {% elif field == 'causa_raiz' %}Causa raíz
+            {% elif field == 'herramientas_utilizadas' %}Herramientas utilizadas
+            {% elif field == 'observaciones' %}Observaciones para el gestor
+            {% else %}{{ field|title }}{% endif %}:
+          </strong> 
+          {{ errors|striptags }}
+        </li>
+      {% endfor %}
+      
+      {% for dict in formset.errors %}
+        {% for key, val in dict.items %}
+          {% if key != 'DELETE' %}
+            <li><strong>Materiales:</strong> {{ val|striptags }}</li>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+<style>
+  @keyframes slideInToast {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .messages, .alert, .django-messages, #messages-block {
+    display: none !important;
+  }
+</style>
+{% endif %}
+
 <div class="card" style="margin-bottom: 18px">
   <div class="form-section-title">Información del incidente</div>
   <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; font-size: 13px; margin-bottom: 16px;">
@@ -52,7 +96,7 @@
     <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
       
       <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-50); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
-        <input type="radio" name="tipo_rendicion" value="avance" checked style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-blue);">
+        <input type="radio" name="tipo_rendicion" value="avance" {% if not request.POST.tipo_rendicion or request.POST.tipo_rendicion == 'avance' %}checked{% endif %} style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-blue);">
         <div>
           <div style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Registrar avance del día</div>
           <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
@@ -62,7 +106,7 @@
       </label>
 
       <label style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-50); padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;">
-        <input type="radio" name="tipo_rendicion" value="finalizar" style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-green);">
+        <input type="radio" name="tipo_rendicion" value="finalizar" {% if request.POST.tipo_rendicion == 'finalizar' %}checked{% endif %} style="margin-top: 3px; scale: 1.2; accent-color: var(--accent-green);">
         <div>
           <div style="font-weight: 700; font-size: 14px; color: var(--accent-green);">Finalizar y cerrar ticket</div>
           <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
@@ -78,37 +122,34 @@
     <div class="form-section-title">Detalle de la reparación</div>
     <div style="margin-bottom: 14px">
       <label class="form-label">Descripción del trabajo realizado *</label>
-      <textarea name="descripcion_trabajo" class="form-control" rows="4" placeholder="Describe paso a paso lo que realizaste: qué revisaste, qué encontraste, cómo lo solucionaste…">
-{{ form.descripcion_trabajo.value|default:'' }}</textarea>
+      <textarea name="descripcion_trabajo" class="form-control" rows="4" placeholder="Describe paso a paso lo que realizaste: qué revisaste, qué encontraste, cómo lo solucionaste…" style="{% if 'descripcion_trabajo' in form.errors or request.method == 'POST' and not request.POST.descripcion_trabajo %}border-color: var(--accent-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);{% endif %}" required>{{ request.POST.descripcion_trabajo|default:'' }}</textarea>
     </div>
     <div style="margin-bottom: 14px" id="bloque-causa-raiz">
       <label class="form-label">Causa raíz identificada</label>
-      <textarea name="causa_raiz" class="form-control" rows="3" placeholder="¿Cuál fue el origen del problema? Sirve para prevención futura.">
-{{ form.causa_raiz.value|default:'' }}</textarea>
+      <textarea name="causa_raiz" class="form-control" rows="3" placeholder="¿Cuál fue el origen del problema? Sirve para prevención futura." style="{% if 'causa_raiz' in form.errors %}border-color: var(--accent-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);{% endif %}">{{ request.POST.causa_raiz|default:form.causa_raiz.value|default:'' }}</textarea>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
       <div>
-        <label class="form-label">Horas hombre acumuladas en este turno</label>
+        <label class="form-label">Horas hombre acumuladas in este turno</label>
         <div class="form-control" style="background: var(--bg-700); color: var(--accent-green); font-weight: 700;">
           Se calcularán automáticamente al guardar
         </div>
       </div>
       <div>
         <label class="form-label">Herramientas utilizadas</label>
-        <textarea name="herramientas_utilizadas" class="form-control" rows="2" placeholder="Taladro, llave pase, multímetro…">
-{{ form.herramientas_utilizadas.value|default:'' }}</textarea>
+        <textarea name="herramientas_utilizadas" class="form-control" rows="2" placeholder="Taladro, llave pase, multímetro…" style="{% if 'herramientas_utilizadas' in form.errors %}border-color: var(--accent-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);{% endif %}">{{ request.POST.herramientas_utilizadas|default:'' }}</textarea>
       </div>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
       <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; background: var(--bg-700); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-        <input type="checkbox" name="personal_adicional_requerido" {%if form.personal_adicional_requerido.value%}checked{%endif%} style="width: 16px; height: 16px; accent-color: var(--accent-yellow)" value="on" />
+        <input type="checkbox" name="personal_adicional_requerido" {% if request.POST.personal_adicional_requerido == 'on' %}checked{% endif %} style="width: 16px; height: 16px; accent-color: var(--accent-yellow)" value="on" />
         <div>
           <div style="font-size: 13px; font-weight: 600">Requirió personal adicional</div>
           <div style="font-size: 11px; color: var(--text-secondary)">Se necesitó más de un trabajador.</div>
         </div>
       </label>
       <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; background: var(--bg-700); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-        <input type="checkbox" name="requiere_nivel_mayor" {%if form.requiere_nivel_mayor.value%}checked{%endif%} style="width: 16px; height: 16px; accent-color: var(--accent-red)" value="on" />
+        <input type="checkbox" name="requiere_nivel_mayor" {% if request.POST.requiere_nivel_mayor == 'on' %}checked{% endif %} style="width: 16px; height: 16px; accent-color: var(--accent-red)" value="on" />
         <div>
           <div style="font-size: 13px; font-weight: 600">Requiere nivel mayor</div>
           <div style="font-size: 11px; color: var(--text-secondary)">Especialista externo o intervención mayor.</div>
@@ -117,14 +158,13 @@
     </div>
     <div>
       <label class="form-label">Observaciones para el gestor</label>
-      <textarea name="observaciones" class="form-control" rows="2" placeholder="Notas, advertencias, seguimiento recomendado…">
-{{ form.observaciones.value|default:'' }}</textarea>
+      <textarea name="observaciones" class="form-control" rows="2" placeholder="Notas, advertencias, seguimiento recomendado…" style="{% if 'observaciones' in form.errors %}border-color: var(--accent-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);{% endif %}">{{ request.POST.observaciones|default:'' }}</textarea>
     </div>
   </div>
 
   <div class="card" style="margin-bottom: 18px" id="bloque-foto-final">
     <div class="form-section-title">Foto del trabajo terminado</div>
-    <div style="border: 2px dashed var(--border-strong); border-radius: 10px; padding: 24px; text-align: center; position: relative; cursor: pointer;" onmouseover="this.style.borderColor = 'var(--accent-green)'" onmouseout="this.style.borderColor = 'var(--border-strong)'">
+    <div style="border: 2px dashed {% if form.foto_final.errors %}var(--accent-red){% else %}var(--border-strong){% endif %}; border-radius: 10px; padding: 24px; text-align: center; position: relative; cursor: pointer;" onmouseover="this.style.borderColor = 'var(--accent-green)'" onmouseout="this.style.borderColor = '{% if form.foto_final.errors %}var(--accent-red){% else %}var(--border-strong){% endif %}'">
       <input type="file" name="foto_final" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" onchange="previewFinal(this)" />
       <div id="previewFinalBox" style="display: none; margin-bottom: 12px">
         <img id="previewFinalImg" style="max-height: 180px; border-radius: 8px; max-width: 100%" />
@@ -155,8 +195,8 @@
 
     <div id="formset-container">
       {% for mat_form in formset %}
-        {% if mat_form.instance.pk or mat_form.errors or mat_form.material.value %}
-        <div class="material-row" style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; align-items: start; margin-bottom: 10px; background: var(--bg-700); border-radius: 8px; padding: 12px;">
+        {% if mat_form.instance.pk or mat_form.errors or mat_form.material.value or mat_form.cantidad_utilizada.value %}
+        <div class="material-row" style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 10px; align-items: start; margin-bottom: 10px; background: var(--bg-700); border-radius: 8px; padding: 12px; border: 1px solid {% if mat_form.errors %}var(--accent-red){% else %}transparent{% endif %};">
           <div>
             {{ mat_form.material }}
             <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); margin-top: 5px; cursor: pointer; user-select: none;">
@@ -165,7 +205,7 @@
             </label>
           </div>
           <div>
-            <input type="number" name="{{ mat_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad_utilizada.value|default:'' }}" />
+            <input type="number" name="{{ mat_form.cantidad_utilizada.html_name }}" class="form-control" step="1" min="1" placeholder="1" value="{{ mat_form.cantidad_utilizada.value|default:'' }}" style="{% if mat_form.cantidad_utilizada.errors %}border-color: var(--accent-red);{% endif %}" />
           </div>
           <div>
             {{ mat_form.observacion }}
@@ -250,7 +290,7 @@
 
                 {% if sesion.materiales_jornada %}
                   <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
-                    <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">MATERIALES UTILIZADOS EN ESTE TURNO:</span>
+                    <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">MATERIALES UTILIZADOS IN ESTE TURNO:</span>
                     <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
                       <thead>
                         <tr style="color: var(--text-muted); text-align: left; border-bottom: 1px solid var(--border);">
@@ -315,7 +355,6 @@
     </div>
     <div>
       <button type="button" onclick="quitarFila(this)" class="btn btn-ghost btn-sm btn-icon" style="color: var(--accent-red); border-color: var(--accent-red)" title="Quitar">✕</button>
-      
       <div style="display: none;">
         {{ formset.empty_form.DELETE }}
       </div>
@@ -327,6 +366,11 @@
 {{ todos_materiales_data|json_script:"catalog-total-data" }}
 
 <style>
+  .field-with-error {
+    border-color: var(--accent-red) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+  }
+
   .btn-ver-historial {
     background: rgba(59, 130, 246, 0.1);
     border: 1px solid rgba(59, 130, 246, 0.3);
@@ -514,9 +558,10 @@
 
     newRow.querySelectorAll("input, select, textarea").forEach((el) => {
       ["name", "id"].forEach((attr) => {
-        const val = el.getAttribute(attr);
+        let val = el.getAttribute(attr);
         if (val) {
-          el.setAttribute(attr, val.replace(/__prefix__/g, idx).replace(new RegExp(`${prefix}-\\d+-`, 'g'), `${prefix}-${idx}-`));
+          val = val.replace(/__prefix__/g, idx);
+          el.setAttribute(attr, val);
         }
       });
       if (el.type !== "checkbox") el.value = "";
@@ -566,7 +611,6 @@
     radio.addEventListener("change", alternarCamposFormulario);
   });
 
-  // 🌟 NUEVO: COMPORTAMIENTO OPERATIVO DEL MODAL FLOTANTE
   function abrirModalHistorial(logId) {
     const payload = document.getElementById(`payload-log-${logId}`);
     if (!payload) return;
@@ -594,5 +638,83 @@
 
   alternarCamposFormulario();
   toggleHeaders();
+
+  document.getElementById('form-reparacion').addEventListener('submit', function() {
+      sessionStorage.setItem('reparacion_scroll_pos', window.scrollY);
+  });
+
+  window.addEventListener('load', function() {
+      if ('history' in window && window.history.scrollRestoration) {
+          window.history.scrollRestoration = 'manual';
+      }
+
+      const scrollPos = sessionStorage.getItem('reparacion_scroll_pos');
+      
+      document.querySelectorAll('#formset-container .material-row').forEach(row => {
+          const selectEl = row.querySelector("select");
+          const checkboxEl = row.querySelector(".bypass-catalog-checkbox");
+          if (!selectEl || !checkboxEl) return;
+
+          const valorActual = selectEl.value;
+          
+          const existeEnFiltrado = catalogFiltrado.some(item => item.id == valorActual);
+          
+          if (!valorActual || existeEnFiltrado) {
+              checkboxEl.checked = false;
+              selectEl.innerHTML = '<option value="">---------</option>';
+              catalogFiltrado.forEach(item => {
+                  const opt = document.createElement("option");
+                  opt.value = item.id;
+                  opt.text = item.text;
+                  if (item.id == valorActual) opt.selected = true;
+                  selectEl.appendChild(opt);
+              });
+          } else {
+              checkboxEl.checked = true;
+              selectEl.innerHTML = '<option value="">---------</option>';
+              catalogTotal.forEach(item => {
+                  const opt = document.createElement("option");
+                  opt.value = item.id;
+                  opt.text = item.text;
+                  if (item.id == valorActual) opt.selected = true;
+                  selectEl.appendChild(opt);
+              });
+          }
+      });
+
+      if (scrollPos) {
+          window.scrollTo(0, parseInt(scrollPos));
+          sessionStorage.removeItem('reparacion_scroll_pos');
+      }
+
+      {% if form.errors or formset.errors %}
+          if (scrollPos) {
+              window.scrollTo(0, parseInt(scrollPos));
+              sessionStorage.removeItem('reparacion_scroll_pos');
+          }
+
+          {% for mat_form in formset %}
+            {% if mat_form.errors %}
+              document.querySelectorAll('[name^="{{ mat_form.prefix }}-"]').forEach(el => {
+                if(el.tagName === 'SELECT' && !el.value) {
+                  el.classList.add('field-with-error');
+                }
+              });
+            {% endif %}
+          {% endfor %}
+      {% else %}
+          window.scrollTo(0, 0);
+          sessionStorage.removeItem('reparacion_scroll_pos');
+      {% endif %}
+
+      const toast = document.querySelector('.error-toast');
+      if (toast) {
+          setTimeout(() => {
+              toast.style.opacity = "0";
+              toast.style.transform = "translateX(120%)";
+              setTimeout(() => toast.remove(), 450);
+          }, 5000);
+      }
+  });
 </script>
 {% endblock %}

@@ -2,43 +2,13 @@
 # CAMPUS SEGURO – Comando de inicialización: crear_gestor
 # ─────────────────────────────────────────────────────────────
 # Archivo: app/management/commands/crear_gestor.py
-#
-# PROPÓSITO:
-#   Crea el usuario gestor inicial en una base de datos recién
-#   migrada. Solo se necesita ejecutar UNA VEZ por entorno nuevo.
-#
-# CUÁNDO USARLO:
-#   - Al clonar el repositorio por primera vez (desarrollo local)
-#   - Al reiniciar la base de datos de pruebas
-#   - NO se necesita en producción ni cuando ya existe el gestor
-#
-# PREREQUISITO:
-#   python manage.py migrate  (debe ejecutarse antes que este comando)
-#
-# USO INTERACTIVO (pide los datos por consola):
-#   python manage.py crear_gestor
-#
-# USO CON ARGUMENTOS (para scripts o CI):
-#   python manage.py crear_gestor \
-#       --email gestor@duocuc.cl \
-#       --rut 12.345.678-9 \
-#       --nombre Jordan \
-#       --apellido Garcia
-#
-# RESULTADO:
-#   - Crea un Usuario con rol='gestor', estado_cuenta='activa'
-#   - Contraseña NO se guarda (Auth0 la gestiona)
-#   - auth0_sub se vincula automáticamente en el primer login
-#
-# CONEXIONES:
-#   - Lee: app/models.py (Usuario, EstadoCatalogo)
-#   - Requiere: migración 0006 aplicada (pobla EstadoCatalogo)
 # ═══════════════════════════════════════════════════════════════
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 
-from app.models import Usuario, EstadoCatalogo
+# 🚀 CORRECCIÓN 1: Importamos el nuevo modelo maestro 'Rol'
+from app.models import Usuario, EstadoCatalogo, Rol
 
 
 class Command(BaseCommand):
@@ -69,17 +39,26 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('=' * 60))
-        self.stdout.write(self.style.MIGRATE_HEADING('  CAMPUS SEGURO - Creacion de usuario gestor'))
+        self.stdout.write(self.style.MIGRATE_HEADING('   CAMPUS SEGURO - Creacion de usuario gestor'))
         self.stdout.write(self.style.MIGRATE_HEADING('=' * 60))
         self.stdout.write('')
 
         # ── Verificar que las migraciones estén aplicadas ─────
         try:
-            EstadoCatalogo.objects.get(entidad='cuenta', codigo='activa')
+            estado_activa = EstadoCatalogo.objects.get(entidad='cuenta', codigo='activa')
         except EstadoCatalogo.DoesNotExist:
             raise CommandError(
                 'No se encontró el catálogo de estados.\n'
                 'Asegúrate de haber ejecutado primero: python manage.py migrate'
+            )
+
+        # 🌟 CORRECCIÓN 2: Validamos que exista el rol maestro en la BD antes de continuar
+        try:
+            rol_gestor = Rol.objects.get(codigo='gestor')
+        except Rol.DoesNotExist:
+            raise CommandError(
+                'No se encontró el rol maestro "gestor" en la base de datos.\n'
+                'Por favor, ejecuta primero el poblamiento: python manage.py poblar_sistema'
             )
 
         # ── Obtener datos (argumentos o interactivo) ──────────
@@ -104,10 +83,10 @@ class Command(BaseCommand):
         # ── Verificar si ya existe ─────────────────────────────
         if Usuario.objects.filter(correo_institucional__iexact=email).exists():
             self.stdout.write(
-                self.style.WARNING(f'  Ya existe un usuario con el correo: {email}')
+                self.style.WARNING(f'   Ya existe un usuario con el correo: {email}')
             )
             self.stdout.write(
-                self.style.WARNING('  No se creó ningún usuario nuevo.')
+                self.style.WARNING('   No se creó ningún usuario nuevo.')
             )
             return
 
@@ -115,8 +94,6 @@ class Command(BaseCommand):
             raise CommandError(f'Ya existe un usuario con el RUT: {rut}')
 
         # ── Crear el gestor ───────────────────────────────────
-        estado_activa = EstadoCatalogo.objects.get(entidad='cuenta', codigo='activa')
-
         try:
             gestor = Usuario(
                 username=email,
@@ -125,12 +102,13 @@ class Command(BaseCommand):
                 first_name=nombre,
                 last_name=apellido,
                 rut=rut,
-                rol='gestor',
+                rol=rol_gestor,  # 👈 CORRECCIÓN 3: Pasamos la instancia relacional de Rol
                 estado_cuenta=estado_activa,
                 is_active=True,
                 is_staff=True,
                 is_superuser=False,
                 auth0_sub=None,
+                activo=True,
             )
             gestor.set_unusable_password()
             gestor.save()
@@ -140,19 +118,19 @@ class Command(BaseCommand):
 
         # ── Resultado ─────────────────────────────────────────
         self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS('  OK Gestor creado correctamente'))
+        self.stdout.write(self.style.SUCCESS('   OK Gestor creado correctamente'))
         self.stdout.write('')
         self.stdout.write(f'    Nombre:   {gestor.get_full_name()}')
         self.stdout.write(f'    Correo:   {email}')
         self.stdout.write(f'    RUT:      {rut}')
-        self.stdout.write(f'    Rol:      gestor')
+        self.stdout.write(f'    Rol:      {gestor.rol.nombre}')  # Muestra el nombre limpio en consola
         self.stdout.write(f'    Estado:   activa')
         self.stdout.write(f'    Auth0 ID: se vincula automáticamente en el primer login')
         self.stdout.write('')
         self.stdout.write(
             self.style.NOTICE(
-                '  IMPORTANTE: La contraseña la gestiona Auth0.\n'
-                '  Inicia sesión con el correo y la contraseña de tu cuenta Auth0.'
+                '   IMPORTANTE: La contraseña la gestiona Auth0.\n'
+                '   Inicia sesión con el correo y la contraseña de tu cuenta Auth0.'
             )
         )
         self.stdout.write('')

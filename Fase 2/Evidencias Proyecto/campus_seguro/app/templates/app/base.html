@@ -414,10 +414,10 @@ select { cursor: pointer; }
 
     <!-- Identidad del usuario — visible siempre en cabecera -->
     <div class="sb-user-header">
-      <div class="avatar role-{{ user.rol }}">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
+      <div class="avatar role-{{ user.rol.codigo }}">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</div>
       <div class="user-info">
         <div class="uname">{{ user.get_full_name|default:user.username }}</div>
-        <div class="role-badge role-{{ user.rol }}">{{ user.get_rol_display }}</div>
+        <div class="role-badge role-{{ user.rol.codigo }}">{{ user.rol.nombre|default:"Sin Rol" }}</div>
       </div>
     </div>
 
@@ -435,7 +435,7 @@ select { cursor: pointer; }
         </a>
       </div>
 
-      {% if user.rol == 'usuario' %}
+      {% if user.rol.codigo == 'usuario' %}
       <div class="nav-section">
         <div class="nav-label">Mis Tickets</div>
         <a href="{% url 'app:mis_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'mis_tickets' %}active{% endif %}">
@@ -447,7 +447,7 @@ select { cursor: pointer; }
       </div>
       {% endif %}
 
-      {% if user.rol == 'gestor' or user.is_superuser %}
+      {% if user.rol.codigo == 'gestor' or user.is_superuser %}
       <div class="nav-section">
         <div class="nav-label">Gestión Operativa</div>
         <a href="{% url 'app:gestor_tickets' %}" class="nav-item {% if request.resolver_match.url_name == 'gestor_tickets' %}active{% endif %}">
@@ -477,7 +477,7 @@ select { cursor: pointer; }
       </div>
       {% endif %}
 
-      {% if user.rol == 'guardia' %}
+      {% if user.rol.codigo == 'guardia' %}
       <div class="nav-section">
         <div class="nav-label">Guardia</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
@@ -489,7 +489,7 @@ select { cursor: pointer; }
       </div>
       {% endif %}
 
-      {% if user.rol == 'mantencion' %}
+      {% if user.rol.codigo == 'mantencion' %}
       <div class="nav-section">
         <div class="nav-label">Mantención</div>
         <a href="{% url 'app:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">

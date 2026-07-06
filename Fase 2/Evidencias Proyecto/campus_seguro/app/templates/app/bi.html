@@ -1591,7 +1591,7 @@ if (categoriasFiltradas.length > 0) {
     {% if com_tickets_por_escuela %}
     {% for e in com_tickets_por_escuela %}
     <div class="stat-row">
-      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela|default:"Sin escuela" }}</span>
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela__nombre|default:"Sin escuela" }}</span>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
         <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
           <div class="bar-fill" style="width:{% widthratio e.total com_total_escuela 100 %}%;background:var(--accent-green);"></div>
@@ -1612,7 +1612,7 @@ if (categoriasFiltradas.length > 0) {
     {% if com_afectacion_por_escuela %}
     {% for e in com_afectacion_por_escuela %}
     <div class="stat-row">
-      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela|default:"Sin escuela" }}</span>
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela__nombre|default:"Sin escuela" }}</span>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
         <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
           <div class="bar-fill" style="width:{% widthratio e.total com_max_escuela_af 100 %}%;background:var(--accent-red);"></div>

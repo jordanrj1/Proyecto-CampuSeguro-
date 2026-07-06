@@ -50,7 +50,7 @@
           <td>
             <div style="display: flex; align-items: center; gap: 10px">
               <div
-                class="avatar role-{{ u.rol }}"
+                class="avatar role-{{ u.rol.codigo }}"
                 style="width: 32px; height: 32px; font-size: 12px"
               >
                 {{ u.first_name|first|upper }}{{ u.last_name|first|upper }}
@@ -69,16 +69,16 @@
             >
           </td>
           <td>
-            {% if u.rol == 'usuario' %}<span class="badge badge-blue"
+            {% if u.rol.codigo == 'usuario' %}<span class="badge badge-blue"
               >Usuario</span
             >
-            {% elif u.rol == 'gestor' %}<span class="badge badge-teal"
+            {% elif u.rol.codigo == 'gestor' %}<span class="badge badge-teal"
               >Gestor</span
             >
-            {% elif u.rol == 'guardia' %}<span class="badge badge-yellow"
+            {% elif u.rol.codigo == 'guardia' %}<span class="badge badge-yellow"
               >Guardia</span
             >
-            {% elif u.rol == 'mantencion' %}<span class="badge badge-green"
+            {% elif u.rol.codigo == 'mantencion' %}<span class="badge badge-green"
               >Mantención</span
             >{% endif %}
           </td>
@@ -107,7 +107,7 @@
 
           {# Columna de Especialidad Ajustada con botón de acción #}
           <td>
-            {% if u.rol == 'mantencion' %}
+            {% if u.rol.codigo == 'mantencion' %}
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 140px;">
                 <span style="font-size: 13px;">
                   {% for esp in u.especialidades.all %}

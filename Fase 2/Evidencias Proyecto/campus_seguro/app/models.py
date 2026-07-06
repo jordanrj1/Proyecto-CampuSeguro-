@@ -4,6 +4,41 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from functools import lru_cache
 
+class Rol(models.Model):
+    nombre = models.CharField(max_length=50, verbose_name="Nombre del Rol")
+    codigo = models.CharField(max_length=30, unique=True, verbose_name="Código Operacional")  # ej: 'mantencion', 'guardia', 'gestor'
+
+    class Meta:
+        verbose_name = "Rol"
+        verbose_name_plural = "Roles"
+
+    def __str__(self):
+        return self.nombre
+
+
+class Escuela(models.Model):
+    nombre = models.CharField(max_length=100, verbose_name="Nombre de la Escuela")
+    codigo = models.CharField(max_length=50, unique=True, verbose_name="Código de la Escuela") # ej: 'informatica', 'salud'
+
+    class Meta:
+        verbose_name = "Escuela"
+        verbose_name_plural = "Escuelas"
+
+    def __str__(self):
+        return self.nombre
+
+
+class Departamento(models.Model):
+    nombre = models.CharField(max_length=100, verbose_name="Nombre del Departamento")
+    codigo = models.CharField(max_length=50, unique=True, verbose_name="Código del Departamento") # ej: 'operaciones', 'seguridad_vigilancia'
+
+    class Meta:
+        verbose_name = "Departamento"
+        verbose_name_plural = "Departamentos"
+
+    def __str__(self):
+        return self.nombre
+
 # ═══════════════════════════════════════════════════════════════
 # CATÁLOGO GLOBAL DE ESTADOS (normalización – feedback profesora)
 # Tabla 2 del DDL v2.0: reemplaza CHECKs dispersos en 6 entidades
@@ -142,7 +177,14 @@ class Sede(models.Model):
 class Carrera(models.Model):
     """Catálogo de carreras impartidas en cada sede. Escalable vía Django Admin."""
     nombre  = models.CharField(max_length=150, unique=True)
-    escuela = models.CharField(max_length=150, blank=True)
+    escuela = models.ForeignKey(
+        Escuela, 
+        on_delete=models.PROTECT, 
+        related_name='carreras', 
+        null=True, 
+        blank=True,
+        verbose_name="Escuela perteneciente"
+    )
     sede    = models.ForeignKey(
         'Sede', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='carreras',
@@ -153,7 +195,7 @@ class Carrera(models.Model):
     class Meta:
         verbose_name = 'Carrera'
         verbose_name_plural = 'Carreras'
-        ordering = ['escuela', 'nombre']
+        ordering = ['escuela__nombre', 'nombre']
 
     def __str__(self):
         return self.nombre
@@ -345,12 +387,6 @@ class UsuarioManager(UserManager):
 
 
 class Usuario(AbstractUser):
-    ROL_CHOICES = [
-        ('usuario', 'Usuario Base'),
-        ('gestor', 'Gestor'),
-        ('guardia', 'Guardia'),
-        ('mantencion', 'Mantención'),
-    ]
     VINCULO_CHOICES = [
         ('alumno', 'Alumno'),
         ('docente', 'Docente'),
@@ -363,7 +399,7 @@ class Usuario(AbstractUser):
         ('mixta', 'Mixta'),
     ]
     # Datos institucionales obligatorios
-    rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='usuario')
+    rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name="usuarios", null=True, blank=True)
     rut = models.CharField(max_length=12, unique=True)
     telefono = models.CharField(max_length=15, blank=True, null=True)
     correo_institucional = models.EmailField(unique=True)
@@ -376,7 +412,15 @@ class Usuario(AbstractUser):
     )
     jornada = models.CharField(max_length=15, choices=JORNADA_CHOICES, blank=True, null=True)
     sede = models.ForeignKey(Sede, on_delete=models.SET_NULL, blank=True, null=True, related_name='estudiantes_funcionarios')
-    departamento = models.CharField(max_length=100, blank=True, null=True)
+    
+    escuela = models.ForeignKey(Escuela, on_delete=models.SET_NULL, related_name="usuarios", null=True, blank=True)
+    departamento = models.ForeignKey(
+        Departamento, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name="usuarios"
+    )
 
     # Datos operativos (guardia / mantención)
     # CharField de especialidad cambiado por una relación real Muchos a Muchos:
@@ -418,7 +462,8 @@ class Usuario(AbstractUser):
     objects = UsuarioManager()
 
     def __str__(self):
-        return f"{self.get_full_name() or self.username} ({self.get_rol_display()})"
+        rol_nombre = self.rol.nombre if self.rol else "Sin Rol"
+        return f"{self.get_full_name() or self.username} ({rol_nombre})"
 
     def get_estado_cuenta_display(self):
         return self.estado_cuenta.nombre_display if self.estado_cuenta_id else ''
@@ -550,7 +595,7 @@ class Ticket(models.Model):
     creado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='tickets_creados')
     asignado_a = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_asignados')
     validado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_validados')
-    gestor_responsable = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_gestionados')
+    gestor_responsable = models.ForeignKey(Usuario, on_delete=models.PROTECT, null=True, blank=True, related_name='tickets_gestionados')
 
     # Estado (FK a EstadoCatalogo – sin hardcodeos de VARCHAR)
     estado = models.ForeignKey(
@@ -658,7 +703,7 @@ class ValidacionGuardia(models.Model):
         ('invalido', 'Inválido'),
     ]
 
-    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='validacion')
+    ticket = models.OneToOneField(Ticket, on_delete=models.PROTECT, related_name='validacion')
     guardia = models.ForeignKey(Usuario, on_delete=models.PROTECT)
     resultado = models.CharField(max_length=10, choices=RESULTADO_CHOICES)
     comentario = models.TextField()
@@ -685,10 +730,10 @@ class AsignacionTicket(models.Model):
         ('mantencion', 'Mantención'),
     ]
 
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='asignaciones')
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='asignaciones')
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='asignaciones_recibidas')
     rol_asignacion = models.CharField(max_length=20, choices=ROL_ASIGNACION_CHOICES)
-    asignado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='asignaciones_realizadas')
+    asignado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, null=True, blank=True, related_name='asignaciones_realizadas')
     estado = models.ForeignKey(
         EstadoCatalogo,
         on_delete=models.PROTECT,
@@ -738,7 +783,7 @@ class SesionTrabajo(models.Model):
         ('completado', 'Trabajo completado en esta sesión'),
     ]
 
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='sesiones')
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='sesiones')
     tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='sesiones_trabajo')
     
     # Control de tiempos automático
@@ -914,7 +959,7 @@ class Inasistencia(models.Model):
         related_name='inasistencias_estado',
         limit_choices_to={'entidad': 'inasistencia'},
     )
-    revisado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='inasistencias_revisadas')
+    revisado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, null=True, blank=True, related_name='inasistencias_revisadas')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_estado_display(self):

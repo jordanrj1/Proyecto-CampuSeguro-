@@ -1,7 +1,7 @@
 {% extends 'app/base.html' %} 
 {% block title %}Mi perfil{% endblock %} 
 {% block page_title %}Mi perfil{% endblock %}
-{% block page_subtitle %}{{ usuario.get_rol_display }} · {{ usuario.username }}{% endblock %}
+{% block page_subtitle %}{{ usuario.rol.nombre|default:"Sin Rol" }} · {{ usuario.username }}{% endblock %}
 
 {%block content%}
 
@@ -60,7 +60,7 @@
             background: rgba(74, 143, 255, 0.15);
             color: var(--accent-blue);
           "
-          >{{ usuario.get_rol_display }}</span
+          >{{ usuario.rol.nombre|default:"Sin Rol" }}</span
         >
       </div>
       <div>

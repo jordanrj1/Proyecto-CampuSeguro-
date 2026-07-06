@@ -2,36 +2,6 @@
 # CAMPUS SEGURO – Comando: sincronizar_auth0
 # ─────────────────────────────────────────────────────────────
 # Archivo: app/management/commands/sincronizar_auth0.py
-#
-# PROPÓSITO:
-#   Consulta Auth0 Management API y crea en la BD local los usuarios
-#   que existen en Auth0 pero no en el SQLite local.
-#
-#   Problema que resuelve:
-#     Cuando compañeros registran cuentas en sus propios entornos Django,
-#     Auth0 recibe el usuario (fuente compartida) pero la BD local de cada
-#     entorno queda aislada. Este comando sincroniza Auth0 → BD local,
-#     dejando visibles todas las solicitudes para el gestor.
-#
-# CUÁNDO USARLO:
-#   - Después de clonar el repositorio (para traer usuarios previos)
-#   - Cuando aparezcan "Auth0 autenticó a X pero no existe en BD local"
-#   - Antes de iniciar sesiones de prueba en equipo
-#
-# USO:
-#   python manage.py sincronizar_auth0               (importa todo)
-#   python manage.py sincronizar_auth0 --dry-run     (solo muestra, no crea)
-#
-# COMPORTAMIENTO:
-#   - NUNCA sobreescribe usuarios existentes en la BD local
-#   - Asigna estado según app_metadata de Auth0 (pendiente/activa/etc.)
-#   - El RUT se genera como placeholder temporal (SYNC-XXXXXXX)
-#     → El gestor puede corregirlo al aprobar la cuenta
-#   - auth0_sub se vincula directamente desde Auth0
-#
-# PREREQUISITOS:
-#   - AUTH0_MGMT_CLIENT_ID y AUTH0_MGMT_CLIENT_SECRET configurados en .env
-#   - python manage.py migrate ejecutado previamente
 # ═══════════════════════════════════════════════════════════════
 
 import requests
@@ -39,9 +9,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 
-from app.models import Usuario, EstadoCatalogo
+from app.models import Usuario, EstadoCatalogo, Rol
 from app.auth0_service import obtener_token_mgmt, Auth0Error
-
 
 # Roles válidos reconocidos por Campus Seguro
 _ROLES_VALIDOS = {'usuario', 'gestor', 'guardia', 'mantencion'}
@@ -132,6 +101,14 @@ class Command(BaseCommand):
                 estado_obj = EstadoCatalogo.objects.get(entidad='cuenta', codigo='pendiente')
                 codigo_estado = 'pendiente'
 
+            # 🌟 NUEVO: Resolvemos relacionalmente la instancia de Rol desde la Base de Datos
+            try:
+                rol_obj = Rol.objects.get(codigo=campus_rol)
+            except Rol.DoesNotExist:
+                # Fallback de seguridad institucional si el rol no existiera localmente
+                rol_obj = Rol.objects.get(codigo='usuario')
+                campus_rol = 'usuario'
+
             # Nombres (given_name/family_name o split del campo name)
             first_name = (auth0_user.get('given_name') or '').strip()
             last_name  = (auth0_user.get('family_name') or '').strip()
@@ -160,7 +137,7 @@ class Command(BaseCommand):
                     first_name=first_name,
                     last_name=last_name,
                     rut=rut_temp,
-                    rol=campus_rol,
+                    rol=rol_obj,  # 👈 CORRECCIÓN: Ahora le pasamos la instancia relacional real de Rol
                     estado_cuenta=estado_obj,
                     auth0_sub=user_id,
                     is_active=(codigo_estado == 'activa'),
@@ -242,7 +219,6 @@ class Command(BaseCommand):
 
             data = response.json()
 
-            # Auth0 con include_totals=true devuelve {users: [...], total: N, ...}
             if isinstance(data, list):
                 usuarios.extend(data)
                 break
