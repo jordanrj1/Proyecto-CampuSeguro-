@@ -703,7 +703,7 @@ class ValidacionGuardia(models.Model):
         ('invalido', 'Inválido'),
     ]
 
-    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='validacion')
+    ticket = models.OneToOneField(Ticket, on_delete=models.PROTECT, related_name='validacion')
     guardia = models.ForeignKey(Usuario, on_delete=models.PROTECT)
     resultado = models.CharField(max_length=10, choices=RESULTADO_CHOICES)
     comentario = models.TextField()
@@ -730,7 +730,7 @@ class AsignacionTicket(models.Model):
         ('mantencion', 'Mantención'),
     ]
 
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='asignaciones')
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='asignaciones')
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='asignaciones_recibidas')
     rol_asignacion = models.CharField(max_length=20, choices=ROL_ASIGNACION_CHOICES)
     asignado_por = models.ForeignKey(Usuario, on_delete=models.PROTECT, null=True, blank=True, related_name='asignaciones_realizadas')
@@ -783,7 +783,7 @@ class SesionTrabajo(models.Model):
         ('completado', 'Trabajo completado en esta sesión'),
     ]
 
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='sesiones')
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='sesiones')
     tecnico = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='sesiones_trabajo')
     
     # Control de tiempos automático

@@ -2034,7 +2034,7 @@ def gestor_bi(request):
         tickets
         .filter(creado_por__vinculo__in=['alumno', 'docente'])
         .exclude(creado_por__carrera__isnull=True)
-        .values('creado_por__carrera__escuela')
+        .values('creado_por__carrera__escuela__nombre') # 👈 CAMBIA ESTA LÍNEA (Añade __nombre)
         .annotate(total=Count('id'))
         .order_by('-total')
     )
@@ -2042,7 +2042,7 @@ def gestor_bi(request):
         tickets
         .filter(afecta_clase=True, creado_por__vinculo__in=['alumno', 'docente'])
         .exclude(creado_por__carrera__isnull=True)
-        .values('creado_por__carrera__escuela')
+        .values('creado_por__carrera__escuela__nombre') # 👈 CAMBIA ESTA LÍNEA TAMBIÉN
         .annotate(total=Count('id'))
         .order_by('-total')
     )
