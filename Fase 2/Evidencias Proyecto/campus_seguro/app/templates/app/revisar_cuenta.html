@@ -127,7 +127,13 @@
       </div>
       <div>
         <div style="color:var(--text-muted);font-size:11px;">CARRERA / DEPARTAMENTO</div>
-        {{ cuenta.carrera.nombre|default:"—" }}
+        {% if cuenta.carrera %}
+          {{ cuenta.carrera.nombre }}
+        {% elif cuenta.departamento %}
+          {{ cuenta.departamento.nombre }}
+        {% else %}
+          —
+        {% endif %}
       </div>
       <div>
         <div style="color:var(--text-muted);font-size:11px;">SEDE</div>

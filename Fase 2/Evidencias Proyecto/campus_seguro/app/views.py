@@ -46,7 +46,7 @@ from django.db import transaction
 from decimal import Decimal
 
 from .models import (
-    Carrera, CategoriaMaterial, CategoriaTicket, Edificio, Especialidad, Piso, Sede, SesionTrabajo, TipoUbicacion, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
+    Carrera, CategoriaMaterial, CategoriaTicket, Departamento, Edificio, Especialidad, Piso, Rol, Sede, SesionTrabajo, TipoUbicacion, Usuario, TokenRecuperacion, Ticket, Ubicacion, Material,
     ValidacionGuardia, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, AsignacionTicket
@@ -100,9 +100,13 @@ def rol_requerido(*roles):
         def _wrapped(request, *args, **kwargs):
             if not request.user.is_authenticated:
                 return redirect('app:login')
-            if request.user.rol not in roles and not request.user.is_superuser:
+            
+            user_rol_codigo = request.user.rol.codigo if request.user.rol else None
+            
+            if user_rol_codigo not in roles and not request.user.is_superuser:
                 messages.error(request, 'No tienes permiso para acceder a esta sección.')
                 return redirect('app:dashboard')
+                
             return view_func(request, *args, **kwargs)
         return _wrapped
     return decorator
@@ -110,7 +114,7 @@ def rol_requerido(*roles):
 
 def notificar_gestores(tipo, titulo, mensaje, ticket=None, prioridad='media', url_accion=None):
     """Notifica a todos los gestores activos"""
-    for gestor in Usuario.objects.filter(rol='gestor', estado_cuenta__codigo='activa', activo=True):
+    for gestor in Usuario.objects.filter(rol__codigo='gestor', estado_cuenta__codigo='activa', activo=True):
         notificar(gestor, tipo, titulo, mensaje, ticket, prioridad, url_accion)
 
 
@@ -230,7 +234,6 @@ def login_view(request):
 
     return render(request, 'app/login.html', {'form': form})
 
-
 def registro_view(request):
     if request.user.is_authenticated:
         return redirect('app:dashboard')
@@ -263,7 +266,11 @@ def registro_view(request):
                     )
                 else:
                     messages.error(request, f'Error al crear cuenta: {e.message}')
-                return render(request, 'app/registro.html', {'form': form})
+                return render(request, 'app/registro.html', {
+                    'form': form,
+                    'sedes': Sede.objects.all().order_by('nombre'),
+                    'departamentos': Departamento.objects.all().order_by('nombre'),
+                })
 
         with transaction.atomic():
             user = form.save(commit=True, auth0_sub=auth0_sub, usar_auth0=usar_auth0)
@@ -293,19 +300,19 @@ def registro_view(request):
     _carreras_qs = (
         Carrera.objects
         .filter(activa=True)
-        .order_by('escuela', 'nombre')
-        .values('id', 'nombre', 'escuela')
+        .order_by('escuela__nombre', 'nombre')
+        .values('id', 'nombre', escuela_nom=F('escuela__nombre'))
     )
     _por_escuela: dict = OrderedDict()
     for c in _carreras_qs:
-        _por_escuela.setdefault(c['escuela'], []).append({'id': c['id'], 'nombre': c['nombre']})
+        _por_escuela.setdefault(c['escuela_nom'], []).append({'id': c['id'], 'nombre': c['nombre']})
 
     return render(request, 'app/registro.html', {
         'form': form,
         'sedes': Sede.objects.all().order_by('nombre'),
+        'departamentos': Departamento.objects.all().order_by('nombre'),
         'carreras_data': dict(_por_escuela),  # dict Python — json_script lo serializa en el template
     })
-
 
 def olvide_contrasena_view(request):
     form = OlvideContrasenaForm(request.POST or None)
@@ -393,13 +400,13 @@ def logout_view(request):
 @login_required
 def dashboard(request):
     user = request.user
-    if user.rol == 'usuario':
+    if user.rol and user.rol.codigo == 'usuario':
         return dashboard_usuario(request)
-    elif user.rol == 'gestor' or user.is_superuser:
+    elif user.rol and user.rol.codigo == 'gestor' or user.is_superuser:
         return dashboard_gestor(request)
-    elif user.rol == 'guardia':
+    elif user.rol and user.rol.codigo == 'guardia':
         return dashboard_guardia(request)
-    elif user.rol == 'mantencion':
+    elif user.rol and user.rol.codigo == 'mantencion':
         return dashboard_mantencion(request)
     return render(request, 'app/dashboard.html')
 
@@ -438,7 +445,7 @@ def dashboard_gestor(request):
     semana = hoy - timedelta(days=7)
 
     trabajadores_ausentes = Usuario.objects.filter(
-        rol__in=['mantencion', 'guardia'],
+        rol__codigo__in=['mantencion', 'guardia'],
         inasistencias__estado__codigo='aprobada',
         inasistencias__fecha_desde__lte=hoy,
         inasistencias__fecha_hasta__gte=hoy,
@@ -960,7 +967,7 @@ def derivar_ticket(request, pk):
                 messages.error(request, 'Fecha de validación inválida.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            guardia = get_object_or_404(Usuario, pk=guardia_id, rol='guardia')
+            guardia = get_object_or_404(Usuario, pk=guardia_id, rol__codigo='guardia')
             
             if guardia.inasistencias.filter(
                 estado__codigo='aprobada',
@@ -1022,7 +1029,7 @@ def derivar_ticket(request, pk):
                 messages.error(request, 'Fecha de trabajo inválida.')
                 return redirect('app:derivar_ticket', pk=pk)
             
-            tecnico = get_object_or_404(Usuario, pk=tecnico_id, rol='mantencion')
+            tecnico = get_object_or_404(Usuario, pk=tecnico_id, rol__codigo='mantencion')
             
             if tecnico.inasistencias.filter(
                 estado__codigo='aprobada',
@@ -1081,8 +1088,8 @@ def derivar_ticket(request, pk):
             messages.success(request, f'✓ Técnico {tecnico.get_full_name()} asignado para trabajo el {fecha_programada.strftime("%d/%m/%Y")}.')
             return redirect('app:gestor_tickets')
 
-    tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa', activo=True)
-    guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa', activo=True)
+    tecnicos = Usuario.objects.filter(rol__codigo='mantencion', estado_cuenta__codigo='activa', activo=True)
+    guardias = Usuario.objects.filter(rol__codigo='guardia', estado_cuenta__codigo='activa', activo=True)
     return render(request, 'app/derivar.html', {
         'ticket': ticket, 
         'tecnicos': tecnicos,
@@ -1104,7 +1111,7 @@ def guardias_disponibles_ajax(request):
         return JsonResponse({'error': 'Fecha inválida'}, status=400)
     
     guardias = Usuario.objects.filter(
-        rol='guardia',
+        rol__codigo='guardia',
         estado_cuenta__codigo='activa',
         activo=True,
     ).exclude(
@@ -1143,7 +1150,7 @@ def tecnicos_disponibles_ajax(request):
         return JsonResponse({'error': 'Fecha inválida'}, status=400)
     
     tecnicos = Usuario.objects.filter(
-        rol='mantencion',
+        rol__codigo='mantencion',
         estado_cuenta__codigo='activa',
         activo=True,
     ).exclude(
@@ -1394,7 +1401,6 @@ def gestor_solicitudes_cuenta(request):
         'pendientes': pendientes, 'recientes': recientes,
     })
 
-
 @login_required
 @rol_requerido('gestor')
 def aprobar_cuenta(request, pk):
@@ -1430,7 +1436,7 @@ def aprobar_cuenta(request, pk):
             user.aprobado_por = request.user
             user.save()
             
-            if rol_asignado == 'mantencion':
+            if rol_asignado and rol_asignado.codigo == 'mantencion':
                 especialidad_id = request.POST.get('especialidad_seleccionada')
                 if especialidad_id:
                     especialidad_obj = get_object_or_404(Especialidad, id=especialidad_id)
@@ -1442,10 +1448,10 @@ def aprobar_cuenta(request, pk):
                 try:
                     auth0_service.actualizar_rol_auth0(
                         auth0_sub=user.auth0_sub,
-                        rol=rol_asignado,
+                        rol=rol_asignado.codigo,
                         estado='activa',
                     )
-                    logger.info(f"Rol '{rol_asignado}' sincronizado en Auth0 para {user.auth0_sub}")
+                    logger.info(f"Rol '{rol_asignado.codigo}' sincronizado en Auth0 para {user.auth0_sub}")
                 except Auth0Error as e:
                     logger.warning(f"No se pudo sincronizar rol en Auth0 para {user.auth0_sub}: {e.message}")
                     messages.warning(
@@ -1459,18 +1465,18 @@ def aprobar_cuenta(request, pk):
                 accion=f'Cuenta aprobada: {user.username}',
                 ip_address=get_client_ip(request),
                 modulo='cuenta',
-                detalle=f'Aprobada con rol: {user.get_rol_display()}',
+                detalle=f'Aprobada con rol: {user.rol.nombre if user.rol else "Sin Rol"}',
             )
             notificar(
                 user,
                 'cuenta_aprobada',
                 '✓ Tu cuenta fue aprobada',
                 f'Bienvenido a Campus Seguro. Ya puedes iniciar sesión. '
-                f'Tu rol asignado es: {user.get_rol_display()}.',
+                f'Tu rol asignado es: {user.rol.nombre if user.rol else "Sin Rol"}.',
             )
             messages.success(
                 request,
-                f'✓ Cuenta de {user.get_full_name()} aprobada como {user.get_rol_display()}.'
+                f'✓ Cuenta de {user.get_full_name()} aprobada como {user.rol.nombre if user.rol else "Sin Rol"}.'
             )
 
         elif accion == 'rechazar':
@@ -1498,7 +1504,6 @@ def aprobar_cuenta(request, pk):
         'especialidades': Especialidad.objects.all(),
     })
 
-
 @login_required
 @rol_requerido('gestor')
 def gestor_usuarios(request):
@@ -1506,30 +1511,28 @@ def gestor_usuarios(request):
     rol_filtro = request.GET.get('rol')
     estado_filtro = request.GET.get('estado')
     if rol_filtro:
-        qs = qs.filter(rol=rol_filtro)
+        qs = qs.filter(rol__codigo=rol_filtro)
     if estado_filtro:
         qs = qs.filter(estado_cuenta__codigo=estado_filtro)
     paginator = Paginator(qs, 30)
     usuarios_page = paginator.get_page(request.GET.get('page', 1))
     return render(request, 'app/usuarios.html', {
         'usuarios': usuarios_page,
-        'roles': Usuario.ROL_CHOICES,
+        'roles': Rol.objects.values_list('codigo', 'nombre'),
         'estados': EstadoCatalogo.objects.filter(entidad='cuenta').order_by('orden').values_list('codigo', 'nombre_display'),
         'filtros': {'rol': rol_filtro, 'estado': estado_filtro},
         'todas_especialidades': Especialidad.objects.all(),
     })
 
-
 @login_required
 @rol_requerido('gestor')
 def actualizar_especialidades_mantenedor(request, pk):
     if request.method == 'POST':
-        usuario = get_object_or_404(Usuario, pk=pk, rol='mantencion')
+        usuario = get_object_or_404(Usuario, pk=pk, rol__codigo='mantencion')
         especialidades_ids = request.POST.getlist('especialidades_usuario')
         usuario.especialidades.set(especialidades_ids)
         messages.success(request, f'✓ Especialidades de {usuario.get_full_name()} actualizadas correctamente.')
     return redirect('app:gestor_usuarios')
-
 
 @login_required
 @rol_requerido('gestor')
@@ -1552,7 +1555,6 @@ def suspender_usuario(request, pk):
             ip_address=get_client_ip(request), modulo='cuenta'
         )
     return redirect('app:gestor_usuarios')
-
 
 @login_required
 @rol_requerido('gestor')
@@ -1587,7 +1589,7 @@ def gestor_operativo(request):
         total=Sum('horas_hombre')
     ).values('total')
 
-    rendimiento_mantencion = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').annotate(
+    rendimiento_mantencion = Usuario.objects.filter(rol__codigo='mantencion', estado_cuenta__codigo='activa').annotate(
         total_trabajos=Count('cierres_firmados', distinct=True),
         trabajos_completados=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo__in=['cerrado', 'reparado']), distinct=True),
         en_curso=Count('tickets_asignados', filter=Q(tickets_asignados__estado__codigo='en_mantencion'), distinct=True),
@@ -1596,7 +1598,7 @@ def gestor_operativo(request):
         hh_totales=Coalesce(Subquery(hh_subquery), Value(0.0), output_field=FloatField()),
     ).order_by('-trabajos_completados')
 
-    rendimiento_guardia = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').annotate(
+    rendimiento_guardia = Usuario.objects.filter(rol__codigo='guardia', estado_cuenta__codigo='activa').annotate(
         total_validaciones=Count('validacionguardia', distinct=True),
         validos=Count('validacionguardia', filter=Q(validacionguardia__resultado='valido'), distinct=True),
         invalidos=Count('validacionguardia', filter=Q(validacionguardia__resultado='invalido'), distinct=True),
@@ -1809,7 +1811,7 @@ def gestor_bi(request):
     tasa_nrep = round((nrep_total / denominador * 100) if denominador else 0, 1)
 
     tecnicos_activos_ids = Usuario.objects.filter(
-        rol='mantencion',
+        rol__codigo='mantencion',
         estado_cuenta__codigo='activa'
     ).values_list('id', flat=True).distinct()
 
@@ -2013,8 +2015,8 @@ def gestor_bi(request):
     t_mas_10 = tickets.filter(created_at__date__lt=hoy - timedelta(days=10)).count()
     top_edificios = list(tickets.values('ubicacion__piso__edificio__nombre').annotate(total=Count('id')).order_by('-total')[:5])
 
-    guardias = Usuario.objects.filter(rol='guardia', estado_cuenta__codigo='activa').order_by('first_name')
-    tecnicos = Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
+    guardias = Usuario.objects.filter(rol__codigo='guardia', estado_cuenta__codigo='activa').order_by('first_name')
+    tecnicos = Usuario.objects.filter(rol__codigo='mantencion', estado_cuenta__codigo='activa').order_by('first_name')
 
     # ═══════════════════════════════════════════════════════════════
     # SECCIÓN COMUNIDAD — cruces con perfil del solicitante

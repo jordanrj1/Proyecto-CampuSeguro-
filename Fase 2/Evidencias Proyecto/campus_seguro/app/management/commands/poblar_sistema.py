@@ -5,8 +5,9 @@
 #
 # PROPÓSITO:
 #   Puebla de forma centralizada todas las tablas maestras relacionales:
-#   Catálogo de Estados, Categorías de Tickets y Materiales, Especialidades
-#   Técnicas, Insumos del pañol e Infraestructura Geográfica (Sede, Edificios, Pisos y Salas).
+#   Catálogo de Estados, Categorías de Tickets/Materiales, Especialidades,
+#   Insumos, Infraestructura Geográfica, Roles, Escuelas y el catálogo
+#   completo de Carreras institucionales mapeadas relacionalmente.
 #
 # USO:
 #   python manage.py poblar_sistema
@@ -15,7 +16,8 @@
 from django.core.management.base import BaseCommand
 from app.models import (
     EstadoCatalogo, CategoriaTicket, CategoriaMaterial, Especialidad, 
-    Material, EspecialidadMaterial, Sede, Edificio, Piso, TipoUbicacion, Ubicacion
+    Material, EspecialidadMaterial, Sede, Edificio, Piso, TipoUbicacion, Ubicacion,
+    Rol, Escuela, Departamento, Carrera
 )
 
 
@@ -62,22 +64,22 @@ ESTADOS_INICIALES = [
     dict(entidad='material_faltante', codigo='solicitado', nombre_display='Solicitado', es_inicial=False, es_final=False, orden=2),
     dict(entidad='material_faltante', codigo='recibido',   nombre_display='Recibido',   es_inicial=False, es_final=True,  orden=3),
     dict(entidad='material_faltante', codigo='cancelado',  nombre_display='Cancelado',  es_inicial=False, es_final=True,  orden=4),
-    # urgencia_ticket — administrable desde admin sin migración
+    # urgencia_ticket
     dict(entidad='urgencia_ticket', codigo='baja',    nombre_display='Baja',    es_inicial=False, es_final=False, orden=1, color_hex='#28a745'),
     dict(entidad='urgencia_ticket', codigo='media',   nombre_display='Media',   es_inicial=False, es_final=False, orden=2, color_hex='#ffc107'),
     dict(entidad='urgencia_ticket', codigo='alta',    nombre_display='Alta',    es_inicial=False, es_final=False, orden=3, color_hex='#fd7e14'),
     dict(entidad='urgencia_ticket', codigo='critica', nombre_display='Crítica', es_inicial=False, es_final=False, orden=4, color_hex='#dc3545'),
-    # pausa_ticket — razones de pausa administrables desde admin
-    dict(entidad='pausa_ticket', codigo='material',        nombre_display='Aprobación de materiales',    es_inicial=False, es_final=False, orden=1),
-    dict(entidad='pausa_ticket', codigo='personal',        nombre_display='Personal técnico',            es_inicial=False, es_final=False, orden=2),
-    dict(entidad='pausa_ticket', codigo='nivel_mayor',     nombre_display='Peritaje (análisis técnico)', es_inicial=False, es_final=False, orden=3),
+    # pausa_ticket
+    dict(entidad='pausa_ticket', codigo='material',         nombre_display='Aprobación de materiales',    es_inicial=False, es_final=False, orden=1),
+    dict(entidad='pausa_ticket', codigo='personal',         nombre_display='Personal técnico',            es_inicial=False, es_final=False, orden=2),
+    dict(entidad='pausa_ticket', codigo='nivel_mayor',      nombre_display='Peritaje (análisis técnico)', es_inicial=False, es_final=False, orden=3),
     dict(entidad='pausa_ticket', codigo='externalizacion', nombre_display='Requiere externalización',    es_inicial=False, es_final=False, orden=4),
-    # criticidad — nivel de criticidad de ítems no reparables
+    # criticidad
     dict(entidad='criticidad', codigo='baja',    nombre_display='Baja',    es_inicial=False, es_final=False, orden=1, color_hex='#28a745'),
     dict(entidad='criticidad', codigo='media',   nombre_display='Media',   es_inicial=False, es_final=False, orden=2, color_hex='#ffc107'),
     dict(entidad='criticidad', codigo='alta',    nombre_display='Alta',    es_inicial=False, es_final=False, orden=3, color_hex='#fd7e14'),
     dict(entidad='criticidad', codigo='critica', nombre_display='Crítica', es_inicial=False, es_final=False, orden=4, color_hex='#dc3545'),
-    # motivo_inasistencia — motivos de ausencia del personal
+    # motivo_inasistencia
     dict(entidad='motivo_inasistencia', codigo='enfermedad',   nombre_display='Enfermedad',             es_inicial=False, es_final=False, orden=1),
     dict(entidad='motivo_inasistencia', codigo='permiso',      nombre_display='Permiso Administrativo', es_inicial=False, es_final=False, orden=2),
     dict(entidad='motivo_inasistencia', codigo='capacitacion', nombre_display='Capacitación',           es_inicial=False, es_final=False, orden=3),
@@ -87,7 +89,7 @@ ESTADOS_INICIALES = [
 
 
 class Command(BaseCommand):
-    help = 'Puebla las tablas maestras de estados, categorías, especialidades, materiales e infraestructura del campus.'
+    help = 'Puebla las tablas maestras de estados, categorías, especialidades, materiales, infraestructura, escuelas y carreras.'
 
     def handle(self, *args, **options):
         self.stdout.write('')
@@ -96,7 +98,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING('=' * 60))
         self.stdout.write('')
 
-        # Contadores de control global
         creados = 0
         omitidos = 0
 
@@ -110,47 +111,75 @@ class Command(BaseCommand):
                 codigo=estado_data['codigo'],
                 defaults=estado_data,
             )
-            if creada:
-                creados += 1
-            else:
-                omitidos += 1
-        self.stdout.write(self.style.SUCCESS(f'   [✓] Sincronizados {len(ESTADOS_INICIALES)} estados base del motor de estados.'))
+            if creada: creados += 1
+            else: omitidos += 1
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Sincronizados {len(ESTADOS_INICIALES)} estados base.'))
 
         # ═══════════════════════════════════════════════════════════════
-        # 2. SEMBRADO: CATEGORÍAS DE TICKETS (Nombres originales exactos)
+        # 2. SEMBRADO: ROLES DEL SISTEMA
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Categorías de Tickets...'))
-        cat_tickets_base = [
-            {'codigo': 'electrico', 'nombre': 'Eléctrico'},
-            {'codigo': 'plomeria', 'nombre': 'Plomería'},
-            {'codigo': 'infraestructura', 'nombre': 'Infraestructura'},
-            {'codigo': 'climatizacion', 'nombre': 'Climatización'},
-            {'codigo': 'tecnologia', 'nombre': 'Tecnología'},
-            {'codigo': 'accesibilidad', 'nombre': 'Accesibilidad'},
-            {'codigo': 'mobiliario', 'nombre': 'Mobiliario'},
-            {'codigo': 'otro', 'nombre': 'Otro'},
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Roles Maestros...'))
+        roles_base = [
+            {'codigo': 'usuario', 'nombre': 'Usuario Base'},
+            {'codigo': 'gestor', 'nombre': 'Gestor'},
+            {'codigo': 'guardia', 'nombre': 'Guardia'},
+            {'codigo': 'mantencion', 'nombre': 'Mantención'},
         ]
-
-        for cat_data in cat_tickets_base:
-            cat_t, creada = CategoriaTicket.objects.get_or_create(
-                codigo=cat_data['codigo'],
-                defaults={
-                    'nombre_display': cat_data['nombre'],
-                    'activo': True
-                }
-            )
-            if creada:
-                self.stdout.write(self.style.SUCCESS(f'   [✓] Categoría Ticket: {cat_t.nombre_display}'))
-                creados += 1
-            else:
-                omitidos += 1
+        for r_data in roles_base:
+            r_obj, creada = Rol.objects.get_or_create(codigo=r_data['codigo'], defaults={'nombre': r_data['nombre']})
+            if creada: creados += 1
+            else: omitidos += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 3. SEMBRADO: CATEGORÍAS DE MATERIALES (Logística Bodega)
+        # 3. SEMBRADO: ESCUELAS ACADÉMICAS COMPLETAS (MIGRACIÓN SEED)
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Categorías de Materiales...'))
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Escuelas Académicas Sincronizadas...'))
+        escuelas_base = [
+            {'codigo': 'informatica_telecomunicaciones', 'nombre': 'Escuela de Informática y Telecomunicaciones'},
+            {'codigo': 'turismo_hospitalidad',           'nombre': 'Escuela de Turismo y Hospitalidad'},
+            {'codigo': 'administracion_negocios',         'nombre': 'Escuela de Administración y Negocios'},
+            {'codigo': 'ingenieria_recursos_naturales',  'nombre': 'Escuela de Ingeniería y Recursos Naturales'},
+            {'codigo': 'salud_bienestar',                'nombre': 'Escuela de Salud y Bienestar'},
+            {'codigo': 'diseno',                         'nombre': 'Escuela de Diseño'},
+            {'codigo': 'gastronomia',                    'nombre': 'Escuela de Gastronomía'},
+            {'codigo': 'comunicacion',                   'nombre': 'Escuela de Comunicación'},
+            {'codigo': 'construccion',                   'nombre': 'Escuela de Construcción'},
+        ]
+        escuelas_map = {}
+        for esc_data in escuelas_base:
+            esc_obj, creada = Escuela.objects.get_or_create(codigo=esc_data['codigo'], defaults={'nombre': esc_data['nombre']})
+            escuelas_map[esc_data['codigo']] = esc_obj
+            if creada: creados += 1
+            else: omitidos += 1
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Sincronizadas {len(escuelas_base)} escuelas institucionales.'))
+
+        # ═══════════════════════════════════════════════════════════════
+        # 4. SEMBRADO: DEPARTAMENTOS OPERATIVOS / LOGÍSTICOS
+        # ═══════════════════════════════════════════════════════════════
+        self.stdout.write('')
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Departamentos Internos...'))
+        deptos_base = [
+            {'codigo': 'operaciones_servicios', 'nombre': 'Departamento de Operaciones y Servicios Generales'},
+            {'codigo': 'seguridad_vigilancia',  'nombre': 'Departamento de Seguridad y Vigilancia Campus'},
+            {'codigo': 'logistica_inventario',  'nombre': 'Unidad de Logística y Pañol Central'},
+            {'codigo': 'recursos_humanos',      'nombre': 'Subdirección de Recursos Humanos Sede'},
+        ]
+        for dep_data in deptos_base:
+            dep_obj, creada = Departamento.objects.get_or_create(codigo=dep_data['codigo'], defaults={'nombre': dep_data['nombre']})
+            if creada: creados += 1
+            else: omitidos += 1
+
+        # ═══════════════════════════════════════════════════════════════
+        # 5. SEMBRADO: CATEGORÍAS DE TICKETS Y MATERIALES
+        # ═══════════════════════════════════════════════════════════════
+        self.stdout.write('')
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Categorías base de operaciones...'))
+        cat_tickets_base = ['electrico', 'plomeria', 'infraestructura', 'climatizacion', 'tecnologia', 'accesibilidad', 'mobiliario', 'otro']
+        for t_cod in cat_tickets_base:
+            CategoriaTicket.objects.get_or_create(codigo=t_cod, defaults={'nombre_display': t_cod.title(), 'activo': True})
+        
         cat_materiales_base = [
             {'codigo': 'electrico', 'nombre': 'Materiales Eléctricos'},
             {'codigo': 'plomeria', 'nombre': 'Gasfitería e Hidráulica'},
@@ -159,146 +188,49 @@ class Command(BaseCommand):
             {'codigo': 'limpieza', 'nombre': 'Aseo y Sanitización'},
             {'codigo': 'tecnologia', 'nombre': 'Componentes Tecnológicos'},
         ]
-
         cat_mat_objetos = {}
         for cat_mat_data in cat_materiales_base:
-            cat_m, creada = CategoriaMaterial.objects.get_or_create(
-                codigo=cat_mat_data['codigo'],
-                defaults={'nombre_display': cat_mat_data['nombre'], 'activo': True}
-            )
+            cat_m, _ = CategoriaMaterial.objects.get_or_create(codigo=cat_mat_data['codigo'], defaults={'nombre_display': cat_mat_data['nombre'], 'activo': True})
             cat_mat_objetos[cat_mat_data['codigo']] = cat_m
-            if creada:
-                self.stdout.write(self.style.SUCCESS(f'   [✓] Categoría Material: {cat_m.nombre_display}'))
-                creados += 1
-            else:
-                omitidos += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 4. SEMBRADO: ESPECIALIDADES TÉCNICAS (Tus strings originales)
+        # 6. SEMBRADO: ESPECIALIDADES TÉCNICAS E INSUMOS M:N
         # ═══════════════════════════════════════════════════════════════
-        self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Especialidades Técnicas...'))
         especialidades_base = [
-            {
-                'nombre': 'Electricista Certificado SEC',
-                'descripcion': 'Personal calificado para intervenir tableros eléctricos, luminarias, enchufes y redes de baja tensión.'
-            },
-            {
-                'nombre': 'Gasfíter Plomero',
-                'descripcion': 'Especialista en redes de agua potable, alcantarillado, filtraciones, griferías y sanitarios de la sede.'
-            },
-            {
-                'nombre': 'Cerrajero de Infraestructura',
-                'descripcion': 'Encargado del mantenimiento de chapas, cerraduras biométricas, puertas, portones y accesos físicos.'
-            },
-            {
-                'nombre': 'Técnico en Climatización y HVAC',
-                'descripcion': 'Mantenimiento preventivo y correctivo de aires acondicionados, sistemas de ventilación y calefacción.'
-            },
-            {
-                'nombre': 'Carpintero y Reparador de Mobiliario',
-                'descripcion': 'Reparación estructural de bancos, mesas, sillas, pizarras, muros de tabiquería y cielos falsos.'
-            }
+            {'nombre': 'Electricista Certificado SEC', 'descripcion': 'Tableros, luminarias e instalaciones eléctricas.'},
+            {'nombre': 'Gasfíter Plomero', 'descripcion': 'Redes de agua potable, griferías y alcantarillado.'},
+            {'nombre': 'Cerrajero de Infraestructura', 'descripcion': 'Cerraduras, puertas y control de acceso físico.'},
+            {'nombre': 'Técnico en Climatización y HVAC', 'descripcion': 'Sistemas de aire acondicionado y ventilación.'},
+            {'nombre': 'Carpintero y Reparador de Mobiliario', 'descripcion': 'Estructura de bancos, mesas y tabiquería.'}
         ]
-
         esp_objetos = {}
-        for esp_data in list(especialidades_base):
-            especialidad, creada = Especialidad.objects.get_or_create(
-                nombre=esp_data['nombre'],
-                defaults={'descripcion': esp_data['descripcion']}
-            )
-            esp_objetos[esp_data['nombre']] = especialidad
-            if creada:
-                self.stdout.write(self.style.SUCCESS(f'   [✓] Especialidad: {especialidad.nombre}'))
-                creados += 1
-            else:
-                omitidos += 1
+        for esp_data in especialidades_base:
+            esp, _ = Especialidad.objects.get_or_create(nombre=esp_data['nombre'], defaults={'descripcion': esp_data['descripcion']})
+            esp_objetos[esp_data['nombre']] = esp
 
-        # ═══════════════════════════════════════════════════════════════
-        # 5. SEMBRADO: CATALOGO DE MATERIALES E INTERMEDIAS M:N
-        # ═══════════════════════════════════════════════════════════════
-        self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Catálogo de Materiales e Intermedias M:N...'))
         materiales_base = [
-            # Rubro Eléctrico
-            {
-                'codigo': 'MAT-ELEC-001', 'nombre': 'Tubo Fluorescente LED 18W',
-                'cat_cod': 'electrico', 'unidad': 'unidad',
-                'permisos': ['Electricista Certificado SEC']
-            },
-            {
-                'codigo': 'MAT-ELEC-002', 'nombre': 'Cinta Aisladora Negra 20m',
-                'cat_cod': 'electrico', 'unidad': 'rollo',
-                'permisos': ['Electricista Certificado SEC', 'Técnico en Climatización y HVAC']
-            },
-            # Rubro Gasfitería
-            {
-                'codigo': 'MAT-PLOM-001', 'nombre': 'Tubo PVC Sanitario 40mm x 3m',
-                'cat_cod': 'plomeria', 'unidad': 'unidad',
-                'permisos': ['Gasfíter Plomero']
-            },
-            {
-                'codigo': 'MAT-PLOM-002', 'nombre': 'Cinta de Teflón Profesional 3/4',
-                'cat_cod': 'plomeria', 'unidad': 'rollo',
-                'permisos': ['Gasfíter Plomero', 'Técnico en Climatización y HVAC']
-            },
-            # Rubro Ferretería / Cerrajeros / Carpinteros
-            {
-                'codigo': 'MAT-FERR-001', 'nombre': 'Cerradura de Pomo para Aula (Chapa)',
-                'cat_cod': 'ferreteria', 'unidad': 'unidad',
-                'permisos': ['Cerrajero de Infraestructura']
-            },
-            {
-                'codigo': 'MAT-FERR-002', 'nombre': 'Tornillo Madera Zincado 1 1/2 (Caja x100)',
-                'cat_cod': 'ferreteria', 'unidad': 'caja',
-                'permisos': ['Carpintero y Reparador de Mobiliario', 'Cerrajero de Infraestructura']
-            }
+            {'codigo': 'MAT-ELEC-001', 'nombre': 'Tubo Fluorescente LED 18W', 'cat_cod': 'electrico', 'unidad': 'unidad', 'permisos': ['Electricista Certificado SEC']},
+            {'codigo': 'MAT-ELEC-002', 'nombre': 'Cinta Aisladora Negra 20m', 'cat_cod': 'electrico', 'unidad': 'rollo', 'permisos': ['Electricista Certificado SEC', 'Técnico en Climatización y HVAC']},
+            {'codigo': 'MAT-PLOM-001', 'nombre': 'Tubo PVC Sanitario 40mm x 3m', 'cat_cod': 'plomeria', 'unidad': 'unidad', 'permisos': ['Gasfíter Plomero']},
+            {'codigo': 'MAT-PLOM-002', 'nombre': 'Cinta de Teflón Profesional 3/4', 'cat_cod': 'plomeria', 'unidad': 'rollo', 'permisos': ['Gasfíter Plomero', 'Técnico en Climatización y HVAC']},
+            {'codigo': 'MAT-FERR-001', 'nombre': 'Cerradura de Pomo para Aula (Chapa)', 'cat_cod': 'ferreteria', 'unidad': 'unidad', 'permisos': ['Cerrajero de Infraestructura']},
+            {'codigo': 'MAT-FERR-002', 'nombre': 'Tornillo Madera Zincado 1 1/2 (Caja x100)', 'cat_cod': 'ferreteria', 'unidad': 'caja', 'permisos': ['Carpintero y Reparador de Mobiliario', 'Cerrajero de Infraestructura']}
         ]
-
         uniones_creadas = 0
         for mat_data in materiales_base:
-            instancia_cat = cat_mat_objetos[mat_data['cat_cod']]
-            
-            material, creado_mat = Material.objects.get_or_create(
-                codigo=mat_data['codigo'],
-                defaults={
-                    'nombre': mat_data['nombre'],
-                    'categoria': instancia_cat,
-                    'unidad': mat_data['unidad'],
-                    'activo': True
-                }
-            )
-            if creado_mat:
-                self.stdout.write(self.style.SUCCESS(f'   [✓] Material: {material.nombre}'))
-                creados += 1
-            else:
-                omitidos += 1
-
+            material, creado_mat = Material.objects.get_or_create(codigo=mat_data['codigo'], defaults={'nombre': mat_data['nombre'], 'categoria': cat_mat_objetos[mat_data['cat_cod']], 'unidad': mat_data['unidad'], 'activo': True})
             for nombre_esp in mat_data['permisos']:
-                instancia_esp = esp_objetos[nombre_esp]
-                _, creada_union = EspecialidadMaterial.objects.get_or_create(
-                    material=material,
-                    especialidad=instancia_esp
-                )
-                if creada_union:
-                    uniones_creadas += 1
+                _, creada_union = EspecialidadMaterial.objects.get_or_create(material=material, especialidad=esp_objetos[nombre_esp])
+                if creada_union: uniones_creadas += 1
 
         # ═══════════════════════════════════════════════════════════════
-        # 6. SEMBRADO: INFRAESTRUCTURA GEOGRÁFICA Y DE UBICACIONES (NUEVO)
+        # 6. SEMBRADO: INFRAESTRUCTURA GEOGRÁFICA Y DE UBICACIONES
         # ═══════════════════════════════════════════════════════════════
         self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Infraestructura de Sede, Edificios, Pisos y Salas...'))
-        
-        # Sede
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Procesando Infraestructura Campus Sede...'))
         sede_institucional, _ = Sede.objects.get_or_create(nombre='San Andrés de Concepción')
         
-        # Catálogo Maestro de Tipos de Ubicación
-        tipos_dict = {
-            'aula': 'Aula', 'laboratorio': 'Laboratorio', 'taller': 'Taller',
-            'baño': 'Baño', 'pasillo': 'Pasillo', 'escalera': 'Escalera',
-            'ascensor': 'Ascensor', 'casino': 'Casino', 'oficina': 'Oficina',
-            'area_comun': 'Área Común', 'otro': 'Otro',
-        }
+        tipos_dict = {'aula': 'Aula', 'laboratorio': 'Laboratorio', 'taller': 'Taller', 'baño': 'Baño', 'pasillo': 'Pasillo', 'escalera': 'Escalera', 'ascensor': 'Ascensor', 'casino': 'Casino', 'oficina': 'Oficina', 'area_comun': 'Área Común', 'otro': 'Otro'}
         tipos_maestros = {}
         for cod, nom in tipos_dict.items():
             tipo_obj, _ = TipoUbicacion.objects.get_or_create(codigo=cod, defaults={'nombre_display': nom})
@@ -308,54 +240,87 @@ class Command(BaseCommand):
             'E': {'pisos': range(1, 6), 'salas_por_piso': 16, 'banos_por_piso': {2: 1}},
             'H': {'pisos': range(1, 9), 'salas_por_piso': 16, 'banos_por_piso': {p: 1 for p in range(1, 9)}}
         }
-        
         ubicaciones_count = 0
         for letra, config in edificios_config.items():
             edificio_obj, _ = Edificio.objects.get_or_create(sede=sede_institucional, nombre=f"Edificio {letra}")
-            
             for num_piso in config['pisos']:
                 piso_obj, _ = Piso.objects.get_or_create(edificio=edificio_obj, numero=str(num_piso))
-                
-                # Aulas tradicionales
                 for num_sala in range(1, config['salas_por_piso'] + 1):
-                    _, creada = Ubicacion.objects.get_or_create(
-                        piso=piso_obj, sala=f"{letra}{num_sala:03d}",
-                        defaults={'tipo': tipos_maestros['aula'], 'capacidad': 30}
-                    )
+                    _, creada = Ubicacion.objects.get_or_create(piso=piso_obj, sala=f"{letra}{num_sala:03d}", defaults={'tipo': tipos_maestros['aula'], 'capacidad': 30})
                     if creada: ubicaciones_count += 1
-                
-                # Baños según configuración
                 if num_piso in config['banos_por_piso']:
                     for num_bano in range(1, config['banos_por_piso'][num_piso] + 1):
-                        _, creada = Ubicacion.objects.get_or_create(
-                            piso=piso_obj, sala=f"Baño P{num_piso}",
-                            defaults={'tipo': tipos_maestros['baño'], 'capacidad': None}
-                        )
+                        _, creada = Ubicacion.objects.get_or_create(piso=piso_obj, sala=f"Baño P{num_piso}", defaults={'tipo': tipos_maestros['baño'], 'capacidad': None})
                         if creada: ubicaciones_count += 1
-                
-                # Zonas comunes del piso (Pasillos, Escaleras y Ascensores)
-                zonas_especiales = [
-                    ('pasillo', f"Pasillo General P{num_piso}"),
-                    ('escalera', f"Escalera General P{num_piso}"),
-                    ('ascensor', f"Ascensor Principal P{num_piso}")
-                ]
+                zonas_especiales = [('pasillo', f"Pasillo General P{num_piso}"), ('escalera', f"Escalera General P{num_piso}"), ('ascensor', f"Ascensor Principal P{num_piso}")]
                 for codigo_tipo, nombre_zona in zonas_especiales:
-                    _, creada = Ubicacion.objects.get_or_create(
-                        piso=piso_obj, sala=nombre_zona,
-                        defaults={'tipo': tipos_maestros[codigo_tipo], 'capacidad': None}
-                    )
+                    _, creada = Ubicacion.objects.get_or_create(piso=piso_obj, sala=nombre_zona, defaults={'tipo': tipos_maestros[codigo_tipo], 'capacidad': None})
                     if creada: ubicaciones_count += 1
-                
-                # Casino Central (Únicamente Edificio E - Piso 1)
                 if letra == 'E' and num_piso == 1:
-                    _, creada = Ubicacion.objects.get_or_create(
-                        piso=piso_obj, sala="Casino Central",
-                        defaults={'tipo': tipos_maestros['casino'], 'capacidad': 150}
-                    )
+                    _, creada = Ubicacion.objects.get_or_create(piso=piso_obj, sala="Casino Central", defaults={'tipo': tipos_maestros['casino'], 'capacidad': 150})
                     if creada: ubicaciones_count += 1
-
-        self.stdout.write(self.style.SUCCESS(f'   [✓] Sembradas exitosamente {ubicaciones_count} salas/zonas en la Sede San Andrés.'))
         creados += ubicaciones_count
+
+        # ═══════════════════════════════════════════════════════════════
+        # 🌟 NUEVO: 7. SEMBRADO DE CARRERAS RELACIONALES (MIGRACIÓN SEED)
+        # ═══════════════════════════════════════════════════════════════
+        self.stdout.write('')
+        self.stdout.write(self.style.MIGRATE_HEADING('--> Sincronizando Catálogo de Carreras Históricas...'))
+
+        carreras_seed_data = [
+            ('Ingeniería en Informática', 'informatica_telecomunicaciones'),
+            ('Ingeniería en Redes y Telecomunicaciones', 'informatica_telecomunicaciones'),
+            ('Administración en Turismo y Hospitalidad Mención Gestión de Destinos Turísticos', 'turismo_hospitalidad'),
+            ('Administración en Turismo y Hospitalidad Mención Gestión para el Ecoturismo', 'turismo_hospitalidad'),
+            ('Ingeniería en Marketing Digital', 'administracion_negocios'),
+            ('Ingeniería en Gestión Logística', 'administracion_negocios'),
+            ('Ingeniería en Comercio Exterior', 'administracion_negocios'),
+            ('Ingeniería en Administración Mención Gestión de Personas', 'administracion_negocios'),
+            ('Ingeniería en Administración Mención Finanzas', 'administracion_negocios'),
+            ('Técnico en Electricidad y Automatización Industrial', 'ingenieria_recursos_naturales'),
+            ('Ingeniería en Maquinaria y Vehículos Pesados', 'ingenieria_recursos_naturales'),
+            ('Ingeniería en Mantenimiento Industrial', 'ingenieria_recursos_naturales'),
+            ('Ingeniería en Electricidad y Automatización Industrial', 'ingenieria_recursos_naturales'),
+            ('Ingeniería en Mecánica Automotriz y Autotrónica', 'ingenieria_recursos_naturales'),
+            ('Informática Biomédica', 'salud_bienestar'),
+            ('Técnico en Enfermería', 'salud_bienestar'),
+            ('Técnico en Odontología', 'salud_bienestar'),
+            ('Ilustración para Contextos Globales', 'diseno'),
+            ('Diseño Industrial e Innovación en Productos', 'diseno'),
+            ('Diseño Gráfico', 'diseno'),
+            ('Gastronomía Internacional', 'gastronomia'),
+            ('Comunicación Audiovisual', 'comunicacion'),
+            ('Relaciones Públicas y Comunicación Organizacional', 'comunicacion'),
+            ('Publicidad', 'comunicacion'),
+            ('Animación Digital', 'comunicacion'),
+            ('Ingeniería en Sonido', 'comunicacion'),
+            ('Ingeniería en Construcción', 'construccion'),
+            ('Ingeniería en Prevención de Riesgos', 'construccion'),
+        ]
+
+        # Failsafe: Detecta si tu modelo Carrera.escuela ya se migró a FK o sigue en CharField texto plano
+        es_facultad_relacional = Carrera._meta.get_field('escuela').is_relation
+
+        carreras_count = 0
+        for nombre_car, cod_escuela in carreras_seed_data:
+            instancia_escuela = escuelas_map.get(cod_escuela)
+            
+            # Elige el valor correcto según tu modelo para evitar caídas operacionales
+            valor_escuela = instancia_escuela if es_facultad_relacional else (instancia_escuela.nombre if instancia_escuela else '')
+
+            _, creada_car = Carrera.objects.get_or_create(
+                nombre=nombre_car,
+                defaults={
+                    'escuela': valor_escuela,
+                    'sede': sede_institucional,
+                    'activa': True
+                }
+            )
+            if creada_car:
+                carreras_count += 1
+
+        self.stdout.write(self.style.SUCCESS(f'   [✓] Inyectadas exitosamente {carreras_count} carreras vinculadas a sus facultades.'))
+        creados += carreras_count
 
         # ── Resumen de ejecución ──────────────────────────────────────
         self.stdout.write('')

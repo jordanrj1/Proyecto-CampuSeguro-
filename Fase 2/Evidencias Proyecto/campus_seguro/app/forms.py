@@ -3,7 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from .models import (
-    AsignacionTicket, SesionTrabajo, Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
+    AsignacionTicket, Rol, SesionTrabajo, Usuario, Ticket, ValidacionGuardia, RegistroMantencion,
     MaterialUtilizado, Material, NoReparable, Inasistencia, MaterialesFaltantes,
     EstadoCatalogo
 )
@@ -112,7 +112,7 @@ class RegistroUsuarioForm(forms.ModelForm):
         fields = [
             'first_name', 'last_name', 'rut', 'correo_institucional',
             'telefono',
-            'vinculo', 'carrera', 'jornada', 'sede',
+            'vinculo', 'carrera', 'jornada', 'sede', 'departamento',
         ]
         widgets = {
             'first_name': forms.TextInput(attrs={'placeholder': 'Juan'}),
@@ -204,7 +204,7 @@ class RegistroUsuarioForm(forms.ModelForm):
         user = super().save(commit=False)
         user.username = self.cleaned_data['correo_institucional']
         user.email = self.cleaned_data['correo_institucional']
-        user.rol = 'usuario'  # Siempre usuario al registrarse; gestor asigna rol real
+        user.rol = Rol.objects.get(codigo='usuario')  # Siempre usuario al registrarse; gestor asigna rol real
         user.estado_cuenta = EstadoCatalogo.para('cuenta', 'pendiente')
         user.is_active = False  # Inactivo hasta aprobación del gestor
 
@@ -224,31 +224,13 @@ class RegistroUsuarioForm(forms.ModelForm):
 class AsignarRolForm(forms.Form):
     """
     Formulario para que el gestor asigne un rol al aprobar una cuenta.
-
-    Aparece en la vista aprobar_cuenta() → template revisar_cuenta.html.
-    El gestor selecciona el rol que tendrá el usuario y luego hace clic
-    en "Aprobar". El rol se guarda en Usuario.rol y se sincroniza con
-    Auth0 via auth0_service.actualizar_rol_auth0().
-
-    Roles disponibles para asignar (excluye 'usuario' porque es el default
-    de registro; el gestor solo necesita promover a roles operativos):
-        - usuario: Sin cambio de rol (alumno, docente, etc.)
-        - gestor: Supervisor del sistema
-        - guardia: Validación en terreno
-        - mantencion: Reparaciones y mantención
-
-    Conexión: Usado en views.aprobar_cuenta().
+    🌟 CORRECCIÓN: Migrado a ModelChoiceField conectado a la tabla maestra Rol.
     """
-    ROL_CHOICES = [
-        ('usuario', 'Usuario Base (alumno, docente, administrativo)'),
-        ('gestor', 'Gestor – Supervisión y control'),
-        ('guardia', 'Guardia – Validación en terreno'),
-        ('mantencion', 'Mantención – Reparaciones'),
-    ]
-
-    rol = forms.ChoiceField(
-        choices=ROL_CHOICES,
+    rol = forms.ModelChoiceField(
+        queryset=Rol.objects.all(),
+        to_field_name="codigo",
         label='Rol a asignar',
+        empty_label='Seleccionar rol...',
         initial='usuario',
         widget=forms.Select(attrs={'class': 'form-control'}),
     )
@@ -489,7 +471,7 @@ class ReactivacionForm(forms.Form):
 
 class DerivarMantencionForm(forms.Form):
     tecnico = forms.ModelChoiceField(
-        queryset=Usuario.objects.filter(rol='mantencion', estado_cuenta__codigo='activa'),
+        queryset=Usuario.objects.filter(rol__codigo='mantencion', estado_cuenta__codigo='activa'),
         label='Técnico asignado',
         empty_label='Seleccionar técnico...',
     )
@@ -510,7 +492,8 @@ class ReasignarForm(forms.Form):
         roles = kwargs.pop('roles', ['guardia', 'mantencion'])
         super().__init__(*args, **kwargs)
         self.fields['nuevo_responsable'].queryset = Usuario.objects.filter(
-            rol__in=roles, estado_cuenta__codigo='activa'
+            rol__codigo__in=roles, 
+            estado_cuenta__codigo='activa'
         )
 
 

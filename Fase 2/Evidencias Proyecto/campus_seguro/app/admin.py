@@ -7,7 +7,8 @@ from .models import (
     SesionTrabajo, ValidacionGuardia, AsignacionTicket, RegistroMantencion, MaterialUtilizado,
     NoReparable, LogAuditoria, Notificacion, Inasistencia,
     HistorialAcciones, MaterialesFaltantes, EstadoCatalogo, TransicionEstado,
-    Especialidad, EspecialidadUsuario, EspecialidadMaterial, Sede
+    Especialidad, EspecialidadUsuario, EspecialidadMaterial, Sede,
+    Rol, Escuela, Departamento, Edificio, Piso, TipoUbicacion # 🌟 CORRECCIÓN 1: Nuevos modelos relacionales importados
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -30,8 +31,28 @@ class MaterialUtilizadoInline(admin.TabularInline):
 
 
 # ═══════════════════════════════════════════════════════════════
-# CONFIGURACIÓN DEL CAMPUS — Ubicacion (CORREGIDA)
+# 🌟 NUEVO: CONFIGURACIÓN MAESTRA DE INFRAESTRUCTURA GEOGRÁFICA
 # ═══════════════════════════════════════════════════════════════
+
+@admin.register(Edificio)
+class EdificioAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'sede')
+    list_filter = ('sede',)
+    search_fields = ('nombre', 'sede__nombre')
+
+
+@admin.register(Piso)
+class PisoAdmin(admin.ModelAdmin):
+    list_display = ('numero', 'edificio')
+    list_filter = ('edificio__sede', 'edificio')
+    search_fields = ('numero', 'edificio__nombre')
+
+
+@admin.register(TipoUbicacion)
+class TipoUbicacionAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre_display')
+    search_fields = ('codigo', 'nombre_display')
+
 
 @admin.register(Ubicacion)
 class UbicacionAdmin(admin.ModelAdmin):
@@ -40,20 +61,12 @@ class UbicacionAdmin(admin.ModelAdmin):
     El administrador es el único responsable de crear, editar y dar de baja ubicaciones.
     Desde aquí se controla qué salas, pisos y edificios son seleccionables al crear tickets.
     """
-    # ✓ list_display usa funciones personalizadas para mostrar las relaciones
     list_display   = ('get_sede', 'get_edificio', 'get_piso', 'sala', 'get_tipo', 'capacidad', 'id_sap')
-    
-    # ✓ list_filter cruza las ForeignKeys usando dobles guiones bajos (__)
     list_filter    = ('piso__edificio__sede', 'piso__edificio', 'tipo')
-    
-    # ✓ search_fields ahora busca dentro de los nombres de los modelos relacionados
     search_fields  = ('sala', 'piso__edificio__nombre', 'piso__edificio__sede__nombre', 'id_sap')
-    
-    # ✓ ordering organiza de forma jerárquica cruzando las tablas relacionales
     ordering       = ('piso__edificio__sede__nombre', 'piso__edificio__nombre', 'piso__numero', 'sala')
     list_per_page  = 50
     
-    # ✓ Simplificado para contener solo los campos reales que se editan en este modelo
     fieldsets = (
         ('Identificación del espacio', {
             'fields': ('piso', 'sala'),
@@ -64,7 +77,6 @@ class UbicacionAdmin(admin.ModelAdmin):
         }),
     )
 
-    # ── Métodos para extraer los textos relacionales de la infraestructura ──
     @admin.display(ordering='piso__edificio__sede__nombre', description='Sede')
     def get_sede(self, obj):
         return obj.piso.edificio.sede.nombre if obj.piso and obj.piso.edificio and obj.piso.edificio.sede else '—'
@@ -81,7 +93,6 @@ class UbicacionAdmin(admin.ModelAdmin):
     def get_tipo(self, obj):
         return obj.tipo.nombre_display if obj.tipo else '—'
 
-    # ── Botón extra en el listado ────────────────────────────────
     change_list_template = 'admin/app/ubicacion/change_list.html'
 
     def get_urls(self):
@@ -96,13 +107,34 @@ class UbicacionAdmin(admin.ModelAdmin):
         return extra + urls
 
     def _poblar_campus_view(self, request):
-        """Llama a Ubicacion.crear_default_campus() y redirige de vuelta al listado."""
         total = Ubicacion.crear_default_campus()
         if total > 0:
             self.message_user(request, f'Campus poblado: {total} ubicaciones creadas (Edificio E y H).')
         else:
             self.message_user(request, 'Todas las ubicaciones ya estaban creadas — no se duplicaron.', level='WARNING')
         return HttpResponseRedirect(reverse('admin:app_ubicacion_changelist'))
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🌟 NUEVO: REGISTRO DE ENTIDADES MAESTRAS DE USUARIO (DDL NORMALIZADO)
+# ═══════════════════════════════════════════════════════════════
+
+@admin.register(Rol)
+class RolAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre')
+    search_fields = ('codigo', 'nombre')
+
+
+@admin.register(Escuela)
+class EscuelaAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre')
+    search_fields = ('codigo', 'nombre')
+
+
+@admin.register(Departamento)
+class DepartamentoAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre')
+    search_fields = ('codigo', 'nombre')
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -151,7 +183,7 @@ class TransicionEstadoAdmin(admin.ModelAdmin):
     get_origen_display.short_description = 'Estado Origen'
 
     def get_destino_display(self, obj):
-        return f"[{obj.get_estado_destino_display()}]" if obj.estado_destino else '—'
+        return f"[{obj.estado_destino.nombre_display}]" if obj.estado_destino else '—'
     get_destino_display.short_description = 'Estado Destino'
 
 
@@ -181,9 +213,10 @@ class SedeAdmin(admin.ModelAdmin):
 class CarreraAdmin(admin.ModelAdmin):
     list_display  = ('nombre', 'escuela', 'sede', 'activa')
     list_filter   = ('escuela', 'sede', 'activa')
-    search_fields = ('nombre', 'escuela')
+    # 🌟 CORRECCIÓN 2: Modificado para buscar y ordenar cruzando el campo relacional de la escuela sin romper el admin
+    search_fields = ('nombre', 'escuela__nombre')
     list_editable = ('activa',)
-    ordering      = ('escuela', 'nombre')
+    ordering      = ('escuela__nombre', 'nombre')
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -212,7 +245,6 @@ class UsuarioAdmin(UserAdmin):
 
 @admin.register(TokenRecuperacion)
 class TokenRecuperacionAdmin(admin.ModelAdmin):
-    """Solo lectura — los tokens son generados por el sistema, no manualmente."""
     list_display   = ('usuario', 'creado_en', 'expira_en', 'usado', 'ip_solicitud')
     list_filter    = ('usado', 'creado_en')
     search_fields  = ('usuario__username', 'usuario__correo_institucional')
@@ -278,10 +310,6 @@ class SesionTrabajoAdmin(admin.ModelAdmin):
 
 @admin.register(MaterialUtilizado)
 class MaterialUtilizadoAdmin(admin.ModelAdmin):
-    """
-    Vista global del consumo de materiales en todo el sistema.
-    Permite al admin auditar qué materiales se gastan, en qué sesiones y en qué tickets.
-    """
     list_display   = ('material', 'cantidad_utilizada', 'sesion_trabajo', 'get_ticket', 'get_tecnico')
     list_filter    = ('material__categoria', 'sesion_trabajo__created_at')
     search_fields  = ('material__nombre', 'material__codigo', 'sesion_trabajo__ticket__titulo')

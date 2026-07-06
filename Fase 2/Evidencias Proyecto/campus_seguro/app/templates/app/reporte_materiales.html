@@ -14,11 +14,6 @@
     <div class="kpi-value">{{ total_materiales }}</div>
     <div class="kpi-sub">en catálogo</div>
   </div>
-  <div class="kpi red">
-    <div class="kpi-label">Bajo stock mínimo</div>
-    <div class="kpi-value">{{ total_bajo_stock }}</div>
-    <div class="kpi-sub">requieren reposición</div>
-  </div>
 </div>
 
 {% if total_bajo_stock %}
@@ -34,7 +29,7 @@
         <tr>
           <td style="font-family:var(--font-mono);font-size:12px;">{{ m.codigo }}</td>
           <td style="font-size:13px;font-weight:500;">{{ m.nombre }}</td>
-          <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_categoria_display }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ m.categoria.nombre_display|default:'Sin categoría' }}</td>
           <td style="font-size:13px;color:var(--accent-red);font-weight:700;">{{ m.stock_actual }}</td>
           <td style="font-size:13px;">{{ m.stock_minimo }}</td>
           <td style="font-size:13px;color:var(--accent-yellow);font-weight:600;">{{ m.stock_minimo|add:"-"|add:m.stock_actual }}</td>
@@ -60,7 +55,7 @@
         <tr>
           <td style="font-family:var(--font-mono);font-size:12px;">{{ c.material__codigo }}</td>
           <td style="font-size:13px;font-weight:500;">{{ c.material__nombre }}</td>
-          <td style="font-size:12px;color:var(--text-secondary);">{{ c.material__categoria|capfirst }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ c.material__categoria__nombre_display|default:'Sin categoría' }}</td>
           <td style="text-align:center;font-size:13px;">{{ c.veces_usado }}</td>
           <td style="text-align:center;font-size:13px;font-weight:600;">{{ c.total_consumido }} {{ c.material__unidad }}</td>
         </tr>
@@ -79,17 +74,15 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Código</th><th>Material</th><th>Categoría</th><th>Unidad</th><th style="text-align:center;">Stock</th><th style="text-align:center;">Mínimo</th><th>Estado</th></tr>
+        <tr><th>Código</th><th>Material</th><th>Categoría</th><th>Unidad</th><th>Estado</th></tr>
       </thead>
       <tbody>
         {% for m in materiales %}
         <tr>
           <td style="font-family:var(--font-mono);font-size:12px;">{{ m.codigo }}</td>
           <td style="font-size:13px;">{{ m.nombre }}</td>
-          <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_categoria_display }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ m.categoria.nombre_display|default:'Sin categoría' }}</td>
           <td style="font-size:12px;color:var(--text-secondary);">{{ m.get_unidad_display }}</td>
-          <td style="text-align:center;font-size:13px;font-weight:600;color:{% if m.bajo_stock %}var(--accent-red){% else %}var(--accent-green){% endif %};">{{ m.stock_actual }}</td>
-          <td style="text-align:center;font-size:13px;">{{ m.stock_minimo }}</td>
           <td><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:{% if m.bajo_stock %}rgba(245,54,92,0.15){% else %}rgba(45,206,137,0.15){% endif %};color:{% if m.bajo_stock %}var(--accent-red){% else %}var(--accent-green){% endif %};">{% if m.bajo_stock %}Bajo stock{% else %}OK{% endif %}</span></td>
         </tr>
         {% endfor %}
