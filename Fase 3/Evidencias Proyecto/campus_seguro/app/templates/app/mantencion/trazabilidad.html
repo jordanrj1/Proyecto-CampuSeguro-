@@ -1,0 +1,651 @@
+{% extends 'app/base.html' %} 
+{% block title %}Trazabilidad · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Trazabilidad del ticket{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="form-section-title">Información general</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+      {{ ticket.creado_por.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ESTADO</div>
+      {{ ticket.get_estado_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+      <span class="urgencia-{{ ticket.urgencia }}"
+        >{{ ticket.get_urgencia_display }}</span
+      >
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+      {{ ticket.categoria.nombre_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+      {{ ticket.ubicacion }}
+    </div>
+  </div>
+</div>
+
+{% if validacion %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-yellow)"
+>
+  <div class="card-title">Validación de Guardia</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">GUARDIA</div>
+      {{ validacion.guardia.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">RESULTADO</div>
+      <span
+        style="color:{% if validacion.resultado == 'valido' %}var(--accent-green){% else %}var(--accent-red){% endif %};"
+      >
+        {{ validacion.get_resultado_display }}
+      </span>
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">FECHA</div>
+      {{ validacion.created_at|date:"d/m/Y H:i" }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">COMENTARIO</div>
+      {{ validacion.comentario|truncatechars:80 }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+  {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">
+         Evidencia fotográfica
+        <span
+          style="
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 8px;
+          "
+          >trazabilidad completa</span
+        >
+      </div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 14px;
+        "
+      >
+        {% if ticket.foto_evidencia %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-blue);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              📸 INCIDENTE
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.creado_por.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.validacion and ticket.validacion.foto_evidencia%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.validacion.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.validacion.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-yellow);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+               VALIDACIÓN GUARDIA
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.validacion.guardia.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.validacion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {% if ticket.mantencion and ticket.mantencion.foto_final %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.mantencion.foto_final.url }}" target="_blank">
+            <img
+              src="{{ ticket.mantencion.foto_final.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-green);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔧 TRABAJO COMPLETADO
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.mantencion.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.mantencion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.no_reparable and ticket.no_reparable.foto_diagnostico%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a
+            href="{{ ticket.no_reparable.foto_diagnostico.url }}"
+            target="_blank"
+          >
+            <img
+              src="{{ ticket.no_reparable.foto_diagnostico.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-red);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔍 DIAGNÓSTICO (NO REPARABLE)
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.no_reparable.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.no_reparable.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+{% if mantencion %}
+<div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-green)">
+  <div class="card-title">Registro de Mantención</div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 13px; margin-bottom: 14px;">
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+      {{ mantencion.tecnico.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">TIEMPO TOTAL DE TRABAJO</div>
+      {{ tiempo_total_trabajo }}
+    </div>
+    
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">DESCRIPCIÓN DEL TRABAJO</div>
+      {% for s in sesiones %}
+        {% if s.tipo_cierre == 'completado' %}
+          <p style="margin: 0; white-space: pre-wrap; color: var(--text-primary); font-weight: 500;">{{ s.descripcion_avance }}</p>
+        {% endif %}
+      {% endfor %}
+    </div>
+    
+    {% if mantencion.causa_raiz %}
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">CAUSA RAÍZ</div>
+      {{ mantencion.causa_raiz }}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if materiales %}
+  <div class="form-section-title" style="margin-top: 10px">
+    Materiales utilizados
+  </div>
+  <div class="table-wrap" style="margin-bottom: 18px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th>Categoría</th>
+          <th>Cantidad</th>
+          <th>Unidad</th>
+          <th>Fecha de Uso</th>
+          <th>Observación</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in materiales %}
+        <tr>
+          <td style="font-size: 13px">{{ m.material.nombre }}</td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.material.categoria.nombre_display }}
+          </td>
+          <td style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
+            {{ m.cantidad_utilizada|floatformat:0 }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.material.get_unidad_display|default:m.material.unidad }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.sesion_trabajo.fin|date:"d/m/Y H:i" }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ m.observacion|default:'—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="form-section-title" style="margin-top: 18px;">
+    Evidencia fotográfica en terreno
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px;">
+    
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px; font-weight: 500;">
+        REPORTE INICIAL (ALUMNO/FUNCIONARIO)
+      </div>
+      {% if ticket.foto_evidencia %}
+        <a href="{{ ticket.foto_evidencia.url }}" target="_blank" title="Clic para ampliar en pestaña nueva">
+          <img src="{{ ticket.foto_evidencia.url }}" alt="Falla Inicial" 
+               style="width: 100%; height: 250px; object-fit: contain; background-color: rgba(0, 0, 0, 0.4); border-radius: 6px; border: 1px solid var(--border); transition: transform 0.2s; cursor: pointer;"
+               onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'">
+        </a>
+      {% else %}
+        <div style="height: 250px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.02); border-radius: 6px; border: 1px dashed var(--border); color: var(--text-muted); font-size: 12px;">
+          Sin imagen de reporte inicial.
+        </div>
+      {% endif %}
+    </div>
+
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 6px; font-weight: 500;">
+        REPARACIÓN FINALIZADA (TÉCNICO)
+      </div>
+      {% if mantencion.foto_final %}
+        <a href="{{ mantencion.foto_final.url }}" target="_blank" title="Clic para ampliar en pestaña nueva">
+          <img src="{{ mantencion.foto_final.url }}" alt="Reparación Final" 
+               style="width: 100%; height: 250px; object-fit: contain; background-color: rgba(0, 0, 0, 0.4); border-radius: 6px; border: 1px solid var(--border); transition: transform 0.2s; cursor: pointer;"
+               onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'">
+        </a>
+      {% else %}
+        <div style="height: 250px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.02); border-radius: 6px; border: 1px dashed var(--border); color: var(--text-muted); font-size: 12px;">
+          El técnico no adjuntó imagen de cierre.
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+{% if no_reparable %}
+<div
+  class="card"
+  style="margin-bottom: 18px; border-left: 3px solid var(--accent-red)"
+>
+  <div class="card-title">Diagnóstico: No Reparable</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">TÉCNICO</div>
+      {{ no_reparable.tecnico.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CRITICIDAD</div>
+      {{ no_reparable.get_criticidad_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        REQUIERE EXTERNALIZACIÓN
+      </div>
+      {{ no_reparable.requiere_externalizacion|yesno:"Sí,No" }}
+    </div>
+    {% if no_reparable.costo_estimado_externo %}
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        COSTO ESTIMADO
+      </div>
+      ${}
+    </div>
+    {% endif %}
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">
+        MOTIVO TÉCNICO
+      </div>
+      {{ no_reparable.motivo_tecnico }}
+    </div>
+    <div style="grid-column: 1/-1">
+      <div style="color: var(--text-muted); font-size: 11px">
+        MATERIAL REQUERIDO
+      </div>
+      {{ no_reparable.material_requerido }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">Línea de tiempo</div>
+  {% if logs %}
+  <div style="position: relative; padding-left: 24px">
+    <div
+      style="
+        position: absolute;
+        left: 8px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border);
+      "
+    ></div>
+    {% for log in logs %}
+    <div style="position: relative; margin-bottom: 22px">
+      <div
+        style="
+          position: absolute;
+          left: -20px;
+          top: 4px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--accent-blue);
+          border: 2px solid var(--bg-100);
+        "
+      ></div>
+      
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 3px">
+        {{ log.created_at|date:"d/m/Y H:i" }} · {{ log.usuario.get_full_name|default:'Sistema' }}
+      </div>
+      
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">{{ log.accion }}</div>
+        
+        {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+        <button type="button" class="btn-ver-historial" onclick="abrirModalHistorial('{{ log.pk }}')">
+          Ver bitácora
+        </button>
+        {% endif %}
+      </div>
+
+      {% if log.detalle and log.accion != "Avance de jornada registrado" and log.accion != "Reparación finalizada con éxito" %}
+      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px">
+        {{ log.detalle|truncatechars:80 }}
+      </div>
+      {% endif %}
+
+      {% if log.accion == "Avance de jornada registrado" or log.accion == "Reparación finalizada con éxito" %}
+      <div id="payload-log-{{ log.pk }}" style="display: none;">
+        <div class="data-titulo">{{ log.accion }}</div>
+        <div class="data-meta">Registrado por: {{ log.usuario.get_full_name|default:'Sistema' }} · El {{ log.created_at|date:"d/m/Y H:i" }}</div>
+        
+        <div class="data-cuerpo">
+          {% for sesion in sesiones %}
+            {% if sesion.tecnico == log.usuario and sesion.fin|date:"d/m/Y H:i" == log.created_at|date:"d/m/Y H:i" %}
+              
+              <div style="background: rgba(0,0,0,0.02); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                <div style="margin-bottom: 10px;">
+                  <span style="color: var(--text-muted); font-size: 11px; display: block;">DESCRIPCIÓN DEL TURNO</span>
+                  <strong style="color: var(--text-primary); font-size: 13px; white-space: pre-wrap;">{{ sesion.descripcion_avance }}</strong>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--text-primary);">
+                  <div><span style="color: var(--text-muted); font-size: 11px;">HERRAMIENTAS</span><br>{{ sesion.herramientas_utilizadas|default:'Ninguna' }}</div>
+                  <div><span style="color: var(--text-muted); font-size: 11px;">DURACIÓN TRABAJO</span><br>{{ sesion.duracion_humana }}</div>
+                </div>
+
+                <div>
+                  <span style="color: var(--text-muted); font-size: 11px; display: block;">NOTAS DE BITÁCORA</span>
+                  <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">{{ sesion.observaciones }}</p>
+                </div>
+              </div>
+
+              {% if log.accion == "Reparación finalizada con éxito" and mantencion %}
+              <div style="margin-top: 14px; background: rgba(46, 125, 50, 0.05); padding: 12px; border-radius: 6px; border: 1px solid rgba(76, 175, 80, 0.2);">
+                <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 8px;">CIERRE</span>
+                
+                {% if mantencion.causa_raiz %}
+                <div style="margin-bottom: 8px;">
+                  <span style="color: var(--text-muted); font-size: 11px; display: block;">CAUSA RAÍZ DETECTADA</span>
+                  <p style="margin: 0; font-size: 12px; color: var(--text-primary); font-weight: 500;">{{ mantencion.causa_raiz }}</p>
+                </div>
+                {% endif %}
+
+                {% if mantencion.foto_final %}
+                <div style="margin-top: 12px; border-top: 1px solid rgba(76, 175, 80, 0.15); padding-top: 8px;">
+                  <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 6px;">EVIDENCIA VISUAL DE LA SOLUCIÓN</span>
+                  <img src="{{ mantencion.foto_final.url }}" alt="Evidencia de Cierre" 
+                       style="width: 100%; height: 180px; object-fit: contain; background-color: rgba(0, 0, 0, 0.5); border-radius: 4px; border: 1px solid rgba(76, 175, 80, 0.2);">
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
+
+              {% if sesion.materiales_utilizados.all %}
+              <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+                <span style="color: var(--accent-green); font-size: 11px; font-weight: 600; display: block; margin-bottom: 6px;">MATERIALES UTILIZADOS EN ESTE TURNO:</span>
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                  <thead>
+                    <tr style="color: var(--text-muted); text-align: left; border-bottom: 1px solid var(--border);">
+                      <th style="padding-bottom: 4px;">Material</th>
+                      <th style="padding-bottom: 4px; text-align: right;">Cantidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for mat in sesion.materiales_utilizados.all %}
+                    <tr style="border-bottom: 1px solid var(--border); color: var(--text-primary);">
+                      <td style="padding: 5px 0;">{{ mat.material.nombre }}</td>
+                      <td style="padding: 5px 0; text-align: right; font-weight: bold; color: var(--accent-green)">{{ mat.cantidad_utilizada|floatformat:0 }} {{ mat.material.unidad }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+                <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">ℹ️ No se retiraron materiales de pañol en este turno.</div>
+              {% endif %}
+
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 32px; color: var(--text-muted)">
+    Sin registros de trazabilidad.
+  </div>
+  {% endif %}
+</div>
+
+<div id="modalHistorial" class="modal-backdrop" onclick="cerrarModalHistorialExterno(event)">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modalTitulo" style="margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary);">Detalle</h3>
+      <button class="modal-close-btn" onclick="cerrarModalHistorial()">&times;</button>
+    </div>
+    <div class="modal-meta" id="modalMeta">Meta data</div>
+    <div class="modal-body" id="modalCuerpo" style="color: var(--text-primary);">
+    </div>
+  </div>
+</div>
+
+<style>
+  .btn-ver-historial {
+    background: rgba(var(--accent-blue-rgb, 59, 130, 246), 0.1);
+    border: 1px solid rgba(var(--accent-blue-rgb, 59, 130, 246), 0.3);
+    color: var(--accent-blue, #60a5fa);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .btn-ver-historial:hover {
+    background: var(--accent-blue, #3b82f6);
+    border-color: var(--accent-blue, #3b82f6);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-backdrop {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5); z-index: 2000; justify-content: center; align-items: center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-card {
+    background: var(--bg-100); border: 1px solid var(--border); width: 90%; max-width: 550px;
+    border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    animation: modalAnim 0.15s ease-out;
+  }
+  .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; }
+  .modal-close-btn:hover { color: var(--accent-red); }
+  .modal-meta { padding: 6px 18px; background: rgba(0,0,0,0.02); font-size: 11px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  .modal-body { padding: 18px; max-height: 450px; overflow-y: auto; }
+  @keyframes modalAnim { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
+
+<script>
+  function abrirModalHistorial(logId) {
+    const payload = document.getElementById(`payload-log-${logId}`);
+    if (!payload) return;
+
+    const tituloHtml = payload.querySelector('.data-titulo').innerHTML;
+    const metaHtml = payload.querySelector('.data-meta').innerHTML;
+    const cuerpoHtml = payload.querySelector('.data-cuerpo').innerHTML;
+
+    document.getElementById('modalTitulo').innerHTML = tituloHtml;
+    document.getElementById('modalMeta').innerHTML = metaHtml;
+    document.getElementById('modalCuerpo').innerHTML = cuerpoHtml;
+
+    document.getElementById('modalHistorial').style.display = 'flex';
+  }
+
+  function cerrarModalHistorial() {
+    document.getElementById('modalHistorial').style.display = 'none';
+  }
+
+  function cerrarModalHistorialExterno(event) {
+    if (event.target.id === 'modalHistorial') {
+      cerrarModalHistorial();
+    }
+  }
+</script>
+{% endblock %}

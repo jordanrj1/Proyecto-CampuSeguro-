@@ -1,0 +1,130 @@
+{% extends 'app/base.html' %} 
+{% block title %}Mi Panel – Campus Seguro{% endblock %}
+{% block breadcrumb %}<span class="sep">›</span> Mi Panel{% endblock %}
+{% block page_title %}Hola, {{ user.first_name }} 👋{% endblock %}
+{% block page_subtitle %}Panel de seguimiento de tus reportes{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Crear ticket</a>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="kpi-label">Total reportes</div>
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-sub">historial completo</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Enviados</div>
+    <div class="kpi-value">{{ enviados }}</div>
+    <div class="kpi-sub">esperando revisión</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">En proceso</div>
+    <div class="kpi-value">{{ en_proceso }}</div>
+    <div class="kpi-sub">trabajándose ahora</div>
+  </div>
+  <div class="kpi purple">
+    <div class="kpi-label">Pausados</div>
+    <div class="kpi-value">{{ pausados }}</div>
+    <div class="kpi-sub">con espera de recursos</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Cerrados</div>
+    <div class="kpi-value">{{ cerrados }}</div>
+    <div class="kpi-sub">resueltos</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <i class="fa-solid fa-ticket" style="color:var(--accent-blue);"></i> Mis tickets recientes
+    <a
+      href="{% url 'app:mis_tickets' %}"
+      style="
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--accent-blue);
+        font-weight: 600;
+      "
+      >Ver todos →</a
+    >
+  </div>
+
+  {% if tickets %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:40 }}</strong></td>
+          <td>
+            {{ t.ubicacion.edificio }} {{ t.ubicacion.piso }} {{t.ubicacion.sala|default:''}}
+          </td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td>
+            {% if t.estado.codigo == 'cerrado' %}<span class="badge badge-green"
+              >{{ t.estado.nombre_display }}</span
+            >
+            {% elif t.estado.codigo == 'pausado' %}<span
+              class="badge badge-yellow"
+              >{{ t.estado.nombre_display }}</span
+            >
+            {% elif t.estado.codigo == 'no_reparado' %}<span
+              class="badge badge-red"
+              >{{ t.estado.nombre_display }}</span
+            >
+            {% elif t.estado.codigo == 'enviado' %}<span
+              class="badge badge-blue"
+              >{{ t.estado.nombre_display }}</span
+            >
+            {% else %}<span class="badge badge-teal"
+              >{{ t.estado.nombre_display }}</span
+            >{% endif %}
+          </td>
+          <td>
+            <span class="id-mono">{{ t.created_at|date:"d/m/Y H:i" }}</span>
+          </td>
+          <td>
+            <a
+              href="{% url 'app:detalle_ticket' t.id %}"
+              class="btn btn-ghost btn-sm"
+              >Ver →</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon"><i class="fa-solid fa-inbox" style="color:var(--accent-blue);opacity:0.5;"></i></div>
+    <div class="label">Aún no tienes tickets registrados</div>
+    <div class="sub">Cuando reportes una incidencia aparecerá aquí.</div>
+    <a
+      href="{% url 'app:crear_ticket' %}"
+      class="btn btn-primary"
+      style="margin-top: 18px"
+      >Crear mi primer ticket</a
+    >
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

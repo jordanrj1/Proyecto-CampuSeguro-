@@ -1,0 +1,62 @@
+{% extends 'app/base.html' %}
+{% block title %}Pausar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Pausar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" style="max-width:640px;">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div style="background:rgba(245,54,92,0.1);border:1px solid var(--accent-red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--accent-red);">
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="form-section-title">⏸ Razones de pausa</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Selecciona una o más causas por las que el trabajo se detiene.</div>
+
+    {% if form.razones_pausa.errors %}
+    <div style="color:var(--accent-red);font-size:12px;margin-bottom:10px;">{{ form.razones_pausa.errors }}</div>
+    {% endif %}
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+      {% for value, label in pausa_choices %}
+      <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;background:var(--bg-700);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color 0.15s;"
+        onmouseover="this.style.borderColor='var(--accent-blue)'" onmouseout="this.style.borderColor='var(--border)'">
+        <input type="checkbox" name="razones_pausa" value="{{ value }}"
+          style="margin-top:2px;width:16px;height:16px;accent-color:var(--accent-yellow);flex-shrink:0;cursor:pointer;"
+          {% if form.razones_pausa.value and value in form.razones_pausa.value %}checked{% endif %}>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary);">{{ label }}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+            {% if value == 'material' %}Falta de materiales o insumos en el inventario.
+            {% elif value == 'personal' %}Se requiere personal técnico especializado.
+            {% elif value == 'nivel_mayor' %}Requiere análisis técnico o peritaje de nivel mayor.
+            {% elif value == 'externalizacion' %}Debe ser resuelto por empresa externa.
+            {% endif %}
+          </div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Detalle / Justificación *</label>
+      {{ form.motivo_pausa }}
+      {% if form.motivo_pausa.errors %}<div style="color:var(--accent-red);font-size:12px;margin-top:4px;">{{ form.motivo_pausa.errors }}</div>{% endif %}
+      <div class="form-help">Describe con detalle el motivo para registrarlo en el historial.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-warning">⏸ Pausar ticket</button>
+  </div>
+</form>
+{% endblock %}

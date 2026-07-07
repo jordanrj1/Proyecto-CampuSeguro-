@@ -1,0 +1,250 @@
+{% extends 'app/base.html' %}
+{% block title %}Validar Ticket #{{ ticket.id }}{%endblock%}
+{% block page_title %}Validar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}Verificación en terreno · Guardia{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
+
+<div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 18px">
+  <!-- Info del ticket -->
+  <div>
+    <div class="card" style="margin-bottom: 14px">
+      <div class="form-section-title">📋 Información reportada</div>
+      <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 10px">
+        {{ ticket.titulo }}
+      </h3>
+      <p
+        style="
+          font-size: 13px;
+          color: var(--text-secondary);
+          line-height: 1.5;
+          margin-bottom: 14px;
+        "
+      >
+        {{ ticket.descripcion }}
+      </p>
+      <div style="display: grid; gap: 10px; font-size: 12.5px">
+        <div>
+          <strong style="color: var(--text-muted)">Solicitante:</strong> {{ticket.creado_por.get_full_name}}
+        </div>
+        <div>
+          <strong style="color: var(--text-muted)">Ubicación:</strong> {{ticket.ubicacion}}
+        </div>
+        <div>
+          <strong style="color: var(--text-muted)">Categoría:</strong> {{ticket.categoria.nombre_display|default:'Sin Categoría'}}
+        </div>
+        <div>
+          <strong style="color: var(--text-muted)">Urgencia:</strong>
+          <span class="urgencia-{{ ticket.urgencia }}"
+            >{{ ticket.get_urgencia_display }}</span
+          >
+        </div>
+        <div>
+          <strong style="color: var(--text-muted)">Reportado:</strong>
+          <span class="id-mono">{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+        </div>
+      </div>
+      {% if ticket.foto_evidencia %}
+      <div style="margin-top: 14px">
+        <div
+          style="
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+          "
+        >
+          EVIDENCIA DEL SOLICITANTE
+        </div>
+        <img
+          src="{{ ticket.foto_evidencia.url }}"
+          style="
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+          "
+        />
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Formulario -->
+  <form method="post" enctype="multipart/form-data" id="formValidacion">
+    {% csrf_token %}
+    <div class="card" style="margin-bottom: 14px">
+      <div class="form-section-title">🔍 Checklist de riesgos detectados</div>
+      <div class="form-check">
+        {{ form.checklist_electrico }}
+        <label>Riesgo eléctrico confirmado</label>
+      </div>
+      <div class="form-check">
+        {{ form.checklist_estructural }}
+        <label>Riesgo estructural confirmado</label>
+      </div>
+      <div class="form-check">
+        {{ form.checklist_accesibilidad }}
+        <label>Afecta accesibilidad confirmado</label>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 14px">
+      <div class="form-section-title">✅ Resultado de la validación</div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          margin-bottom: 16px;
+        "
+      >
+        <label
+          style="
+            cursor: pointer;
+            padding: 18px;
+            background: var(--bg-700);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+          "
+        >
+          <input type="radio" name="resultado" value="valido" required />
+          <div>
+            <div
+              style="
+                font-weight: 700;
+                font-size: 14px;
+                color: var(--accent-green);
+              "
+            >
+              ✓ Válido
+            </div>
+            <div
+              style="
+                font-size: 12px;
+                color: var(--text-secondary);
+                margin-top: 3px;
+              "
+            >
+              Incidencia real, derivar a mantención
+            </div>
+          </div>
+        </label>
+        <label
+          style="
+            cursor: pointer;
+            padding: 18px;
+            background: var(--bg-700);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+          "
+        >
+          <input type="radio" name="resultado" value="invalido" required />
+          <div>
+            <div
+              style="
+                font-weight: 700;
+                font-size: 14px;
+                color: var(--accent-red);
+              "
+            >
+              ✗ Inválido
+            </div>
+            <div
+              style="
+                font-size: 12px;
+                color: var(--text-secondary);
+                margin-top: 3px;
+              "
+            >
+              No requiere intervención · Cerrar
+            </div>
+          </div>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Comentario de validación *</label>
+        {{ form.comentario }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto de evidencia *</label>
+        <input type="file" name="foto_evidencia" accept="image/*" required id="fotoEvidenciaInput" />
+        <div class="form-help">
+          Foto en terreno como respaldo de la validación.
+        </div>
+        
+        <!-- Preview de la imagen -->
+        <div id="previewContainer" style="display: none; margin-top: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">
+            VISTA PREVIA
+          </div>
+          <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
+            <img id="previewImagen" src="" alt="Vista previa" style="width: 100%; max-height: 300px; object-fit: cover; display: block;" />
+          </div>
+          <button type="button" id="btnQuitarImagen" style="margin-top: 8px; font-size: 12px; color: var(--accent-red); background: none; border: none; cursor: pointer; text-decoration: underline;">
+            🗑️ Quitar imagen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px">
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
+      <button type="submit" class="btn btn-primary">
+        📤 Registrar validación
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Preview de imagen al seleccionar archivo
+  const fotoInput = document.getElementById('fotoEvidenciaInput');
+  const previewContainer = document.getElementById('previewContainer');
+  const previewImagen = document.getElementById('previewImagen');
+  const btnQuitarImagen = document.getElementById('btnQuitarImagen');
+
+  fotoInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    
+    if (file) {
+      // Verificar que sea una imagen
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor selecciona un archivo de imagen válido');
+        return;
+      }
+      
+      // Verificar tamaño (máximo 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('La imagen no puede superar los 10 MB');
+        return;
+      }
+      
+      const reader = new FileReader();
+      
+      reader.onload = function(e) {
+        previewImagen.src = e.target.result;
+        previewContainer.style.display = 'block';
+      };
+      
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Botón para quitar la imagen
+  btnQuitarImagen.addEventListener('click', function() {
+    fotoInput.value = '';
+    previewImagen.src = '';
+    previewContainer.style.display = 'none';
+  });
+</script>
+{% endblock %}

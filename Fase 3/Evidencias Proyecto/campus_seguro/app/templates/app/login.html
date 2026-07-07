@@ -1,0 +1,230 @@
+{% extends 'app/base.html' %}
+{% block title %}Iniciar Sesión – Campus Seguro{% endblock %}
+
+{% block auth_content %}
+<style>
+body { display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; background: var(--bg-100); }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(255,184,0,0.12) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, rgba(0,86,179,0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 60% 80%, rgba(40,167,69,0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 50px 50px; pointer-events: none;
+}
+.auth-wrapper {
+  display: flex; max-width: 980px; width: 100%; margin: 20px;
+  border-radius: 20px; overflow: hidden; border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg); z-index: 1; position: relative;
+  background: var(--bg-50);
+}
+.auth-brand {
+  background: linear-gradient(160deg, #fff8e0 0%, #fff3c4 60%, #ffeaa0 100%);
+  width: 400px; flex-shrink: 0; padding: 52px 40px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  border-right: 1px solid var(--border); position: relative; overflow: hidden;
+}
+.auth-brand::before {
+  content: ''; position: absolute; top: -100px; right: -100px; width: 340px; height: 340px;
+  background: radial-gradient(circle, rgba(255,184,0,0.25) 0%, transparent 70%);
+}
+.brand-top { display: flex; align-items: center; gap: 14px; }
+.brand-logo {
+  width: 54px; height: 54px;
+  background: linear-gradient(135deg, var(--accent-primary), #e6a600);
+  border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px;
+  box-shadow: 0 4px 12px rgba(255,184,0,0.3);
+}
+.brand-name { font-size: 20px; font-weight: 800; color: var(--text-primary); }
+.brand-sub { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+.brand-hero h1 { font-size: 38px; font-weight: 800; line-height: 1.1; letter-spacing: -1.2px; margin-bottom: 18px; color: var(--text-primary); }
+.brand-hero h1 span {
+  background: linear-gradient(90deg, var(--accent-primary), #e6a600);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.brand-hero p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 28px; }
+.brand-features { display: flex; flex-direction: column; gap: 10px; }
+.feat { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }
+.feat .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-primary); flex-shrink: 0; }
+.brand-footer { font-size: 11px; color: var(--text-muted); }
+
+.auth-form {
+  flex: 1; padding: 52px 48px; display: flex; flex-direction: column; justify-content: center;
+  background: var(--bg-50);
+}
+.form-head { margin-bottom: 32px; }
+.form-head h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; color: var(--text-primary); }
+.form-head p { font-size: 13px; color: var(--text-secondary); }
+
+.input-group { margin-bottom: 18px; }
+.input-group label {
+  display: block; font-size: 11px; font-weight: 700;
+  color: var(--text-secondary); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+.input-group input {
+  width: 100%; padding: 12px 16px; background: var(--bg-50); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text-primary); font-size: 14px;
+  font-family: var(--font-main); transition: all 0.2s; outline: none;
+}
+.input-group input:focus { 
+  border-color: var(--accent-primary); 
+  background: var(--bg-50);
+  box-shadow: 0 0 0 3px rgba(255,184,0,0.15);
+}
+
+.form-extras {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; font-size: 13px;
+}
+.form-extras label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-secondary); }
+.form-extras input { accent-color: var(--accent-primary); }
+.form-extras a { color: var(--accent-blue); font-weight: 600; }
+.form-extras a:hover { text-decoration: underline; }
+
+.btn-auth {
+  width: 100%; padding: 13px; background: var(--accent-primary); color: #1a1a1a; border: none;
+  border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-main); transition: all 0.2s; letter-spacing: 0.3px;
+}
+.btn-auth:hover { background: #e6a600; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,184,0,0.3); }
+
+.divider { display: flex; align-items: center; gap: 12px; margin: 26px 0; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.divider-text { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; }
+
+.signup-cta { text-align: center; font-size: 13px; color: var(--text-secondary); }
+.signup-cta a { color: var(--accent-blue); font-weight: 600; }
+.signup-cta a:hover { text-decoration: underline; }
+
+.demo-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+.demo-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+.demo-role-btn {
+  display: flex; align-items: center; gap: 9px; padding: 9px 11px;
+  background: var(--bg-100); border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; transition: all 0.16s; text-align: left; width: 100%;
+  font-family: var(--font-main);
+}
+.demo-role-btn:hover { border-color: var(--accent-primary); background: var(--bg-200); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
+.demo-role-btn:active { transform: translateY(0); }
+.demo-role-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.demo-role-name { font-size: 12px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.demo-role-mail { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+
+@media (max-width: 800px) {
+  .auth-wrapper { flex-direction: column; max-width: 480px; }
+  .auth-brand { width: 100%; padding: 32px; }
+  .auth-form { padding: 32px; }
+  .brand-hero h1 { font-size: 28px; }
+}
+</style>
+
+<div class="auth-wrapper">
+  <div class="auth-brand">
+    <div class="brand-top">
+      <div class="brand-logo">🛡️</div>
+      <div>
+        <div class="brand-name">Campus Seguro</div>
+        <div class="brand-sub">ERP · v2.0</div>
+      </div>
+    </div>
+    <div class="brand-hero">
+      <h1>Gestión<br><span>institucional</span><br>inteligente</h1>
+      <p>Sistema ERP académico con trazabilidad completa y Business Intelligence.</p>
+      <div class="brand-features">
+        <div class="feat"><span class="dot"></span> Flujo multi-rol automatizado</div>
+        <div class="feat"><span class="dot"></span> Trazabilidad completa</div>
+        <div class="feat"><span class="dot"></span> Dashboard de gestión operativa</div>
+        <div class="feat"><span class="dot"></span> Análisis BI de materiales</div>
+      </div>
+    </div>
+    <div class="brand-footer">DUOC UC · Acceso institucional restringido</div>
+  </div>
+
+  <div class="auth-form">
+    <div class="form-head">
+      <h2>Iniciar Sesión</h2>
+      <p>Ingresa con tus credenciales institucionales</p>
+    </div>
+
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="input-group">
+        <label>Usuario o Correo Institucional</label>
+        <input type="text" name="username" placeholder="tu.correo@duoc.cl" required autofocus
+               value="{{ form.username.value|default:'' }}">
+      </div>
+
+      <div class="input-group">
+        <label>Contraseña</label>
+        <input type="password" name="password" placeholder="••••••••" required>
+      </div>
+
+      <div class="form-extras">
+        <label>
+          <input type="checkbox" name="recordar"> Mantener sesión
+        </label>
+        <a href="{% url 'app:olvide_contrasena' %}">¿Olvidaste tu contraseña?</a>
+      </div>
+
+      <button type="submit" class="btn-auth">Ingresar →</button>
+    </form>
+
+    <div class="divider"><span class="divider-text">acceso rápido demo</span></div>
+
+    <div class="demo-label">Selecciona un rol para prellenar los datos</div>
+    <div class="demo-roles">
+      <button type="button" class="demo-role-btn" onclick="rellenarLogin('gestor@duocuc.cl')">
+        <div class="demo-role-icon" style="background:rgba(0,86,179,0.12);">🧑‍💼</div>
+        <div>
+          <div class="demo-role-name">Gestor</div>
+          <div class="demo-role-mail">gestor@duocuc.cl</div>
+        </div>
+      </button>
+      <button type="button" class="demo-role-btn" onclick="rellenarLogin('mantencion1@duocuc.cl')">
+        <div class="demo-role-icon" style="background:rgba(40,167,69,0.12);">🔧</div>
+        <div>
+          <div class="demo-role-name">Mantención</div>
+          <div class="demo-role-mail">mantencion1@duocuc.cl</div>
+        </div>
+      </button>
+      <button type="button" class="demo-role-btn" onclick="rellenarLogin('guardia@duocuc.cl')">
+        <div class="demo-role-icon" style="background:rgba(255,184,0,0.15);">🛡️</div>
+        <div>
+          <div class="demo-role-name">Guardia</div>
+          <div class="demo-role-mail">guardia@duocuc.cl</div>
+        </div>
+      </button>
+      <button type="button" class="demo-role-btn" onclick="rellenarLogin('alumno@duocuc.cl')">
+        <div class="demo-role-icon" style="background:rgba(108,117,125,0.12);">🎓</div>
+        <div>
+          <div class="demo-role-name">Alumno</div>
+          <div class="demo-role-mail">alumno@duocuc.cl</div>
+        </div>
+      </button>
+    </div>
+
+    <div class="signup-cta">
+      ¿No tienes cuenta? <a href="{% url 'app:registro' %}">Solicitar registro institucional</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function rellenarLogin(correo) {
+  document.querySelector('input[name="username"]').value = correo;
+  document.querySelector('input[name="password"]').value = 'under1782.0';
+  document.querySelector('input[name="username"]').focus();
+}
+</script>
+{% endblock %}

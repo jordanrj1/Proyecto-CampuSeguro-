@@ -1,0 +1,128 @@
+{% extends 'app/base.html' %} 
+{% block title %}Solicitudes de Cuenta{%endblock%} 
+{% block page_title %}Solicitudes de cuenta{% endblock %}
+{% block page_subtitle %}Aprueba o rechaza las solicitudes de registro{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title">Pendientes ({{ pendientes.count }})</div>
+  {% if pendientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Solicitante</th>
+          <th>Rol</th>
+          <th>Correo</th>
+          <th>RUT</th>
+          <th>Vínculo</th>
+          <th>Fecha solicitud</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in pendientes %}
+        <tr>
+          <td>
+            <strong>{{ u.get_full_name }}</strong>
+            {% if u.carrera or u.departamento %}<br /><span
+              style="font-size: 11px; color: var(--text-muted)"
+              >{{ u.carrera.nombre|default:u.departamento }}</span
+            >{% endif %}
+          </td>
+          <td>
+            {% if u.rol.codigo == 'usuario' %}<span class="badge badge-blue"
+              >Usuario</span
+            >
+            {% elif u.rol.codigo == 'gestor' %}<span class="badge badge-teal"
+              >Gestor</span
+            >
+            {% elif u.rol.codigo == 'guardia' %}<span class="badge badge-yellow"
+              >Guardia</span
+            >
+            {% elif u.rol.codigo == 'mantencion' %}<span class="badge badge-green"
+              >Mantención</span
+            >{% endif %}
+          </td>
+          <td>
+            <span class="id-mono" style="font-size: 12px"
+              >{{ u.correo_institucional }}</span
+            >
+          </td>
+          <td><span class="id-mono">{{ u.rut }}</span></td>
+          <td>{{ u.get_vinculo_display|default:'—' }}</td>
+          <td>
+            <span class="id-mono">{{ u.fecha_registro|date:"d/m/Y H:i" }}</span>
+          </td>
+          <td>
+            <a
+              href="{% url 'app:aprobar_cuenta' u.id %}"
+              class="btn btn-primary btn-sm"
+              >Revisar →</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">✓</div>
+    <div class="label">Sin solicitudes pendientes</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Historial reciente</div>
+  {% if recientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Aprobado por</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in recientes %}
+        <tr>
+          <td>{{ u.get_full_name }}</td>
+          <td>{{ u.rol.nombre|default:"Sin Rol" }}</td>
+          <td>
+            {% if u.estado_cuenta.codigo == 'activa' %}<span
+              class="badge badge-green"
+              >Activa</span
+            >
+            {% elif u.estado_cuenta.codigo == 'rechazada' %}<span
+              class="badge badge-red"
+              >Rechazada</span
+            >
+            {% elif u.estado_cuenta.codigo == 'suspendida' %}<span
+              class="badge badge-yellow"
+              >Suspendida</span
+            >{% endif %}
+          </td>
+          <td>{{ u.aprobado_por.get_full_name|default:"—" }}</td>
+          <td>
+            <span class="id-mono"
+              >{{ u.fecha_aprobacion|date:"d/m/Y"|default:"—" }}</span
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 24px">
+    <div class="sub">Sin historial</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

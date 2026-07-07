@@ -1,0 +1,42 @@
+{% extends 'app/base.html' %}
+{% block title %}Reasignar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Reasignar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" style="max-width:640px;">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom:18px;">
+    {% if ticket.asignado_a %}
+    <div style="background:var(--bg-700);padding:12px 14px;border-radius:8px;margin-bottom:18px;font-size:13px;">
+      <span style="color:var(--text-muted);">Actualmente asignado a:</span>
+      <strong style="margin-left:6px;">{{ ticket.asignado_a.get_full_name }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label class="form-label">Nuevo responsable *</label>
+      {{ form.nuevo_responsable }}
+    </div>
+    <div class="form-group">
+      <label class="form-label">Motivo de reasignación *</label>
+      <select name="motivo" id="id_motivo" required style="padding:10px 12px; background:var(--bg-50); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-size:13px; outline:none; width:100%; font-family:var(--font-main); box-sizing:border-box;">
+        <option value="" disabled selected>-- Seleccione una justificación operativa --</option>
+        <option value="Redistribución logística: Equilibrio de carga laboral para cumplir los tiempos de ANS de la Sede.">Redistribución de carga de trabajo</option>
+        <option value="Especialidad requerida: El caso complejo requiere competencias técnicas de otro oficio.">Requiere otra especialidad técnica</option>
+        <option value="Ausencia temporal: Reasignación por contingencia de turnos o imprevisto de fuerza mayor.">Técnico no disponible / Cambio de turno</option>
+        <option value="Falta de insumos: Reasignado temporalmente a la espera de reposición de stock en pañol.">Falta de materiales o herramientas específicas</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Reasignar</button>
+  </div>
+</form>
+{% endblock %}

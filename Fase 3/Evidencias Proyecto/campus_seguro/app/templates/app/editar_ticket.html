@@ -1,0 +1,209 @@
+{% extends 'app/base.html' %} 
+{% block title %}Editar Ticket #{{ ticket.id }} – Campus Seguro{% endblock %} 
+{% block page_title %}Editar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}Solo puedes editar tickets en estado "Enviado"{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:detalle_ticket' ticket.id %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  
+  <div class="card" style="margin-bottom: 14px">
+    <div class="form-section-title">📌 Información general</div>
+    <div class="form-grid" style="gap: 10px 16px;">
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+        <label class="form-label">Título del reporte *</label>
+        {{ form.titulo }}
+      </div>
+      <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+        <label class="form-label">Descripción detallada *</label>
+        {{ form.descripcion }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 14px">
+    <div class="form-section-title">📍 ¿Dónde ocurrió?</div>
+    <div class="card-body" style="padding: 0;">
+      
+      <div class="form-grid" style="gap: 10px 16px;">
+        
+        <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+          <label for="edificio" class="form-label">Edificio *</label>
+          <select class="form-select" id="edificio" name="edificio" required>
+            <option value="">Seleccionar edificio…</option>
+            {% for edificio in edificios %}
+            <option value="{{ edificio }}">{{ edificio }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+          <label for="piso" class="form-label">Piso *</label>
+          <select class="form-select" id="piso" name="piso" required disabled>
+            <option value="">Primero selecciona edificio…</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="tipo_ubicacion" class="form-label">Tipo de Ubicación *</label>
+          <select class="form-select" id="tipo_ubicacion" name="tipo_ubicacion" required disabled>
+            <option value="">Primero selecciona piso…</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="sala" class="form-label">Sala / Zona *</label>
+          <select class="form-select" id="sala" name="sala" required disabled>
+            <option value="">Primero selecciona tipo…</option>
+          </select>
+        </div>
+        
+      </div>
+
+      <input type="hidden" id="ubicacion_id" name="ubicacion" value="{{ ticket.ubicacion.id }}">
+      
+      <div id="ubicacion-info" class="alert alert-info mt-3" style="margin-bottom: 0;">
+        <strong>Ubicación del reporte:</strong> <span id="ubicacion-texto">Detectando datos originales...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 14px">
+    <div class="form-section-title">🏷️ Clasificación</div>
+    <div class="form-grid" style="gap: 10px 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label">Categoría *</label>
+        {{ form.categoria }}
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label">Urgencia *</label>
+        {{ form.urgencia }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 20px">
+    <div class="form-section-title">📸 Evidencia fotográfica</div>
+    <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      {% if ticket.foto_evidencia %}
+      <div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">FOTO ACTUAL:</div>
+        <img src="{{ ticket.foto_evidencia.url }}" style="max-height: 120px; border-radius: 8px; border: 1px solid var(--border);" />
+      </div>
+      {% endif %}
+      
+      <div style="flex: 1; min-width: 240px;">
+        <label class="form-label">Reemplazar fotografía (Opcional)</label>
+        <input type="file" name="foto_evidencia" accept="image/*" class="form-control" />
+        <div class="form-help" style="margin-top: 4px;">Deja este campo vacío si deseas conservar la imagen original del reporte.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 10px; justify-content: flex-end">
+    <a href="{% url 'app:eliminar_ticket' ticket.id %}" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que deseas eliminar este ticket permanentemente?');">🗑️ Eliminar</a>
+    <a href="{% url 'app:detalle_ticket' ticket.id %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">💾 Guardar cambios</button>
+  </div>
+</form>
+
+{{ ubicaciones_json|json_script:"ubicaciones-data" }}
+<script>
+const ubicacionesData = JSON.parse(document.getElementById('ubicaciones-data').textContent);
+
+// Elementos del DOM
+const edificioSelect = document.getElementById('edificio');
+const pisoSelect = document.getElementById('piso');
+const tipoSelect = document.getElementById('tipo_ubicacion');
+const salaSelect = document.getElementById('sala');
+const ubicacionIdInput = document.getElementById('ubicacion_id');
+const ubicacionTexto = document.getElementById('ubicacion-texto');
+
+// ── FUNCIONES DE POBLADO DE SELECTORS ──
+function cargarPisos(edificio, preseleccionado = '') {
+  const filtrados = [...new Set(ubicacionesData.filter(u => u.edificio === edificio).map(u => u.piso))].sort((a, b) => parseInt(a) - parseInt(b));
+  pisoSelect.innerHTML = '<option value="">Seleccionar piso…</option>';
+  filtrados.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = `Piso ${p}`;
+    if (p === preseleccionado) opt.selected = true;
+    pisoSelect.appendChild(opt);
+  });
+  pisoSelect.disabled = false;
+}
+
+function cargarTipos(edificio, piso, preseleccionado = '') {
+  const filtrados = [...new Set(ubicacionesData.filter(u => u.edificio === edificio && u.piso === piso).map(u => u.tipo))].sort();
+  tipoSelect.innerHTML = '<option value="">Seleccionar tipo…</option>';
+  filtrados.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    if (t === preseleccionado) opt.selected = true;
+    tipoSelect.appendChild(opt);
+  });
+  tipoSelect.disabled = false;
+}
+
+function cargarSalas(edificio, piso, tipo, preseleccionadoId = 0) {
+  const filtrados = ubicacionesData.filter(u => u.edificio === edificio && u.piso === piso && u.tipo === tipo);
+  salaSelect.innerHTML = '<option value="">Seleccionar espacio…</option>';
+  filtrados.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id; opt.textContent = u.sala; opt.dataset.sala = u.sala;
+    if (u.id === preseleccionadoId) opt.selected = true;
+    salaSelect.appendChild(opt);
+  });
+  salaSelect.disabled = false;
+}
+
+// ── EVENTOS DE CAMBIO MANUAL ──
+edificioSelect.addEventListener('change', function() {
+  tipoSelect.innerHTML = '<option value="">Primero selecciona piso…</option>'; tipoSelect.disabled = true;
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>'; salaSelect.disabled = true;
+  ubicacionIdInput.value = ''; ubicacionTexto.textContent = 'Selección incompleta.';
+  if (this.value) cargarPisos(this.value);
+});
+
+pisoSelect.addEventListener('change', function() {
+  salaSelect.innerHTML = '<option value="">Primero selecciona tipo…</option>'; salaSelect.disabled = true;
+  ubicacionIdInput.value = ''; ubicacionTexto.textContent = 'Selección incompleta.';
+  if (this.value) cargarTipos(edificioSelect.value, this.value);
+});
+
+tipoSelect.addEventListener('change', function() {
+  ubicacionIdInput.value = ''; ubicacionTexto.textContent = 'Selección incompleta.';
+  if (this.value) cargarSalas(edificioSelect.value, pisoSelect.value, this.value);
+});
+
+salaSelect.addEventListener('change', function() {
+  if (this.value) {
+    ubicacionIdInput.value = this.value;
+    ubicacionTexto.textContent = `${edificioSelect.value} → Piso ${pisoSelect.value} → ${tipoSelect.value} → ${this.options[this.selectedIndex].text}`;
+  }
+});
+
+// ── PRESELECCIÓN INICIAL AL CARGAR LA PÁGINA ──
+document.addEventListener('DOMContentLoaded', function() {
+  const originalId = parseInt(ubicacionIdInput.value);
+  if (originalId) {
+    const ubicacionOriginal = ubicacionesData.find(u => u.id === originalId);
+    if (ubicacionOriginal) {
+      // 1. Marcar edificio
+      edificioSelect.value = ubicacionOriginal.edificio;
+      // 2. Cargar pisos y dejar marcado el original
+      cargarPisos(ubicacionOriginal.edificio, ubicacionOriginal.piso);
+      // 3. Cargar tipos y dejar marcado el original
+      cargarTipos(ubicacionOriginal.edificio, ubicacionOriginal.piso, ubicacionOriginal.tipo);
+      // 4. Cargar salas y dejar marcada la original
+      cargarSalas(ubicacionOriginal.edificio, ubicacionOriginal.piso, ubicacionOriginal.tipo, originalId);
+      // 5. Renderizar el texto informativo
+      ubicacionTexto.textContent = `${ubicacionOriginal.edificio} → Piso ${ubicacionOriginal.piso} → ${ubicacionOriginal.tipo} → ${ubicacionOriginal.sala}`;
+    }
+  }
+});
+</script>
+{% endblock %}

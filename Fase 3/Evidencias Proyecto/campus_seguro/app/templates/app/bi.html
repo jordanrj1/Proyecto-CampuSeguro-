@@ -1,0 +1,1694 @@
+{% extends 'app/base.html' %}
+{% load static %}
+{% block title %}Business Intelligence · Campus Seguro{% endblock %}
+{% block page_title %}Business Intelligence{% endblock %}
+{% block page_subtitle %}
+  {% if seccion == 'general' %}Análisis general de tickets
+  {% elif seccion == 'guardias' %}Desempeño operativo de guardias
+  {% elif seccion == 'mantencion' %}Rendimiento del equipo de mantención
+  {% elif seccion == 'materiales' %}Consumo y compras inteligentes
+  {% elif seccion == 'graficos' %}Visualización gráfica avanzada
+  {% elif seccion == 'comunidad' %}Perfil de la comunidad y cruce con incidencias{% endif %} · {% if rango == 'dia' %}Hoy{% elif rango == 'semana' %}Últimos 7 días{% elif rango == 'año' %}Último año{% elif rango == 'custom' %}Rango personalizado{% else %}Último mes{% endif %}
+{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+{% endblock %}
+
+{% block styles %}
+<style>
+.bi-tabs { display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap; }
+.bi-tab {
+  padding:9px 20px; border-radius:8px; font-size:13px; font-weight:600;
+  border:1px solid var(--border); color:var(--text-secondary);
+  transition:all 0.15s; text-decoration:none;
+}
+.bi-tab:hover { background:var(--bg-200); color:var(--text-primary); }
+.bi-tab.active { background:rgba(255,184,0,0.15); color:#b38100; border-color:var(--accent-primary); }
+.bi-tab.tab-yellow.active { background:rgba(255,184,0,0.15); color:#b38100; border-color:var(--accent-primary); }
+.bi-tab.tab-green.active { background:rgba(40,167,69,0.15); color:var(--accent-green); border-color:var(--accent-green); }
+.bi-tab.tab-teal.active { background:rgba(23,162,184,0.15); color:var(--accent-teal); border-color:var(--accent-teal); }
+.bi-tab.tab-purple.active { background:rgba(111,66,193,0.15); color:var(--accent-purple); border-color:var(--accent-purple); }
+.bi-tab.tab-orange.active { background:rgba(253,126,20,0.15); color:#c85a00; border-color:#fd7e14; }
+.period-btn {
+  font-size:12px; padding:6px 14px; border-radius:8px; text-decoration:none;
+  border:1px solid var(--border); color:var(--text-secondary); transition:all 0.15s;
+}
+.period-btn:hover { background:var(--bg-200); color:var(--text-primary); }
+.period-btn.active { background:var(--accent-primary); color:#1a1a1a; border-color:var(--accent-primary); font-weight:700; }
+.stat-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+.stat-row:last-child { border-bottom:none; }
+.bar-fill { height:100%; border-radius:3px; }
+.score-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:46px; height:46px; border-radius:50%; font-size:15px; font-weight:800;
+  font-family:var(--font-mono);
+}
+.score-high { background:rgba(40,167,69,0.2); color:var(--accent-green); border:2px solid var(--accent-green); }
+.score-mid { background:rgba(255,184,0,0.2); color:#b38100; border:2px solid var(--accent-primary); }
+.score-low { background:rgba(220,53,69,0.2); color:var(--accent-red); border:2px solid var(--accent-red); }
+.filter-chip { display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:3px 10px; border-radius:12px; background:rgba(255,184,0,0.12); color:#b38100; border:1px solid rgba(255,184,0,0.3); }
+.bi-tag { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:4px; letter-spacing:.4px; text-transform:uppercase; opacity:.75; }
+.bi-tag-source { background:rgba(0,0,0,.04); color:var(--text-muted); border:1px solid rgba(0,0,0,.08); }
+.bi-tag-formula { background:rgba(255,184,0,.1); color:#b38100; border:1px solid rgba(255,184,0,.2); }
+.bi-tag-alert  { background:rgba(220,53,69,.1);  color:var(--accent-red);  border:1px solid rgba(220,53,69,.2); }
+.bi-tag-perf   { background:rgba(40,167,69,.1); color:var(--accent-green);border:1px solid rgba(40,167,69,.2); }
+.section-eyebrow { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+
+/* ═══ ESTILOS PARA LAS VENTANAS EMERGENTES (MODALS) ═══ */
+.bi-modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 2000; align-items: center; justify-content: center;
+}
+.bi-modal-content {
+  background: var(--bg-50); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 24px; max-width: 850px; width: 92%;
+  max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+}
+
+/* Styles para la pestaña gráficos */
+.grafico-card {
+  background: var(--bg-50); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow-sm); transition: all 0.2s;
+}
+.grafico-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.grafico-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.grafico-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.grafico-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0; }
+.grafico-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.chart-container { position: relative; height: 280px; width: 100%; }
+.grafico-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 900px) { .grafico-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<form method="get" id="filtroForm" style="margin-bottom:14px;">
+  <input type="hidden" name="seccion" value="{{ seccion }}">
+  <div style="background:var(--bg-50);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;box-shadow:var(--shadow-sm);">
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">PERÍODO</div>
+      <div style="display:flex;gap:5px;">
+        <button type="button" onclick="cambiarPeriodo('dia')" class="period-btn {% if rango == 'dia' %}active{% endif %}">Hoy</button>
+        <button type="button" onclick="cambiarPeriodo('semana')" class="period-btn {% if rango == 'semana' %}active{% endif %}">Semana</button>
+        <button type="button" onclick="cambiarPeriodo('mes')" class="period-btn {% if rango == 'mes' or not rango %}active{% endif %}">Mes</button>
+        <button type="button" onclick="cambiarPeriodo('año')" class="period-btn {% if rango == 'año' %}active{% endif %}">Año</button>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">FECHA ESPECÍFICA</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="date" name="fecha_desde" id="fecha_desde" value="{{ fecha_desde_str }}" style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
+        <span style="font-size:12px;color:var(--text-muted);">al</span>
+        <input type="date" name="fecha_hasta" id="fecha_hasta" value="{{ fecha_hasta_str }}" style="padding:7px 10px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);">
+      </div>
+    </div>
+
+    {% if seccion == 'guardias' and guardias %}
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">GUARDIA</div>
+      <select name="trabajador" onchange="aplicarFiltros()" style="padding:7px 12px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="">Todos los guardias</option>
+        {% for g in guardias %}<option value="{{ g.pk }}" {% if trabajador_id == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.get_full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% elif seccion == 'mantencion' or seccion == 'materiales' %}
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">TÉCNICO</div>
+      <select name="trabajador" onchange="aplicarFiltros()" style="padding:7px 12px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="">Todos los técnicos</option>
+        {% for t in tecnicos %}<option value="{{ t.pk }}" {% if trabajador_id == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.get_full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    {% if seccion == 'materiales' and categorias_materiales %}
+    <div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:7px;font-weight:700;letter-spacing:1px;">CATEGORÍA MATERIAL</div>
+      <select name="cat_material" onchange="aplicarFiltros()" style="padding:7px 12px;background:var(--bg-50);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+        <option value="">Todas las categorías</option>
+        {% for cod, nom in categorias_materiales %}
+          <option value="{{ cod }}" {% if cat_material == cod %}selected{% endif %}>{{ nom }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn btn-primary btn-sm">Aplicar filtro</button>
+      <a href="?seccion={{ seccion }}&rango=mes" class="btn btn-ghost btn-sm">✕ Limpiar</a>
+    </div>
+
+    <div style="margin-left:auto;font-size:11px;color:var(--text-muted);text-align:right;">
+      <div>{{ desde|date:"d/m/Y" }} → {{ hasta|date:"d/m/Y" }}</div>
+      {% if trabajador_id or cat_material %}
+      <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        {% if trabajador_id %}<span class="filter-chip">👤 Filtrado por trabajador</span>{% endif %}
+        {% if cat_material %}<span class="filter-chip">📦 Cat: {{ cat_material_nombre|title }}</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="bi-tabs">
+  <a href="?seccion=general&rango={{ rango }}" class="bi-tab {% if seccion == 'general' %}active{% endif %}">📊 General</a>
+  <a href="?seccion=guardias&rango={{ rango }}" class="bi-tab tab-yellow {% if seccion == 'guardias' %}active{% endif %}">🛡️ Guardias</a>
+  <a href="?seccion=mantencion&rango={{ rango }}" class="bi-tab tab-green {% if seccion == 'mantencion' %}active{% endif %}">🔧 Mantención</a>
+  <a href="?seccion=materiales&rango={{ rango }}" class="bi-tab tab-teal {% if seccion == 'materiales' %}active{% endif %}">📦 Materiales</a>
+  <a href="?seccion=graficos&rango={{ rango }}" class="bi-tab tab-purple {% if seccion == 'graficos' %}active{% endif %}">📈 Gráficos</a>
+  <a href="?seccion=comunidad&rango={{ rango }}" class="bi-tab tab-orange {% if seccion == 'comunidad' %}active{% endif %}">👥 Comunidad</a>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════ #}
+{# GENERAL                                                    #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'general' %}
+
+<div class="section-eyebrow">
+  <span>Volumen y cierre</span>
+  <span class="bi-tag bi-tag-source">basado en tickets creados</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+  <div class="kpi blue">
+    <div class="kpi-label">Tickets en período</div>
+    <div class="kpi-value">{{ total_tickets }}</div>
+    <div class="kpi-sub">desde {{ desde|date:"d/m/Y" }}</div>
+  </div>
+  <div class="kpi {% if tasa_cierre >= 70 %}green{% elif tasa_cierre >= 40 %}yellow{% else %}red{% endif %}">
+    <div class="kpi-label">Tasa de cierre</div>
+    <div class="kpi-value">{{ tasa_cierre }}%</div>
+    <div class="kpi-sub">{{ cerrados_periodo }} cerrados · <span class="bi-tag bi-tag-formula">cerrados ÷ total</span></div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Afectan clases</div>
+    <div class="kpi-value">{{ afectan_clase }}</div>
+    <div class="kpi-sub">{{ porc_impacto }}% del total · <span class="bi-tag bi-tag-alert">impacto académico</span></div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Riesgos detectados</div>
+    <div class="kpi-value">{{ riesgos_electricos|add:riesgos_estructurales|add:riesgos_accesibilidad }}</div>
+    <div class="kpi-sub">⚡ {{ riesgos_electricos }} · 🏗️ {{ riesgos_estructurales }} · ♿ {{ riesgos_accesibilidad }}</div>
+  </div>
+</div>
+
+{% if tickets_con_riesgo %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red);"></i>
+    Tickets con riesgo activos — detalle por ubicación
+    <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:8px;">{{ tickets_con_riesgo|length }} ticket{{ tickets_con_riesgo|length|pluralize:"s" }} en el período</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Edificio</th>
+          <th>Piso</th>
+          <th>Sala</th>
+          <th>Categoría</th>
+          <th style="text-align:center;">Urgencia</th>
+          <th style="text-align:center;">Riesgos declarados</th>
+          <th style="text-align:center;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets_con_riesgo %}
+        <tr>
+          <td style="font-size:12px;color:var(--text-muted);">#{{ t.id }}</td>
+          <td style="font-size:13px;font-weight:600;">{{ t.edificio|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.piso|default:"—" }}</td>
+          <td style="font-size:13px;">{{ t.sala|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--text-secondary);">{{ t.categoria_nom|default:"—" }}</td>
+          <td style="text-align:center;">
+            <span class="urgencia-{{ t.urgencia }}" style="font-size:12px;">{{ t.urgencia|title }}</span>
+          </td>
+          <td style="text-align:center;">
+            {% if t.riesgo_electrico %}<span title="Riesgo eléctrico" style="margin-right:4px;"><i class="fa-solid fa-bolt" style="color:var(--accent-yellow);"></i></span>{% endif %}
+            {% if t.riesgo_estructural %}<span title="Riesgo estructural" style="margin-right:4px;"><i class="fa-solid fa-house-crack" style="color:var(--accent-red);"></i></span>{% endif %}
+            {% if t.riesgo_accesibilidad %}<span title="Afecta accesibilidad" style="margin-right:4px;"><i class="fa-solid fa-wheelchair" style="color:var(--accent-blue);"></i></span>{% endif %}
+            {% if t.afecta_clase %}<span title="Afecta clases"><i class="fa-solid fa-graduation-cap" style="color:var(--accent-yellow);"></i></span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg-200);color:var(--text-secondary);">{{ t.estado_cod|title }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="section-eyebrow" style="margin-top:6px;">
+  <span>Distribución de tickets</span>
+  <span class="bi-tag bi-tag-source">tickets agrupados por categoría, urgencia y estado</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px;">
+  <div class="card">
+    <div class="card-title">🏷️ Por categoría <span class="bi-tag bi-tag-source" style="margin-left:6px;">tipo de problema</span></div>
+    {% for c in por_categoria %}
+    <div class="stat-row">
+      <span style="font-size:13px;text-transform:capitalize;">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:80px;height:5px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
+          {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-blue);width:{% widthratio c.total total_tickets 100 %}%;"></div>{% endif %}
+        </div>
+        <span style="font-size:13px;font-weight:700;min-width:22px;text-align:right;">{{ c.total }}</span>
+      </div>
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-title">⚡ Por urgencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">declarada por usuario</span></div>
+    {% for u in por_urgencia %}
+    <div class="stat-row">
+      <span class="urgencia-{{ u.urgencia }}" style="font-size:13px;">{{ u.urgencia|title }}</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:80px;height:5px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
+          {% if total_tickets %}<div class="bar-fill" style="background:{% if u.urgencia == 'critica' %}var(--accent-red){% elif u.urgencia == 'alta' %}var(--accent-yellow){% else %}var(--accent-green){% endif %};width:{% widthratio u.total total_tickets 100 %}%;"></div>{% endif %}
+        </div>
+        <span style="font-size:13px;font-weight:700;min-width:22px;text-align:right;">{{ u.total }}</span>
+      </div>
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-title">📊 Por estado <span class="bi-tag bi-tag-source" style="margin-left:6px;">etapa actual en el flujo</span></div>
+    {% for e in por_estado %}
+    <div class="stat-row">
+      <span style="font-size:12px;color:var(--text-secondary);">{{ e.estado|title }}</span>
+      <span style="font-size:14px;font-weight:700;">{{ e.total }}</span>
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+  <div class="card">
+    <div class="card-title">🔁 Ubicaciones con reincidencia <span class="bi-tag bi-tag-alert" style="margin-left:6px;">+1 ticket misma sala</span></div>
+    {% if reincidencia %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Edificio</th><th>Piso / Sala</th><th style="text-align:center;">Tickets</th></tr></thead>
+        <tbody>
+          {% for r in reincidencia %}
+          <tr>
+            <td>{{ r.edificio }}</td>
+            <td style="font-size:12px;color:var(--text-secondary);">P{{ r.piso }}{% if r.sala %} · {{ r.sala }}{% endif %}</td>
+            <td style="text-align:center;font-weight:700;color:var(--accent-yellow);">{{ r.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin reincidencias en el período</div>{% endif %}
+  </div>
+  <div class="card" id="tarjeta-infraestructura"> 
+    <div class="card-title" style="margin-bottom: 12px;">
+      🏢 Carga por Infraestructura 
+      <span class="bi-tag bi-tag-source" style="margin-left:6px;">tickets según su ubicación</span>
+    </div>
+
+    <form method="get" action="" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; background:var(--bg-100); padding:10px; border-radius:8px; border:1px solid var(--border);">
+      <input type="hidden" name="seccion" value="{{ seccion }}">
+      <input type="hidden" name="rango" value="{{ rango }}">
+      <input type="hidden" name="fecha_desde" value="{{ fecha_desde_str }}">
+      <input type="hidden" name="fecha_hasta" value="{{ fecha_hasta_str }}">
+
+      <div style="flex:1; min-width:110px;">
+        <select name="edificio" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Edificios (Todos)</option>
+          {% for ed in edificios_lista %}
+            <option value="{{ ed.id }}" {% if edificio_seleccionado == ed.id|stringformat:'s' %}selected{% endif %}>{{ ed.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:110px;">
+        <select name="piso" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Pisos (Todos)</option>
+          {% for pi in pisos_lista %}
+            <option value="{{ pi.numero }}" {% if piso_seleccionado == pi.numero|stringformat:'s' %}selected{% endif %}>Piso {{ pi.numero }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:110px;">
+        <select name="tipo_ubicacion" onchange="enviarConScroll(this)" style="width:100%; padding:6px 10px; background:var(--bg-50); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:12px; outline:none; font-weight:500;">
+          <option value="">Tipos de Espacio</option>
+          {% for tu in tipos_ubicacion_lista %}
+            <option value="{{ tu.codigo }}" {% if tipo_ubicacion_seleccionado == tu.codigo %}selected{% endif %}>{{ tu.nombre_display }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+
+    {% for b in por_edificio %}
+    <div class="stat-row">
+      <span style="font-size:13px; font-weight: 500;">
+        <i class="fa-solid fa-building" style="color:var(--accent-teal); margin-right:6px; font-size:11px;"></i>
+        {{ b.edificio }}
+      </span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:80px; height:5px; background:var(--bg-300); border-radius:3px; overflow:hidden;">
+          {% if total_tickets %}<div class="bar-fill" style="background:var(--accent-teal); width:{% widthratio b.total total_tickets 100 %}%;"></div>{% endif %}
+        </div>
+        <span style="font-size:13px; font-weight:700; min-width:22px; text-align:right;">{{ b.total }}</span>
+      </div>
+    </div>
+    {% empty %}
+      <div style="color:var(--text-muted); font-size:12px; padding:24px 0; text-align: center;">
+        <i class="fa-solid fa-folder-open" style="display:block; font-size:20px; margin-bottom:6px; opacity:0.5;"></i>
+        Sin registros para la ubicación seleccionada.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endif %}{# /general #}
+
+
+{# ══════════════════════════════════════════════════════════ #}
+{# GUARDIAS                                                   #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'guardias' %}
+
+<div class="section-eyebrow">
+  <span>Desempeño de validación en terreno</span>
+  <span class="bi-tag bi-tag-source">basado en inspecciones realizadas por el guardia</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+  <div class="kpi blue">
+    <div class="kpi-label">Total validaciones</div>
+    <div class="kpi-value">{{ val_total }}</div>
+    <div class="kpi-sub">en el período</div>
+  </div>
+  <div class="kpi {% if val_tasa_validez >= 80 %}green{% elif val_tasa_validez >= 50 %}yellow{% else %}red{% endif %}">
+    <div class="kpi-label">Precisión de detección</div>
+    <div class="kpi-value">{{ val_tasa_validez }}%</div>
+    <div class="kpi-sub">{{ val_validas }} válidas · {{ val_invalidas }} falsas · <span class="bi-tag bi-tag-formula">válidas ÷ total</span></div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">Tiempo prom. respuesta</div>
+    <div class="kpi-value" style="font-size:22px;">{{ val_tiempo_prom }}<span style="font-size:13px;font-weight:400;"> min</span></div>
+    <div class="kpi-sub">en terreno · <span class="bi-tag bi-tag-source">tiempo registrado al validar</span></div>
+  </div>
+  <div class="kpi {% if val_tasa_foto >= 80 %}green{% elif val_tasa_foto >= 50 %}yellow{% else %}red{% endif %}">
+    <div class="kpi-label">Calidad documental</div>
+    <div class="kpi-value">{{ val_tasa_foto }}%</div>
+    <div class="kpi-sub">{{ val_con_foto }} con foto · <span class="bi-tag bi-tag-formula">con foto ÷ total</span></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;">
+  <div class="card" style="border-left:3px solid var(--accent-red);display:flex;align-items:center;gap:16px;">
+    <div style="font-size:30px;">⚡</div>
+    <div>
+      <div style="font-size:30px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);line-height:1;">{{ val_check_elec }}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Riesgos eléctricos detectados</div>
+    </div>
+  </div>
+  <div class="card" style="border-left:3px solid var(--accent-yellow);display:flex;align-items:center;gap:16px;">
+    <div style="font-size:30px;">🏗️</div>
+    <div>
+      <div style="font-size:30px;font-weight:800;color:#b38100;font-family:var(--font-mono);line-height:1;">{{ val_check_estr }}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Riesgos estructurales detectados</div>
+    </div>
+  </div>
+  <div class="card" style="border-left:3px solid var(--accent-purple);display:flex;align-items:center;gap:16px;">
+    <div style="font-size:30px;">♿</div>
+    <div>
+      <div style="font-size:30px;font-weight:800;color:var(--accent-purple);font-family:var(--font-mono);line-height:1;">{{ val_check_acc }}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Problemas de accesibilidad</div>
+    </div>
+  </div>
+</div>
+
+{% if por_guardia %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">🏆 Puntaje operativo por guardia
+    <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">Precisión 35% · Documentación 30% · Actividad 20% · Detección de riesgos 15%</span>
+    <span class="bi-tag bi-tag-perf" style="margin-left:8px;">score compuesto</span>
+  </div>
+  {% for g in por_guardia %}
+  <div style="background:var(--bg-100);border-radius:12px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
+    <div class="score-badge {% if g.score >= 75 %}score-high{% elif g.score >= 50 %}score-mid{% else %}score-low{% endif %}">
+      {{ g.score }}
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{{ g.guardia__first_name }} {{ g.guardia__last_name }}</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--accent-blue);">{{ g.total }}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Validaciones</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:{% if g.val_tasa >= 80 %}var(--accent-green){% elif g.val_tasa >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">{{ g.val_tasa }}%</div>
+          <div style="font-size:10px;color:var(--text-muted);">Precisión</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:{% if g.foto_tasa >= 80 %}var(--accent-green){% elif g.foto_tasa >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">{{ g.foto_tasa }}%</div>
+          <div style="font-size:10px;color:var(--text-muted);">Con foto</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:{% if g.checklists > 0 %}var(--accent-red){% else %}var(--text-muted){% endif %};">{{ g.checklists }}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Riesgos</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--accent-teal);">{% if g.tiempo_prom %}{{ g.tiempo_prom|floatformat:0 }}'{% else %}—{% endif %}</div>
+          <div style="font-size:10px;color:var(--text-muted);">T. prom.</div>
+        </div>
+      </div>
+      {% if val_total %}
+      <div style="margin-top:10px;">
+        <div style="height:4px;background:var(--bg-300);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;background:var(--accent-primary);width:{% widthratio g.total val_total 100 %}%;border-radius:2px;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">{{ g.total }} de {{ val_total }} validaciones del período</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+  <div class="card">
+    <div class="card-title">📋 Tipos de incidente más validados <span class="bi-tag bi-tag-source" style="margin-left:6px;">categoría del ticket validado</span></div>
+    {% for c in val_por_categoria %}
+    <div class="stat-row">
+      <span style="font-size:13px;text-transform:capitalize;color:var(--text-secondary);">{{ c.categoria__nombre_display|default:'Sin Categoría' }}</span>
+      <span style="font-size:14px;font-weight:700;color:#b38100;">{{ c.total }}</span>
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+  </div>
+  <div class="card">
+    <div class="card-title">📊 Resultado de validaciones <span class="bi-tag bi-tag-source" style="margin-left:6px;">confirmación del guardia en terreno</span></div>
+    <div style="display:flex;gap:20px;justify-content:center;padding:20px 0;">
+      <div style="text-align:center;">
+        <div style="font-size:42px;font-weight:800;color:var(--accent-green);font-family:var(--font-mono);">{{ val_validas }}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">Confirmadas como válidas</div>
+        <div style="font-size:11px;color:var(--text-muted);">incidente real</div>
+      </div>
+      <div style="width:1px;background:var(--border);"></div>
+      <div style="text-align:center;">
+        <div style="font-size:42px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ val_invalidas }}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">Marcadas como inválidas</div>
+        <div style="font-size:11px;color:var(--text-muted);">sin problema real</div>
+      </div>
+    </div>
+    {% if val_total %}
+    <div style="height:10px;background:var(--bg-300);border-radius:5px;overflow:hidden;display:flex;">
+      <div style="height:100%;background:var(--accent-green);width:{% widthratio val_validas val_total 100 %}%;"></div>
+      <div style="height:100%;background:var(--accent-red);width:{% widthratio val_invalidas val_total 100 %}%;"></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}{# /guardias #}
+
+{# ══════════════════════════════════════════════════════════ #}
+{# MANTENCIÓN                                                 #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'mantencion' %}
+
+<div class="section-eyebrow">
+  <span>Rendimiento del equipo técnico</span>
+  <span class="bi-tag bi-tag-source">basado en cierres técnicos, sesiones de trabajo y declaraciones de no reparabilidad</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+  <div class="kpi green">
+    <div class="kpi-label">Trabajos completados</div>
+    <div class="kpi-value">{{ mant_total }}</div>
+    <div class="kpi-sub">reparaciones en período</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">HH totales</div>
+    <div class="kpi-value">{{ mant_hh_total }}</div>
+    <div class="kpi-sub">horas hombre · <span class="bi-tag bi-tag-source">declaradas en cada sesión</span></div>
+  </div>
+  <div class="kpi blue">
+    <div class="kpi-label">HH promedio / trabajo</div>
+    <div class="kpi-value" style="font-size:22px;">{{ mant_hh_prom }}<span style="font-size:13px;font-weight:400;"> hrs</span></div>
+    <div class="kpi-sub">esfuerzo promedio · <span class="bi-tag bi-tag-formula">HH ÷ trabajos</span></div>
+  </div>
+  <div class="kpi {% if tasa_nrep >= 30 %}red{% elif tasa_nrep >= 15 %}yellow{% else %}green{% endif %}">
+    <div class="kpi-label">Tasa no-reparación</div>
+    <div class="kpi-value">{{ tasa_nrep }}%</div>
+    <div class="kpi-sub">{{ nrep_total }} no reparados · <span class="bi-tag bi-tag-formula">no-rep ÷ total</span></div>
+  </div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;">
+  <div class="kpi {% if mant_tiempo_prom > 120 %}yellow{% else %}green{% endif %}">
+    <div class="kpi-label">Tiempo prom./trabajo</div>
+    <div class="kpi-value" style="font-size:22px;">{{ mant_tiempo_prom }}<span style="font-size:13px;font-weight:400;"> min</span></div>
+    <div class="kpi-sub">inicio → finalización</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Requirió apoyo</div>
+    <div class="kpi-value">{{ mant_personal_adicional }}</div>
+    <div class="kpi-sub">trabajos con personal extra</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Escalados</div>
+    <div class="kpi-value">{{ mant_nivel_mayor }}</div>
+    <div class="kpi-sub">requieren nivel mayor</div>
+  </div>
+  <div class="kpi {% if mant_tasa_foto >= 80 %}green{% elif mant_tasa_foto >= 50 %}yellow{% else %}red{% endif %}">
+    <div class="kpi-label">Calidad documental</div>
+    <div class="kpi-value">{{ mant_tasa_foto }}%</div>
+    <div class="kpi-sub">{{ mant_con_foto }}/{{ mant_total }} con foto final</div>
+  </div>
+</div>
+
+{% if por_tecnico %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    <i class="fa-solid fa-scale-balanced" style="color:var(--accent-green); margin-right: 6px;"></i>
+    Tablero de control de tickets por técnico
+    <span class="bi-tag bi-tag-perf" style="margin-left:auto;">Métricas de Carga Real</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Técnico</th>
+          <th style="text-align:center;">Reparados</th>
+          <th style="text-align:center;">En Proceso</th>
+          <th style="text-align:center;">No Reparables</th>
+          <th style="text-align:center;">Reasignados</th>
+          <th style="text-align:center;">Inasistencias Aprobadas</th>
+          <th style="text-align:center;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in por_tecnico %}
+        <tr>
+          <td><strong>{{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</strong></td>
+          <td style="text-align:center;"><span class="badge badge-green">{{ t.total }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-blue">{{ t.en_proceso_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-red">{{ t.nrep_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-yellow">{{ t.reasignados_count }}</span></td>
+          <td style="text-align:center;"><span class="badge badge-purple">{{ t.inasistencias_count }}</span></td>
+          <td style="text-align:center;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="abrirModalTecnico('{{ t.tecnico__id }}')">
+              <i class="fa-solid fa-eye"></i> Ver detalles
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for t in por_tecnico %}
+<div id="modal-tecnico-{{ t.tecnico__id }}" class="bi-modal">
+  <div class="bi-modal-content" style="text-align: left; max-height: 85vh; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;">
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px; flex-shrink: 0;">
+      <h3 style="margin:0; font-size:16px;">📋 Ficha de Control Técnico: {{ t.tecnico__first_name }} {{ t.tecnico__last_name }}</h3>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="cerrarModalTecnico('{{ t.tecnico__id }}')">✕ Cerrar</button>
+    </div>
+    
+    <div style="display:flex; gap:8px; margin-bottom:16px; background:var(--bg-100); padding:6px; border-radius:8px; flex-shrink: 0;">
+      <button type="button" id="btn-tab-tk-{{ t.tecnico__id }}" class="btn btn-primary btn-sm" onclick="cambiarModalPestana('{{ t.tecnico__id }}', 'tickets')" style="padding:6px 14px; font-weight:600;">
+        <i class="fa-solid fa-ticket" style="margin-right:4px;"></i> Gestión de Tickets ({{ t.historial_completo|length }})
+      </button>
+      <button type="button" id="btn-tab-in-{{ t.tecnico__id }}" class="btn btn-ghost btn-sm" onclick="cambiarModalPestana('{{ t.tecnico__id }}', 'inasistencias')" style="padding:6px 14px; font-weight:600;">
+        <i class="fa-solid fa-calendar-xmark" style="margin-right:4px;"></i> Justificaciones de Inasistencia ({{ t.inasistencias_count }})
+      </button>
+    </div>
+    
+    <div style="overflow-y: auto; flex: 1; padding-right: 6px; box-sizing: border-box; position: relative;">
+      
+      <div id="modal-sec-tickets-{{ t.tecnico__id }}">
+        <div style="display: block; width: 100%; overflow: visible !important;">
+          <table style="border-collapse: separate !important; border-spacing: 0 !important; width: 100%;">
+            <thead>
+              <tr style="position: sticky !important; top: 0 !important; z-index: 10 !important;">
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Ticket</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Ubicación</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Tipo de Gestión</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Motivo Técnico / Detalle de Cierre</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Enlace</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in t.historial_completo %}
+              <tr>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>#{{ item.id }}</strong> - {{ item.titulo }}</td>
+                <td style="font-size:12px; color:var(--text-secondary); border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ item.ubicacion }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;"><span class="badge {{ item.badge_class }}">{{ item.tipo }}</span></td>
+                <td style="font-size:12px; color:var(--text-primary); text-align: left; border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ item.motivo }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;">
+                  <a href="{% url 'app:detalle_ticket' pk=item.id %}" class="btn btn-ghost btn-sm" style="white-space: nowrap; color: var(--accent-blue);">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver Ticket
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" style="padding: 30px; text-align: center; color: var(--text-muted);">No se registran cambios de estado ni tareas activas en este período.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="modal-sec-inasistencias-{{ t.tecnico__id }}" style="display:none;">
+        <div style="display: block; width: 100%; overflow: visible !important;">
+          <table style="border-collapse: separate !important; border-spacing: 0 !important; width: 100%;">
+            <thead>
+              <tr style="position: sticky !important; top: 0 !important; z-index: 10 !important;">
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Fecha Desde</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Fecha Hasta</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align: left; color: var(--text-primary);">Motivo de Fuerza Mayor / Justificación Legal</th>
+                <th style="position: sticky !important; top: 0 !important; background: var(--bg-100) !important; z-index: 10 !important; border-bottom: 2px solid var(--border) !important; padding: 12px 10px; text-align:center; color: var(--text-primary);">Estado Operacional</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ina in t.inasistencias_detalladas %}
+              <tr>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>📅 {{ ina.fecha_desde }}</strong></td>
+                <td style="border-bottom: 1px solid var(--border); padding: 12px 10px;"><strong>📅 {{ ina.fecha_hasta }}</strong></td>
+                <td style="font-size:13px; color:var(--text-primary); border-bottom: 1px solid var(--border); padding: 12px 10px;">{{ ina.motivo }}</td>
+                <td style="text-align:center; border-bottom: 1px solid var(--border); padding: 12px 10px;"><span class="badge badge-purple" style="background:rgba(111,66,193,0.15); color:var(--accent-purple);">Ausencia Justificada</span></td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" style="padding: 30px; text-align: center; color: var(--text-muted);">El técnico cumplió su jornada normal sin registrar ausencias aprobadas en este período.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+    </div> 
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if nrep_total > 0 %}
+<div class="card" style="border-left:3px solid var(--accent-red); margin-bottom:18px;">
+  <div class="card-title" style="color:var(--accent-red);">🚫 No reparables – Análisis de escalación <span class="bi-tag bi-tag-source" style="margin-left:6px;">declarados por el técnico como irreparables</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+    <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:26px;font-weight:800;color:var(--accent-red);font-family:var(--font-mono);">{{ nrep_total }}</div>
+      <div style="font-size:11px;color:var(--text-muted);">No reparables</div>
+    </div>
+    <div style="background:var(--bg-100);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:26px;font-weight:800;color:#b38100;font-family:var(--font-mono);">{{ nrep_externalizacion }}</div>
+      <div style="font-size:11px;color:var(--text-muted);">Requieren externalización</div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:700;letter-spacing:0.5px;">POR CRITICIDAD</div>
+  {% for nr in nrep_por_criticidad %}
+  <div class="stat-row">
+    <span style="font-size:13px;text-transform:capitalize;color:{% if nr.criticidad == 'critica' or nr.criticidad == 'alta' %}var(--accent-red){% elif nr.criticidad == 'media' %}var(--accent-yellow){% else %}var(--text-secondary){% endif %};">{{ nr.criticidad|title }}</span>
+    <span style="font-weight:700;">{{ nr.total }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endif %}{# /mantencion #}
+
+{# ══════════════════════════════════════════════════════════ #}
+{# MATERIALES                                                 #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'materiales' %}
+
+<div class="section-eyebrow">
+  <span>Consumo de inventario por tickets y técnicos</span>
+  <span class="bi-tag bi-tag-source">materiales registrados durante sesiones de reparación</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px;">
+  <div class="kpi teal">
+    <div class="kpi-label">Materiales distintos usados</div>
+    <div class="kpi-value">{{ materiales_top|length }}</div>
+    <div class="kpi-sub">en el período{% if cat_material %} · {{ cat_material|title }}{% endif %}</div>
+  </div>
+  <div class="kpi blue">
+    <div class="kpi-label">Categorías consumidas</div>
+    <div class="kpi-value">{{ por_categoria_mat|length }}</div>
+    <div class="kpi-sub">tipos de material</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">📦 Top global – Compras inteligentes
+    <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px;">ordenado por cantidad consumida</span>
+    <span class="bi-tag bi-tag-source" style="margin-left:6px;">consumo acumulado en el período</span>
+    {% if cat_material %}<span class="filter-chip" style="margin-left:8px;">{{ cat_material|title }}</span>{% endif %}
+  </div>
+  {% if materiales_top %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Código</th>
+          <th>Material</th>
+          <th>Categoría</th>
+          <th style="text-align:center;">Veces usado</th>
+          <th style="text-align:center;">En tickets</th>
+          <th style="text-align:right;">Total consumido</th>
+          <th style="min-width:90px;">Demanda</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% with max_c=materiales_top.0.total_consumido %}
+        {% for m in materiales_top %}
+        <tr>
+          <td style="font-size:12px;color:var(--text-muted);">{{ forloop.counter }}</td>
+          <td><span class="id-mono">{{ m.material__codigo }}</span></td>
+          <td style="font-weight:600;">{{ m.material__nombre }}</td>
+          <td><span style="font-size:11px;background:rgba(255,184,0,0.12);color:#b38100;padding:2px 8px;border-radius:4px;">{{ m.categoria_nombre|title }}</span></td>
+          <td style="text-align:center;font-weight:600;">{{ m.veces_usado }}</td>
+          <td style="text-align:center;color:var(--text-secondary);">{{ m.en_tickets }}</td>
+          <td style="text-align:right;font-weight:700;color:var(--accent-teal);">{{ m.total_consumido|floatformat:1 }} <span style="font-size:11px;color:var(--text-muted);">{{ m.material__unidad }}</span></td>
+          <td>
+            {% if max_c %}
+            <div style="height:6px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
+              <div class="bar-fill" style="background:var(--accent-teal);width:{% widthratio m.total_consumido max_c 100 %}%;"></div>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% endwith %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="icon">📦</div><div class="label">Sin consumo de materiales en el período{% if cat_material %} para la categoría seleccionada{% endif %}</div></div>
+  {% endif %}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
+
+  <div class="card">
+    <div class="card-title">🗂️ Consumo por categoría de material</div>
+    {% with max_cat=por_categoria_mat.0.total %}
+    {% for c in por_categoria_mat %}
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <div>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ c.material__categoria__nombre_display|title }}</span>
+          <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ c.tipos }} tipo{{ c.tipos|pluralize }}</span>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;">
+          <span style="color:var(--accent-teal);font-weight:600;">{{ c.total|floatformat:1 }} uds.</span>
+          <span style="color:var(--text-muted);">{{ c.frecuencia }}× usos</span>
+        </div>
+      </div>
+      {% if max_cat %}
+      <div style="height:6px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
+        <div class="bar-fill" style="background:var(--accent-blue);width:{% widthratio c.total max_cat 100 %}%;"></div>
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+    {% endwith %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">🏷️ Consumo por tipo de incidente
+      <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:4px;">qué categoría de avería consume más</span>
+    </div>
+    {% with max_inc=mat_por_tipo_ticket.0.total_cantidad %}
+    {% for it in mat_por_tipo_ticket %}
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div>
+          <span style="font-size:13px;font-weight:600;text-transform:capitalize;">{{ it.registro__ticket__categoria__nombre_display|title }}</span>
+          <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">{{ it.tipos_material }} mat. distintos</span>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:#b38100;">{{ it.total_cantidad|floatformat:1 }}</div>
+      </div>
+      {% if max_inc %}
+      <div style="height:5px;background:var(--bg-300);border-radius:3px;overflow:hidden;">
+        <div class="bar-fill" style="background:var(--accent-primary);width:{% widthratio it.total_cantidad max_inc 100 %}%;"></div>
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos</div>{% endfor %}
+    {% endwith %}
+  </div>
+</div>
+
+{% if mat_por_tecnico %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">👷 Consumo de materiales por técnico</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Técnico</th><th style="text-align:center;">Mat. distintos</th><th style="text-align:right;">Cantidad total</th></tr></thead>
+      <tbody>
+        {% for m in mat_por_tecnico %}
+        <tr>
+            <td>
+                👷 {% if m.nombre %}{{ m.nombre }} {{ m.apellido }}{% else %}Técnico No Asignado{% endif %}
+            </td>
+            <td style="text-align: center;">
+                {{ m.items_distintos }} tipo{{ m.items_distintos|pluralize }}
+            </td>
+            <td style="text-align: right; font-weight: 700; color: var(--accent-green);">
+                {{ m.cantidad_total|default:"0" }} u.
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted);">
+                Sin consumo de materiales registrado en este período.
+            </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}{# /materiales #}
+
+
+{# ══════════════════════════════════════════════════════════ #}
+{# GRÁFICOS                                                   #}
+{# ══════════════════════════════════════════════════════════ #}
+{% if seccion == 'graficos' %}
+
+<div class="section-eyebrow">
+  <span>Visualización gráfica avanzada</span>
+  <span class="bi-tag bi-tag-source">análisis visual para toma de decisiones estratégicas</span>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+  <div class="kpi blue">
+    <div class="kpi-label">Total Tickets</div>
+    <div class="kpi-value">{{ total_tickets }}</div>
+    <div class="kpi-sub">en el período analizado</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Tasa de Cierre</div>
+    <div class="kpi-value">{{ tasa_cierre }}%</div>
+    <div class="kpi-sub">{{ cerrados_periodo }} cerrados</div>
+  </div>
+  <div class="kpi yellow">
+    <div class="kpi-label">Tiempo Prom. Validación</div>
+    <div class="kpi-value" style="font-size:22px;">{{ tiempo_c_v }}<span style="font-size:13px;font-weight:400;"> días</span></div>
+    <div class="kpi-sub">creación → validación</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">Tickets Activos</div>
+    <div class="kpi-value">{{ t_0_2|add:t_3_5|add:t_6_10|add:t_mas_10 }}</div>
+    <div class="kpi-sub">sin cerrar en el período</div>
+  </div>
+</div>
+
+<div class="grafico-grid">
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(255,184,0,0.15);color:#b38100;">
+        <i class="fa-solid fa-chart-pie"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Distribución por Estado</h3>
+        <div class="grafico-subtitle">Proporción de tickets en cada etapa del flujo</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartEstado"></canvas>
+    </div>
+  </div>
+
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(220,53,69,0.15);color:var(--accent-red);">
+        <i class="fa-solid fa-chart-bar"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Tickets por Prioridad</h3>
+        <div class="grafico-subtitle">Volumen según nivel de urgencia declarado</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartPrioridad"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="grafico-grid">
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(0,86,179,0.15);color:var(--accent-blue);">
+        <i class="fa-solid fa-clock"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Tiempo Promedio entre Estados</h3>
+        <div class="grafico-subtitle">Duración promedio en días por cada transición</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartTiempos"></canvas>
+    </div>
+  </div>
+
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(23,162,184,0.15);color:var(--accent-teal);">
+        <i class="fa-solid fa-hourglass-half"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Tickets por Tiempo de Espera</h3>
+        <div class="grafico-subtitle">Distribución según antigüedad sin actividad</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartEspera"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="grafico-grid">
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(40,167,69,0.15);color:var(--accent-green);">
+        <i class="fa-solid fa-chart-pie"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Distribución por Categoría</h3>
+        <div class="grafico-subtitle">Proporción de tickets según tipo de problema</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartCategoriaDistribucion"></canvas>
+    </div>
+  </div>
+
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(111,66,193,0.15);color:var(--accent-purple);">
+        <i class="fa-solid fa-chart-bar"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Top Categorías Más Frecuentes</h3>
+        <div class="grafico-subtitle">Categorías con mayor cantidad de tickets</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartCategoriaTop"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="grafico-grid">
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(23,162,184,0.15);color:var(--accent-teal);">
+        <i class="fa-solid fa-boxes-stacked"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Top Materiales Más Consumidos</h3>
+        <div class="grafico-subtitle">Distribución de consumo por material</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartMaterialesTorta"></canvas>
+    </div>
+  </div>
+
+  <div class="grafico-card">
+    <div class="grafico-header">
+      <div class="grafico-icon" style="background:rgba(111,66,193,0.15);color:var(--accent-purple);">
+        <i class="fa-solid fa-folder-open"></i>
+      </div>
+      <div>
+        <h3 class="grafico-title">Consumo por Categoría</h3>
+        <div class="grafico-subtitle">Distribución de consumo por categoría de material</div>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chartCategoriaMaterial"></canvas>
+    </div>
+  </div>
+</div>
+
+{{ tickets_por_estado|json_script:"bi-data-estado" }}
+{{ tickets_por_prioridad|json_script:"bi-data-prioridad" }}
+{{ por_categoria|json_script:"bi-data-categoria" }}
+{{ materiales_top_grafico|json_script:"bi-data-materiales-torta" }}
+{{ por_categoria_mat_grafico|json_script:"bi-data-categoria-mat" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<script>
+// Configuración global de Chart.js
+Chart.defaults.font.family = "'Sora', sans-serif";
+Chart.defaults.color = '#495057';
+
+// ✅ Registrar el plugin globalmente
+Chart.register(ChartDataLabels);
+
+// Colores institucionales Duoc UC
+const colores = {
+  amarillo: '#FFB800',
+  azul: '#0056b3',
+  verde: '#28a745',
+  rojo: '#dc3545',
+  teal: '#17a2b8',
+  purpura: '#6f42c1',
+  gris: '#6c757d'
+};
+
+// Configuración de datalabels SOLO para gráficos doughnut
+const datalabelsDoughnut = {
+  display: true,
+  color: '#fff',
+  font: {
+    weight: 'bold',
+    size: 12
+  },
+  formatter: (value, context) => {
+    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+    const percentage = ((value / total) * 100).toFixed(0);
+    return percentage > 5 ? percentage + '%' : '';
+  },
+  anchor: 'center',
+  align: 'center'
+};
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 1: Tickets por Estado (Doughnut) - CON PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+const dataEstado = JSON.parse(document.getElementById('bi-data-estado').textContent);
+const labelsEstado = dataEstado.map(e => {
+  const nombres = {
+    'creado': 'Creado',
+    'enviado': 'Enviado',
+    'en_validacion': 'En Validación',
+    'validado': 'Validado',
+    'en_mantencion': 'En Mantención',
+    'reparado': 'Reparado',
+    'cerrado': 'Cerrado',
+    'cancelado': 'Cancelado',
+    'pausado': 'Pausado',
+    'no_reparado': 'No Reparado'
+  };
+  return nombres[e.estado__codigo] || e.estado__codigo;
+});
+const valoresEstado = dataEstado.map(e => e.total);
+
+new Chart(document.getElementById('chartEstado'), {
+  type: 'doughnut',
+  data: {
+    labels: labelsEstado,
+    datasets: [{
+      data: valoresEstado,
+      backgroundColor: [
+        colores.azul, colores.teal, colores.amarillo, colores.verde,
+        colores.purpura, colores.rojo, colores.gris, '#fd7e14', '#20c997', '#6f42c1'
+      ],
+      borderWidth: 2,
+      borderColor: '#ffffff'
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 15, font: { size: 11 } }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = ((context.raw / total) * 100).toFixed(1);
+            return `${context.label}: ${context.raw} (${pct}%)`;
+          }
+        }
+      },
+      datalabels: datalabelsDoughnut
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 2: Tickets por Prioridad (Barras) - SIN PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+const dataPrioridad = JSON.parse(document.getElementById('bi-data-prioridad').textContent);
+const labelsPrioridad = dataPrioridad.map(p => p.urgencia.charAt(0).toUpperCase() + p.urgencia.slice(1));
+const valoresPrioridad = dataPrioridad.map(p => p.total);
+const coloresPrioridad = dataPrioridad.map(p => {
+  const mapa = { 'critica': colores.rojo, 'alta': colores.amarillo, 'media': colores.azul, 'baja': colores.verde };
+  return mapa[p.urgencia] || colores.gris;
+});
+
+new Chart(document.getElementById('chartPrioridad'), {
+  type: 'bar',
+  data: {
+    labels: labelsPrioridad,
+    datasets: [{
+      label: 'Tickets',
+      data: valoresPrioridad,
+      backgroundColor: coloresPrioridad,
+      borderRadius: 6,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      datalabels: { display: false }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' }
+      },
+      x: {
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 3: Tiempo Promedio entre Estados (Línea) - SIN PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+new Chart(document.getElementById('chartTiempos'), {
+  type: 'line',
+  data: {
+    labels: ['Creación → Validación', 'Validación → Mantención', 'Mantención → Cierre'],
+    datasets: [{
+      label: 'Días Promedio',
+      data: [{{ tiempo_c_v }}, {{ tiempo_v_m }}, {{ tiempo_m_c }}],
+      borderColor: colores.amarillo,
+      backgroundColor: 'rgba(255,184,0,0.1)',
+      borderWidth: 3,
+      tension: 0.4,
+      fill: true,
+      pointBackgroundColor: colores.amarillo,
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 6,
+      pointHoverRadius: 8
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      datalabels: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.raw} días`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        title: {
+          display: true,
+          text: 'Días',
+          font: { size: 11 }
+        }
+      },
+      x: {
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 4: Tickets por Tiempo de Espera (Barras) - SIN PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+new Chart(document.getElementById('chartEspera'), {
+  type: 'bar',
+  data: {
+    labels: ['0-2 días', '3-5 días', '6-10 días', '+10 días'],
+    datasets: [{
+      label: 'Tickets',
+      data: [{{ t_0_2 }}, {{ t_3_5 }}, {{ t_6_10 }}, {{ t_mas_10 }}],
+      backgroundColor: [colores.verde, colores.amarillo, '#fd7e14', colores.rojo],
+      borderRadius: 6,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      datalabels: { display: false }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' }
+      },
+      x: {
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 5: Distribución por Categoría (Doughnut) - CON PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+const dataCategoriaDist = JSON.parse(document.getElementById('bi-data-categoria').textContent);
+const labelsCategoriaDist = dataCategoriaDist.map(c => c.categoria__nombre_display || 'Sin Categoría');
+const valoresCategoriaDist = dataCategoriaDist.map(c => c.total);
+
+new Chart(document.getElementById('chartCategoriaDistribucion'), {
+  type: 'doughnut',
+  data: {
+    labels: labelsCategoriaDist,
+    datasets: [{
+      data: valoresCategoriaDist,
+      backgroundColor: [
+        colores.azul, colores.teal, colores.amarillo, colores.verde,
+        colores.purpura, colores.rojo, '#fd7e14', '#20c997', '#e83e8c', '#6f42c1'
+      ],
+      borderWidth: 2,
+      borderColor: '#ffffff'
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 15, font: { size: 11 } }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = ((context.raw / total) * 100).toFixed(1);
+            return `${context.label}: ${context.raw} tickets (${pct}%)`;
+          }
+        }
+      },
+      datalabels: datalabelsDoughnut
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 6: Top Categorías Más Frecuentes (Barras) - SIN PORCENTAJES
+// ═══════════════════════════════════════════════════════════
+const dataCategoriaTop = JSON.parse(document.getElementById('bi-data-categoria').textContent).slice(0, 8);
+const labelsCategoriaTop = dataCategoriaTop.map(c => {
+  const nombre = c.categoria__nombre_display || 'Sin Categoría';
+  return nombre.length > 20 ? nombre.substring(0, 20) + '...' : nombre;
+});
+const valoresCategoriaTop = dataCategoriaTop.map(c => c.total);
+
+new Chart(document.getElementById('chartCategoriaTop'), {
+  type: 'bar',
+  data: {
+    labels: labelsCategoriaTop,
+    datasets: [{
+      label: 'Tickets',
+      data: valoresCategoriaTop,
+      backgroundColor: colores.amarillo,
+      borderRadius: 6,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      datalabels: { display: false }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        title: {
+          display: true,
+          text: 'Cantidad de Tickets'
+        }
+      },
+      x: {
+        grid: { display: false }
+      }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 7: Top Materiales Más Consumidos (Torta)
+// ═══════════════════════════════════════════════════════════
+{% if materiales_top_grafico %}
+const dataMaterialesTorta = JSON.parse(document.getElementById('bi-data-materiales-torta').textContent);
+console.log('📊 Materiales:', dataMaterialesTorta);
+
+const materialesFiltrados = dataMaterialesTorta.filter(m => m.total > 0);
+
+if (materialesFiltrados.length > 0) {
+  const labelsMateriales = materialesFiltrados.map(m => {
+    const nombre = m.material__nombre || 'Sin Nombre';
+    return nombre.length > 20 ? nombre.substring(0, 20) + '...' : nombre;
+  });
+  const valoresMateriales = materialesFiltrados.map(m => m.total);
+
+  new Chart(document.getElementById('chartMaterialesTorta'), {
+    type: 'doughnut',
+    data: {
+      labels: labelsMateriales,
+      datasets: [{
+        data: valoresMateriales,
+        backgroundColor: [
+          '#17a2b8', '#6f42c1', '#28a745', '#dc3545', '#fd7e14',
+          '#20c997', '#0056b3', '#FFB800', '#e83e8c', '#6c757d'
+        ],
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { padding: 12, font: { size: 10 }, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((context.raw / total) * 100).toFixed(1);
+              return `${context.label}: ${context.raw} (${pct}%)`;
+            }
+          }
+        },
+        datalabels: {
+          display: true,
+          color: '#fff',
+          font: { weight: 'bold', size: 11 },
+          formatter: (value, context) => {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(0);
+            return percentage > 5 ? percentage + '%' : '';
+          },
+          anchor: 'center',
+          align: 'center'
+        }
+      }
+    }
+  });
+  console.log('✅ Gráfico de materiales creado');
+} else {
+  console.warn('⚠️ No hay materiales con consumo > 0');
+}
+{% endif %}
+
+// ═══════════════════════════════════════════════════════════
+// GRÁFICO 8: Consumo por Categoría de Material (Torta)
+// ═══════════════════════════════════════════════════════════
+{% if por_categoria_mat_grafico %}
+const dataCategoriaMaterial = JSON.parse(document.getElementById('bi-data-categoria-mat').textContent);
+console.log('📊 Categorías:', dataCategoriaMaterial);
+
+const categoriasFiltradas = dataCategoriaMaterial.filter(c => c.total > 0);
+
+if (categoriasFiltradas.length > 0) {
+  const labelsCategoria = categoriasFiltradas.map(c => {
+    const nombre = c.material__categoria__nombre_display || 'Sin Categoría';
+    return nombre.length > 25 ? nombre.substring(0, 25) + '...' : nombre;
+  });
+  const valoresCategoria = categoriasFiltradas.map(c => c.total);
+
+  new Chart(document.getElementById('chartCategoriaMaterial'), {
+    type: 'doughnut',
+    data: {
+      labels: labelsCategoria,
+      datasets: [{
+        data: valoresCategoria,
+        backgroundColor: [
+          '#17a2b8', '#6f42c1', '#28a745', '#dc3545', '#fd7e14',
+          '#20c997', '#0056b3', '#FFB800'
+        ],
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { padding: 12, font: { size: 10 }, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((context.raw / total) * 100).toFixed(1);
+              return `${context.label}: ${context.raw} (${pct}%)`;
+            }
+          }
+        },
+        datalabels: {
+          display: true,
+          color: '#fff',
+          font: { weight: 'bold', size: 11 },
+          formatter: (value, context) => {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(0);
+            return percentage > 5 ? percentage + '%' : '';
+          },
+          anchor: 'center',
+          align: 'center'
+        }
+      }
+    }
+  });
+  console.log('✅ Gráfico de categorías creado');
+} else {
+  console.warn('⚠️ No hay categorías con consumo > 0');
+}
+{% endif %}
+</script>
+
+{% endif %}{# /graficos #}
+
+
+{% if seccion == 'comunidad' %}
+<div class="section-eyebrow">
+  <span>Usuarios registrados por vínculo</span>
+  <span class="bi-tag bi-tag-source">todos los tiempos</span>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+  {% for v in com_por_vinculo %}
+  <div class="kpi blue">
+    <div class="kpi-label">{{ v.vinculo|capfirst }}</div>
+    <div class="kpi-value">{{ v.total }}</div>
+    <div class="kpi-sub">usuarios registrados</div>
+  </div>
+  {% empty %}
+  <div class="kpi blue" style="grid-column:1/-1;">
+    <div class="kpi-label">Sin datos de vínculo aún</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Tickets por vínculo del solicitante
+      <span class="bi-tag bi-tag-formula" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_vinculo %}
+    {% for v in com_tickets_por_vinculo %}
+    {% with pct=v.total|stringformat:"s" %}
+    <div class="stat-row">
+      <span style="font-size:13px;font-weight:500;">
+        {% if v.creado_por__vinculo == 'alumno' %}Alumno
+        {% elif v.creado_por__vinculo == 'docente' %}Docente
+        {% elif v.creado_por__vinculo == 'administrativo' %}Administrativo
+        {% elif v.creado_por__vinculo == 'funcionario' %}Funcionario
+        {% else %}Sin vínculo{% endif %}
+      </span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:100px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio v.total com_total_vinculo 100 %}%;background:var(--accent-primary);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ v.total }}</span>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con vínculo en el período.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tickets por jornada del solicitante
+      <span class="bi-tag bi-tag-formula" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_jornada %}
+    {% with max_j=com_tickets_por_jornada.0.total %}
+    {% for j in com_tickets_por_jornada %}
+    <div class="stat-row">
+      <span style="font-size:13px;font-weight:500;">
+        {% if j.creado_por__jornada == 'diurna' %}Diurna
+        {% elif j.creado_por__jornada == 'vespertina' %}Vespertina
+        {% elif j.creado_por__jornada == 'mixta' %}Mixta
+        {% else %}—{% endif %}
+      </span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:100px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio j.total max_j 100 %}%;background:var(--accent-teal);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ j.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% endwith %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con jornada en el período.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-eyebrow" style="margin-top:6px;">
+  <span>Cruce por escuela — solo alumnos y docentes con carrera asignada</span>
+  <span class="bi-tag bi-tag-alert">impacto académico</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Tickets reportados por escuela
+      <span class="bi-tag bi-tag-source" style="margin-left:8px;">período</span>
+    </div>
+    {% if com_tickets_por_escuela %}
+    {% for e in com_tickets_por_escuela %}
+    <div class="stat-row">
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela__nombre|default:"Sin escuela" }}</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio e.total com_total_escuela 100 %}%;background:var(--accent-green);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ e.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin datos de escuela en el período.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Clases afectadas por escuela
+      <span class="bi-tag bi-tag-alert" style="margin-left:8px;">impacto académico</span>
+    </div>
+    {% if com_afectacion_por_escuela %}
+    {% for e in com_afectacion_por_escuela %}
+    <div class="stat-row">
+      <span style="font-size:12px;font-weight:500;max-width:200px;line-height:1.3;">{{ e.creado_por__carrera__escuela__nombre|default:"Sin escuela" }}</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <div style="width:80px;height:6px;background:var(--bg-200);border-radius:3px;">
+          <div class="bar-fill" style="width:{% widthratio e.total com_max_escuela_af 100 %}%;background:var(--accent-red);"></div>
+        </div>
+        <span class="id-mono" style="font-size:13px;min-width:28px;text-align:right;">{{ e.total }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Sin tickets con afectación de clase en el período.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="font-size:11px;color:var(--text-muted);background:var(--bg-50);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+  <strong>Nota:</strong>
+  Los cruces de escuela requieren que el solicitante tenga vínculo <em>alumno</em> o <em>docente</em> y carrera asignada al registrarse.
+  Tickets sin carrera registrada no aparecen en esos gráficos.
+  El período aplica igual que en las demás pestañas.
+</div>
+
+{% endif %}{# /comunidad #}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'app/js/gestor_bi.js' %}"></script>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FUNCIONES GLOBALES PARA PERÍODO Y FILTROS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script>
+function cambiarPeriodo(periodo) {
+  console.log('🔄 Cambiando período a:', periodo);
+  const url = new URL(window.location.href);
+  url.searchParams.set('rango', periodo);
+  url.searchParams.delete('fecha_desde');
+  url.searchParams.delete('fecha_hasta');
+  window.location.href = url.toString();
+}
+
+function aplicarFiltros() {
+  document.getElementById('filtroForm').submit();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const fechaDesde = document.getElementById('fecha_desde');
+  const fechaHasta = document.getElementById('fecha_hasta');
+  
+  if (fechaDesde && fechaHasta) {
+    fechaDesde.addEventListener('change', function() {
+      if (fechaHasta.value) {
+        aplicarFiltros();
+      }
+    });
+    
+    fechaHasta.addEventListener('change', function() {
+      if (fechaDesde.value) {
+        aplicarFiltros();
+      }
+    });
+  }
+});
+
+// 1. Guarda la posición antes de enviar el formulario
+  function enviarConScroll(selectElement) {
+    sessionStorage.setItem('bi_infra_scroll_pos', window.scrollY);
+    selectElement.form.submit();
+  }
+
+  // 2. Al terminar de recargar, si hay una posición guardada, vuelve a ella de golpe
+  document.addEventListener('DOMContentLoaded', function() {
+    const savedScrollPos = sessionStorage.getItem('bi_infra_scroll_pos');
+    if (savedScrollPos) {
+      window.scrollTo(0, parseInt(savedScrollPos));
+      sessionStorage.removeItem('bi_infra_scroll_pos'); // Limpia la memoria para que no interfiera en otras navegaciones
+    }
+  });
+</script>
+{% endblock scripts %}

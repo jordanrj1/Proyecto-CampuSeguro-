@@ -1,0 +1,35 @@
+{% extends 'app/base.html' %}
+{% block title %}Reactivar Ticket #{{ ticket.id }}{% endblock %}
+{% block page_title %}Reactivar ticket #{{ ticket.id }}{% endblock %}
+{% block page_subtitle %}{{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" style="max-width:640px;">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom:18px;">
+    {% if ticket.motivo_pausa %}
+    <div style="background:rgba(244,197,66,0.06);border:1px solid rgba(244,197,66,0.25);padding:12px 14px;border-radius:8px;margin-bottom:18px;font-size:13px;">
+      <div style="font-size:11px;color:var(--accent-yellow);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Causa de la pausa</div>
+      <div><strong>{{ ticket.get_estado_pausa_display }}</strong></div>
+      <div style="color:var(--text-secondary);margin-top:4px;">{{ ticket.motivo_pausa }}</div>
+    </div>
+    {% endif %}
+
+    <div class="form-section-title">▶ Reactivar ticket</div>
+    <div class="form-group">
+      <label class="form-label">Comentario de reactivación *</label>
+      {{ form.comentario }}
+      <div class="form-help">Es obligatorio indicar la razón para retomar el trabajo.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-success">▶ Reactivar</button>
+  </div>
+</form>
+{% endblock %}

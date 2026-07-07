@@ -1,0 +1,452 @@
+{% extends 'app/base.html' %}
+{% block title %}Solicitar Cuenta – Campus Seguro{% endblock %}
+
+{% block auth_content %}
+<style>
+body { display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; min-height: 100vh; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 30% 20%, rgba(74,143,255,0.08) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(45,206,137,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.reg-wrapper {
+  max-width: 680px; width: 100%;
+  background: var(--bg-50); border: 1px solid var(--border); border-radius: 20px;
+  box-shadow: var(--shadow-lg); z-index: 1; position: relative; overflow: hidden;
+}
+.reg-header {
+  padding: 30px 40px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-50), var(--bg-50));
+  display: flex; align-items: center; justify-content: space-between;
+}
+.reg-header .brand { display: flex; align-items: center; gap: 14px; }
+.reg-header .logo {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.reg-header h1 { font-size: 18px; font-weight: 800; }
+.reg-header .sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+.reg-back { color: var(--text-secondary); font-size: 13px; text-decoration: none; }
+.reg-back:hover { color: var(--accent-blue); }
+
+.reg-body { padding: 36px 40px; }
+.reg-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
+.reg-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6; }
+
+.info-banner {
+  background: rgba(74,143,255,0.1); border: 1px solid rgba(74,143,255,0.25);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 24px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.info-banner .info-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.info-banner .info-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.info-banner strong { color: var(--accent-blue); }
+
+.section-title {
+  font-size: 11px; font-weight: 800; color: var(--accent-teal);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.btn-submit {
+  width: 100%; padding: 14px; background: var(--accent-blue); color: #fff;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; margin-top: 20px; transition: all 0.2s;
+}
+.btn-submit:hover { background: #3a7fee; transform: translateY(-1px); }
+
+@media (max-width: 600px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .reg-body, .reg-header { padding: 20px; }
+}
+</style>
+
+<div class="reg-wrapper">
+  <div class="reg-header">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div>
+        <h1>Campus Seguro</h1>
+        <div class="sub">Registro Institucional</div>
+      </div>
+    </div>
+    <a href="{% url 'app:login' %}" class="reg-back">← Volver al login</a>
+  </div>
+
+  <div class="reg-body">
+    <h2 class="reg-title">Solicitar Acceso</h2>
+    <p class="reg-desc">Completa el formulario para solicitar una cuenta institucional. Un gestor revisará tu solicitud y te asignará el acceso correspondiente.</p>
+
+    <div class="info-banner">
+      <div class="info-icon">ℹ️</div>
+      <div class="info-text">
+        Tu cuenta quedará en estado <strong>pendiente</strong> hasta que un gestor la revise.
+        El gestor te asignará el rol correspondiente (alumno, guardia, técnico, etc.)
+        según tus funciones institucionales. Recibirás una notificación cuando tu cuenta esté activa.
+      </div>
+    </div>
+
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+
+    {% if form.errors %}
+    <div class="alert alert-error">
+      <strong>Revisa los siguientes campos:</strong>
+      <ul style="margin-top:6px;margin-left:18px;">
+        {% for field, errors in form.errors.items %}
+          {% for error in errors %}<li>{{ field|title }}: {{ error }}</li>{% endfor %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" id="regForm">
+      {% csrf_token %}
+
+      <input type="hidden" name="rol" value="usuario">
+
+      {# ── Sección: Datos Personales ── #}
+      <div class="section-title">Datos Personales</div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Nombres <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="first_name" placeholder="Juan" required
+                 value="{{ form.first_name.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apellidos <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="last_name" placeholder="Pérez González" required
+                 value="{{ form.last_name.value|default:'' }}">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">RUT <span style="color:var(--accent-red)">*</span></label>
+          <input type="text" name="rut" id="rutInput" placeholder="12.345.678-9" required
+                 value="{{ form.rut.value|default:'' }}" autocomplete="off">
+          <div id="rut-msg" style="font-size:11px;margin-top:3px;display:none;"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input type="tel" name="telefono" id="telefonoInput" placeholder="+56 9 1234 5678"
+                 value="{{ form.telefono.value|default:'' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correo Institucional <span style="color:var(--accent-red)">*</span></label>
+        <input type="email" name="correo_institucional" placeholder="tu.correo@duoc.cl" required
+               value="{{ form.correo_institucional.value|default:'' }}">
+      </div>
+
+      {# ── Sección: Datos Académicos / Laborales ── #}
+      <div class="section-title">Datos Institucionales</div>
+
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Vínculo con la institución <span style="color:var(--accent-red)">*</span></label>
+          <select name="vinculo" id="vinculoSelect" required>
+            <option value="">Seleccionar...</option>
+            <option value="alumno"         {% if form.vinculo.value == 'alumno' %}selected{% endif %}>Alumno</option>
+            <option value="docente"        {% if form.vinculo.value == 'docente' %}selected{% endif %}>Docente</option>
+            <option value="administrativo" {% if form.vinculo.value == 'administrativo' %}selected{% endif %}>Administrativo</option>
+            <option value="funcionario"    {% if form.vinculo.value == 'funcionario' %}selected{% endif %}>Funcionario</option>
+          </select>
+        </div>
+        <div class="form-group" id="jornadaGroup" style="display:none;">
+          <label class="form-label">Jornada</label>
+          <select name="jornada" id="jornadaSelect">
+            <option value="">Seleccionar...</option>
+            <option value="diurna"     {% if form.jornada.value == 'diurna' %}selected{% endif %}>Diurna</option>
+            <option value="vespertina" {% if form.jornada.value == 'vespertina' %}selected{% endif %}>Vespertina</option>
+            <option value="mixta"      {% if form.jornada.value == 'mixta' %}selected{% endif %}>Mixta</option>
+          </select>
+        </div>
+      </div>
+
+      {# Selector de carrera en dos pasos (solo alumno/docente) #}
+      {{ carreras_data|json_script:"carreras-data" }}
+      <div id="carreraGroup" style="display:none;margin-top:14px;">
+        <div class="field-grid">
+          <div class="form-group">
+            <label class="form-label">Escuela <span id="escuelaReq" style="color:var(--accent-red);"> *</span></label>
+            <select id="escuelaSelect">
+              <option value="">Seleccionar escuela...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><span id="carreraLabel">Carrera</span> <span id="carreraReq" style="color:var(--accent-red);"> *</span></label>
+            <select name="carrera" id="carreraSelect">
+              <option value="">Selecciona una escuela primero...</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {# 🌟 NUEVA SECCIÓN: Selector de Departamento (solo administrativo/funcionario) #}
+      <div id="deptoGroup" style="display:none;margin-top:14px;">
+        <div class="form-group">
+          <label class="form-label">Departamento Asignado <span style="color:var(--accent-red)">*</span></label>
+          <select name="departamento" id="deptoSelect">
+            <option value="">Seleccionar departamento...</option>
+            {% for d in departamentos %}
+              <option value="{{ d.id }}" {% if form.departamento.value|stringformat:"s" == d.id|stringformat:"s" %}selected{% endif %}>
+                {{ d.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="field-grid" style="margin-top:14px;">
+        <div class="form-group">
+          <label class="form-label">Sede</label>
+          <select name="sede" id="sedeSelect">
+            <option value="">Seleccionar sede...</option>
+            {% for s in sedes %}
+              <option value="{{ s.id }}" {% if form.sede.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>
+                {{ s.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# ── Sección: Seguridad (contraseña) ── #}
+      <div class="section-title">Seguridad</div>
+
+      <div style="background:rgba(45,206,137,0.07);border:1px solid rgba(45,206,137,0.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);">
+        <strong style="color:var(--accent-teal);">Requisitos de contraseña:</strong>
+        <span style="margin-left:6px;">Mínimo 8 caracteres con al menos 3 de estos 4 grupos:</span>
+        <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;">
+          <span id="req-lower" class="req-item">🔴 minúsculas (abc)</span>
+          <span id="req-upper" class="req-item">🔴 MAYÚSCULAS (ABC)</span>
+          <span id="req-num"   class="req-item">🔴 números (123)</span>
+          <span id="req-spec"  class="req-item">🔴 especiales (!@#$)</span>
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="form-group">
+          <label class="form-label">Contraseña <span style="color:var(--accent-red)">*</span></label>
+          <input type="password" name="password1" placeholder="Ej: Campus2024!" required id="pw1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirmar Contraseña <span style="color:var(--accent-red)">*</span></label>
+          <input type="password" name="password2" placeholder="Repite la contraseña" required id="pw2">
+        </div>
+      </div>
+      <div id="pw-match-msg" style="font-size:12px;margin-top:-6px;display:none;color:var(--accent-red);">
+        Las contraseñas no coinciden
+      </div>
+
+      <div class="form-check" style="margin-top:16px;">
+        <input type="checkbox" name="acepta_terminos" id="terminos" required>
+        <label for="terminos">
+          Acepto las <strong>políticas de uso institucional</strong> y tratamiento de datos personales
+        </label>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnSubmit">
+        Enviar Solicitud →
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+.req-item { padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+.req-ok   { color: var(--accent-teal) !important; }
+</style>
+<script>
+const pw1 = document.getElementById('pw1');
+const pw2 = document.getElementById('pw2');
+const msg = document.getElementById('pw-match-msg');
+const btn = document.getElementById('btnSubmit');
+
+const reqs = {
+  lower: { el: document.getElementById('req-lower'), re: /[a-z]/, label: '✅ minúsculas (abc)' },
+  upper: { el: document.getElementById('req-upper'), re: /[A-Z]/, label: '✅ MAYÚSCULAS (ABC)' },
+  num:   { el: document.getElementById('req-num'),   re: /\d/,    label: '✅ números (123)' },
+  spec:  { el: document.getElementById('req-spec'),  re: /[^a-zA-Z0-9]/, label: '✅ especiales (!@#$)' },
+};
+
+function checkStrength(val) {
+  let ok = 0;
+  for (const [key, req] of Object.entries(reqs)) {
+    const passes = req.re.test(val);
+    if (passes) { req.el.textContent = req.label; req.el.classList.add('req-ok'); ok++; }
+    else { req.el.textContent = req.label.replace('✅','🔴'); req.el.classList.remove('req-ok'); }
+  }
+  return ok >= 3 && val.length >= 8;
+}
+
+function checkPasswords() {
+  const strong = checkStrength(pw1.value);
+  const match  = !pw2.value || pw1.value === pw2.value;
+
+  if (pw2.value && !match) { msg.style.display = 'block'; } 
+  else { msg.style.display = 'none'; }
+
+  btn.disabled = !(strong && match);
+  btn.style.opacity = btn.disabled ? '0.6' : '1';
+}
+
+pw1.addEventListener('input', checkPasswords);
+pw2.addEventListener('input', checkPasswords);
+
+// ── RUT auto-formato ────────────────────
+const rutInput  = document.getElementById('rutInput');
+const rutMsg    = document.getElementById('rut-msg');
+
+function calcDv(cuerpo) {
+  let suma = 0, mult = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += parseInt(cuerpo[i]) * mult;
+    mult = mult < 7 ? mult + 1 : 2;
+  }
+  const resto = 11 - (suma % 11);
+  return resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
+}
+
+function limpiarRut(val) { return val.replace(/[^0-9Kk]/g, '').toUpperCase(); }
+
+function formatRut(raw) {
+  if (raw.length < 2) return raw;
+  const dv   = raw.slice(-1);
+  const body = raw.slice(0, -1);
+  const bodyFmt = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${bodyFmt}-${dv}`;
+}
+
+rutInput.addEventListener('input', function () {
+  this.value = this.value.replace(/[^0-9Kk.\-]/g, '');
+  rutMsg.style.display = 'none';
+});
+
+rutInput.addEventListener('blur', function () {
+  const raw = limpiarRut(this.value);
+  if (!raw) { rutMsg.style.display = 'none'; return; }
+  this.value = formatRut(raw);
+  if (raw.length < 8 || raw.length > 10) {
+    rutMsg.textContent = '⚠ El cuerpo del RUT debe tener entre 7 y 9 dígitos.';
+    rutMsg.style.color = 'var(--accent-yellow)';
+    rutMsg.style.display = 'block';
+    return;
+  }
+  const dvIngresado   = raw.slice(-1);
+  const dvCalculado   = calcDv(raw.slice(0, -1));
+  if (dvIngresado !== dvCalculado) {
+    rutMsg.textContent = `✗ Dígito verificador incorrecto. El correcto es -${dvCalculado}.`;
+    rutMsg.style.color = 'var(--accent-red)';
+    rutMsg.style.display = 'block';
+  } else {
+    rutMsg.textContent = '✓ RUT válido';
+    rutMsg.style.color = 'var(--accent-teal)';
+    rutMsg.style.display = 'block';
+  }
+});
+
+document.getElementById('telefonoInput').addEventListener('input', function () {
+  this.value = this.value.replace(/[^0-9\s\+\-\(\)]/g, '');
+});
+
+// ── Vínculo dinámico (Con soporte para Departamento) ────────────────
+const vinculoSelect  = document.getElementById('vinculoSelect');
+const jornadaGroup   = document.getElementById('jornadaGroup');
+const jornadaSelect  = document.getElementById('jornadaSelect');
+const carreraGroup   = document.getElementById('carreraGroup');
+const deptoGroup     = document.getElementById('deptoGroup');     // 🌟 NUEVO
+const deptoSelect    = document.getElementById('deptoSelect');    // 🌟 NUEVO
+const carreraLabel   = document.getElementById('carreraLabel');
+const carreraReq     = document.getElementById('carreraReq');
+const escuelaReq     = document.getElementById('escuelaReq');
+const escuelaSelect  = document.getElementById('escuelaSelect');
+const carreraSelect  = document.getElementById('carreraSelect');
+const sedeSelect     = document.getElementById('sedeSelect');
+
+const CARRERAS_DATA = JSON.parse(document.getElementById('carreras-data').textContent);
+
+Object.keys(CARRERAS_DATA).sort().forEach(esc => {
+  const opt = document.createElement('option');
+  opt.value       = esc;
+  opt.textContent = esc;
+  escuelaSelect.appendChild(opt);
+});
+
+escuelaSelect.addEventListener('change', () => {
+  const escuela = escuelaSelect.value;
+  carreraSelect.innerHTML = '';
+  if (escuela && CARRERAS_DATA[escuela]) {
+    const ph = document.createElement('option');
+    ph.value = ''; ph.textContent = 'Seleccionar carrera...';
+    carreraSelect.appendChild(ph);
+    CARRERAS_DATA[escuela].forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.nombre;
+      carreraSelect.appendChild(opt);
+    });
+  } else {
+    carreraSelect.innerHTML = '<option value="">Selecciona una escuela primero...</option>';
+  }
+});
+
+// 🌟 CONFIGURACIÓN ACTUALIZADA: Mapea qué roles ven carreras o departamentos
+const VINCULO_CFG = {
+  alumno:         { carrera: true,  jornada: true,  depto: false, label: 'Carrera', req: true  },
+  docente:        { carrera: true,  jornada: true,  depto: false, label: 'Carrera', req: false },
+  administrativo:{ carrera: false, jornada: true,  depto: true,  req_depto: true },
+  funcionario:    { carrera: false, jornada: true,  depto: true,  req_depto: true },
+};
+
+function resetCarrera() {
+  escuelaSelect.value     = '';
+  carreraSelect.innerHTML = '<option value="">Selecciona una escuela primero...</option>';
+  carreraSelect.required  = false;
+}
+
+function resetDepto() {
+  deptoSelect.value = '';
+  deptoSelect.required = false;
+}
+
+function actualizarCamposVinculo() {
+  const cfg = VINCULO_CFG[vinculoSelect.value];
+
+  jornadaSelect.value = '';
+  resetCarrera();
+  resetDepto(); // 🌟 NUEVO
+  sedeSelect.value = '';
+
+  if (!cfg) {
+    jornadaGroup.style.display = 'none';
+    carreraGroup.style.display = 'none';
+    deptoGroup.style.display = 'none'; // 🌟 NUEVO
+    return;
+  }
+
+  jornadaGroup.style.display = cfg.jornada ? '' : 'none';
+
+  carreraGroup.style.display = cfg.carrera ? '' : 'none';
+  if (cfg.carrera) {
+    carreraLabel.textContent = cfg.label;
+    carreraSelect.required   = cfg.req;
+    carreraReq.style.display = cfg.req ? 'inline' : 'none';
+    escuelaReq.style.display = cfg.req ? 'inline' : 'none';
+  }
+
+  // 🌟 NUEVO: Muestra/Oculta y exige el departamento dinámicamente
+  deptoGroup.style.display = cfg.depto ? '' : 'none';
+  if (cfg.depto) {
+    deptoSelect.required = cfg.req_depto;
+  }
+}
+
+vinculoSelect.addEventListener('change', actualizarCamposVinculo);
+actualizarCamposVinculo();
+</script>
+{% endblock %}

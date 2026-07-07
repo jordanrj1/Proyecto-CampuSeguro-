@@ -1,0 +1,250 @@
+{% extends 'app/base.html' %}
+{% block title %}Estimar Trabajo - Ticket #{{ ticket.pk }}{% endblock %}
+{% block page_title %}Planificación del Trabajo{% endblock %}
+{% block page_subtitle %}Ingresa la estimación inicial antes de activar el cronómetro{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver al panel</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom: 20px; border-left: 4px solid var(--accent-blue);">
+  <div class="card-title" style="margin-bottom: 8px;">Resumen del Incidente</div>
+  <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
+    {{ ticket.titulo }}
+  </div>
+  <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+    <strong>Ubicación:</strong> {{ ticket.ubicacion }}
+  </div>
+  <div style="font-size: 13px; color: var(--text-muted); background: var(--bg-700); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+    {{ ticket.descripcion }}
+  </div>
+</div>
+
+  {%if ticket.foto_evidencia or ticket.validacion.foto_evidencia or ticket.mantencion.foto_final or ticket.no_reparable.foto_diagnostico%}
+    <div class="card" style="margin-bottom: 18px">
+      <div class="form-section-title">
+         Evidencia fotográfica
+        <span
+          style="
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 8px;
+          "
+          >trazabilidad completa</span
+        >
+      </div>
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+          gap: 14px;
+        "
+      >
+        {% if ticket.foto_evidencia %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-blue);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              📸 INCIDENTE
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.creado_por.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.validacion and ticket.validacion.foto_evidencia%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.validacion.foto_evidencia.url }}" target="_blank">
+            <img
+              src="{{ ticket.validacion.foto_evidencia.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-yellow);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+               VALIDACIÓN GUARDIA
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.validacion.guardia.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.validacion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {% if ticket.mantencion and ticket.mantencion.foto_final %}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a href="{{ ticket.mantencion.foto_final.url }}" target="_blank">
+            <img
+              src="{{ ticket.mantencion.foto_final.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-green);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔧 TRABAJO COMPLETADO
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.mantencion.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.mantencion.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %} {%if ticket.no_reparable and ticket.no_reparable.foto_diagnostico%}
+        <div
+          style="
+            background: var(--bg-700);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+          "
+        >
+          <a
+            href="{{ ticket.no_reparable.foto_diagnostico.url }}"
+            target="_blank"
+          >
+            <img
+              src="{{ ticket.no_reparable.foto_diagnostico.url }}"
+              style="
+                width: 100%;
+                height: 150px;
+                object-fit: cover;
+                display: block;
+              "
+            />
+          </a>
+          <div style="padding: 10px">
+            <div
+              style="
+                font-size: 11px;
+                color: var(--accent-red);
+                font-weight: 700;
+                margin-bottom: 3px;
+              "
+            >
+              🔍 DIAGNÓSTICO (NO REPARABLE)
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary)">
+              {{ ticket.no_reparable.tecnico.get_full_name }}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted)">
+              {{ ticket.no_reparable.created_at|date:"d/m/Y H:i" }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+<div class="card">
+  <div class="card-title">Análisis Técnico Inicial</div>
+  
+  <form method="post" style="display: flex; flex-direction: column; gap: 20px; margin-top: 15px;">
+    {% csrf_token %}
+    
+    <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+      <label for="{{ form.tiempo_estimado.id_for_label }}" style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">
+        {{ form.tiempo_estimado.label }}
+      </label>
+      {{ form.tiempo_estimado }}
+      {% if form.tiempo_estimado.errors %}
+        <div style="color: var(--accent-red); font-size: 12px; font-weight: 600;">
+          {{ form.tiempo_estimado.errors }}
+        </div>
+      {% endif %}
+      <small style="color: var(--text-muted); font-size: 12px;"> Use incrementos de 0.5 horas (ej: 1.5, 2.0, 3.5). </small>
+    </div>
+
+    <div class="form-group" style="display: flex; flex-direction: column; gap: 8px;">
+      <label for="{{ form.diagnostico_preliminar.id_for_label }}" style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">
+        {{ form.diagnostico_preliminar.label }}
+      </label>
+      {{ form.diagnostico_preliminar }}
+      {% if form.diagnostico_preliminar.errors %}
+        <div style="color: var(--accent-red); font-size: 12px; font-weight: 600;">
+          {{ form.diagnostico_preliminar.errors }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 18px;">
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost" style="min-width: 120px; text-align: center;">
+        Cancelar
+      </a>
+      <button type="submit" class="btn btn-primary" style="min-width: 180px;">
+        ✓ Guardar y Desbloquear
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

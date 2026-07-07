@@ -1,0 +1,87 @@
+{% extends 'app/base.html' %} 
+{% block title %}Vincular Activo SAP · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Vincular Activo SAP{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">← Cancelar</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="form-section-title">📋 Información del ticket</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+      {{ ticket.creado_por.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+      {{ ticket.get_categoria_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+      {{ ticket.ubicacion }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+      <span class="urgencia-{{ ticket.urgencia }}"
+        >{{ ticket.get_urgencia_display }}</span
+      >
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ESTADO</div>
+      {{ ticket.get_estado_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">ACTIVO ACTUAL</div>
+      {{ ticket.id_activo_sap|default:'— Sin vincular' }}
+    </div>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">🔗 Datos del activo SAP</div>
+    {% if form.errors %}
+    <div
+      style="
+        background: rgba(245, 54, 92, 0.1);
+        border: 1px solid var(--accent-red);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: var(--accent-red);
+      "
+    >
+      {{ form.errors }}
+    </div>
+    {% endif %}
+    <div style="margin-bottom: 14px">
+      <label class="form-label">{{ form.id_activo_sap.label }} *</label>
+      {{ form.id_activo_sap }}
+    </div>
+    <div style="margin-bottom: 14px">
+      <label class="form-label">{{ form.descripcion_activo.label }}</label>
+      {{ form.descripcion_activo }}
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+        Descripción del activo para trazabilidad (opcional)
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: flex-end; gap: 10px">
+    <a href="{% url 'app:gestor_tickets' %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Vincular activo →</button>
+  </div>
+</form>
+{% endblock %}

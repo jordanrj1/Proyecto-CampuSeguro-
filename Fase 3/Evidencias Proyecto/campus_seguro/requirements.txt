@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════════
+# Campus Seguro – Dependencias del proyecto
+# ─────────────────────────────────────────────────────────────
+# Para instalar:  pip install -r requirements.txt
+# Entorno:        Python 3.13+
+# ═══════════════════════════════════════════════════════════════
+
+# ── Framework principal ──────────────────────────────────────
+Django==5.2.7
+asgiref==3.10.0
+sqlparse==0.5.3
+
+# ── Variables de entorno (.env) ──────────────────────────────
+python-dotenv==1.2.2
+
+# ── Imágenes (ImageField en modelos) ────────────────────────
+pillow==11.3.0
+
+# ── Auth0 / JWT ──────────────────────────────────────────────
+# requests: llamadas HTTP a Auth0 API (login ROPC, Management API, webhook)
+# PyJWT: decodificacion de id_token JWT recibido de Auth0 en el login
+# Nota: se corrigió de 2.34.0 a 2.32.3 porque 2.34.0 no existe en PyPI y rompía la instalación
+requests==2.32.3
+PyJWT==2.12.1
+
+# ── Utilidades HTTP ─────────────────────────────────────────
+urllib3==2.4.0
+certifi==2025.6.15
+charset-normalizer==3.4.2
+idna==3.10

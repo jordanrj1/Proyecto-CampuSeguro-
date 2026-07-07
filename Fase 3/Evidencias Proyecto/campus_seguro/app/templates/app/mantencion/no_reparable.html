@@ -1,0 +1,535 @@
+{% extends 'app/base.html' %} 
+{% block title %}No reparable · Ticket #{{ticket.pk}}{% endblock %} 
+{% block page_title %}Registrar: No pude repararlo{% endblock %}
+{% block page_subtitle %}Ticket #{{ ticket.pk }} · {{ ticket.titulo }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:dashboard' %}" class="btn btn-ghost">← Volver</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Info del ticket -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="form-section-title">📋 Información del incidente</div>
+  <div
+    style="
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    "
+  >
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">SOLICITANTE</div>
+      {{ ticket.creado_por.get_full_name }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">UBICACIÓN</div>
+      {{ ticket.ubicacion }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">URGENCIA</div>
+      <span class="urgencia-{{ ticket.urgencia }}"
+        >{{ ticket.get_urgencia_display }}</span
+      >
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">CATEGORÍA</div>
+      {{ ticket.get_categoria_display }}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">
+        INICIO DEL TRABAJO
+      </div>
+      {% if ticket.inicio_trabajo_at %}<span style="color: var(--accent-green)"
+        >{{ ticket.inicio_trabajo_at|date:"d/m/Y H:i" }}</span
+      >
+      {% else %}<span style="color: var(--text-muted)">No registrado</span>{%endif%}
+    </div>
+    <div>
+      <div style="color: var(--text-muted); font-size: 11px">RIESGOS</div>
+      {% if ticket.riesgo_electrico %}⚡ Eléctrico &nbsp;{% endif %} {%if ticket.riesgo_estructural%}🏗️ Estructural &nbsp;{% endif %} {%if ticket.afecta_clase%}📚 Afecta clases{% endif %} {%if not ticket.riesgo_electrico and not ticket.riesgo_estructural and not ticket.afecta_clase%}—{% endif %}
+    </div>
+  </div>
+  {% if ticket.descripcion %}
+  <div
+    style="
+      background: var(--bg-700);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 14px;
+    "
+  >
+    <strong style="color: var(--text-primary)">Descripción del problema:</strong
+    ><br />{{ ticket.descripcion }}
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %} {% if form.non_field_errors %}
+  <div
+    style="
+      background: rgba(245, 54, 92, 0.1);
+      border: 1px solid var(--accent-red);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: var(--accent-red);
+    "
+  >
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <!-- CAUSAS CATEGORIZADAS -->
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">⚠️ ¿Por qué no se pudo completar?</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px">
+      Selecciona las causas que aplican. Esta información ayuda al gestor a
+      planificar y resolver el problema.
+    </div>
+
+    <!-- CAUSA 1: MATERIALES -->
+    <div
+      id="causa-materiales"
+      style="
+        background: var(--bg-700);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+      "
+    >
+      <label
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          margin-bottom: 0;
+        "
+      >
+        <input
+          type="checkbox"
+          id="chk-materiales"
+          name="causa_materiales"
+          style="width: 16px; height: 16px; accent-color: var(--accent-yellow)"
+          value="on"
+          onchange="toggleSection('sec-materiales', this)"
+        />
+        <div>
+          <div style="font-size: 14px; font-weight: 700">
+            📦 Falta de materiales
+          </div>
+          <div style="font-size: 11px; color: var(--text-secondary)">
+            No se contaba con los materiales o repuestos necesarios para
+            ejecutar la reparación.
+          </div>
+        </div>
+      </label>
+      <div
+        id="sec-materiales"
+        style="
+          display: none;
+          margin-top: 14px;
+          padding-top: 14px;
+          border-top: 1px solid var(--border);
+        "
+      >
+        <div style="margin-bottom: 12px">
+          <label class="form-label">Tipo de material faltante</label>
+          <select name="tipo_material_faltante" class="form-control">
+            <option value="">Seleccionar causa específica…</option>
+            <option value="repuesto_agotado">Repuesto agotado en bodega</option>
+            <option value="repuesto_no_disponible">
+              Repuesto no disponible en el mercado local
+            </option>
+            <option value="herramienta_faltante">
+              Herramienta especializada no disponible
+            </option>
+            <option value="material_incorrecto">
+              Material solicitado no corresponde al problema real
+            </option>
+            <option value="insumo_importado">
+              Insumo requiere importación
+            </option>
+            <option value="otro_material">
+              Otro (especificar en descripción)
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label"
+            >Especifica qué materiales/herramientas se requieren</label
+          >
+          <textarea
+            name="material_requerido"
+            class="form-control"
+            rows="3"
+            placeholder="Indica nombre, cantidad y especificaciones técnicas de lo que falta…"
+          >
+{{ form.material_requerido.value|default:'' }}</textarea
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- CAUSA 2: PERSONAL -->
+    <div
+      id="causa-personal"
+      style="
+        background: var(--bg-700);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+      "
+    >
+      <label
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          margin-bottom: 0;
+        "
+      >
+        <input
+          type="checkbox"
+          id="chk-personal"
+          name="causa_personal"
+          style="width: 16px; height: 16px; accent-color: var(--accent-blue)"
+          value="on"
+          onchange="toggleSection('sec-personal', this)"
+        />
+        <div>
+          <div style="font-size: 14px; font-weight: 700">
+            👥 Falta de personal especializado
+          </div>
+          <div style="font-size: 11px; color: var(--text-secondary)">
+            La reparación requiere competencias técnicas específicas que el
+            técnico actual no posee.
+          </div>
+        </div>
+      </label>
+      <div
+        id="sec-personal"
+        style="
+          display: none;
+          margin-top: 14px;
+          padding-top: 14px;
+          border-top: 1px solid var(--border);
+        "
+      >
+        <div style="margin-bottom: 12px">
+          <label class="form-label">Especialidad requerida</label>
+          <select name="tipo_especialidad" class="form-control">
+            <option value="">Seleccionar especialidad…</option>
+            <option value="electricista_certificado">
+              Electricista certificado (SEC)
+            </option>
+            <option value="gasfiter">Gasfíter / Plomero especializado</option>
+            <option value="climatizacion">
+              Técnico en climatización / HVAC
+            </option>
+            <option value="ascensores">
+              Técnico en ascensores y elevadores
+            </option>
+            <option value="sistemas_incendio">
+              Especialista en sistemas de incendio
+            </option>
+            <option value="estructural">
+              Ingeniero estructural / Especialista civil
+            </option>
+            <option value="electronica">
+              Técnico electrónico / Control industrial
+            </option>
+            <option value="otro_especialista">
+              Otro especialista (indicar en descripción)
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label"
+            >Nombre o descripción de la especialidad requerida</label
+          >
+          <input
+            type="text"
+            name="personal_especializado_requerido"
+            class="form-control"
+            placeholder="Ej: Electricista con licencia SEC, Técnico en redes…"
+            value="{{ form.personal_especializado_requerido.value|default:'' }}"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- CAUSA 3: MAYOR GRAVEDAD -->
+    <div
+      id="causa-gravedad"
+      style="
+        background: var(--bg-700);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+      "
+    >
+      <label
+        style="
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+          margin-bottom: 0;
+        "
+      >
+        <input
+          type="checkbox"
+          id="chk-gravedad"
+          name="causa_gravedad"
+          style="width: 16px; height: 16px; accent-color: var(--accent-red)"
+          value="on"
+          onchange="toggleSection('sec-gravedad', this)"
+        />
+        <div>
+          <div style="font-size: 14px; font-weight: 700">
+            🚨 Problema de mayor gravedad
+          </div>
+          <div style="font-size: 11px; color: var(--text-secondary)">
+            La falla es más compleja o peligrosa de lo reportado originalmente.
+            Requiere intervención mayor.
+          </div>
+        </div>
+      </label>
+      <div
+        id="sec-gravedad"
+        style="
+          display: none;
+          margin-top: 14px;
+          padding-top: 14px;
+          border-top: 1px solid var(--border);
+        "
+      >
+        <div style="margin-bottom: 12px">
+          <label class="form-label">Nivel de criticidad identificado</label>
+          <select name="criticidad" class="form-control">
+            <option value="baja">
+              Baja — Puede esperar reparación programada
+            </option>
+            <option value="media" selected>
+              Media — Requiere atención en días próximos
+            </option>
+            <option value="alta">
+              Alta — Reparación urgente, riesgo operacional
+            </option>
+            <option value="critica">
+              Crítica — Riesgo inmediato para personas, espacio inhabilitado
+            </option>
+          </select>
+        </div>
+        <div style="margin-bottom: 12px">
+          <label class="form-label">Tipo de intervención mayor necesaria</label>
+          <select name="tipo_intervencion" class="form-control">
+            <option value="">Seleccionar intervención…</option>
+            <option value="reemplazo_completo">
+              Reemplazo completo del equipo/componente
+            </option>
+            <option value="obra_civil">Obra civil o estructural</option>
+            <option value="intervencion_electrica">
+              Intervención eléctrica certificada
+            </option>
+            <option value="empresa_especializada">
+              Empresa especializada (externalización)
+            </option>
+            <option value="revision_tecnica">
+              Revisión técnica por ingeniero
+            </option>
+            <option value="garantia_fabricante">
+              Gestión de garantía con fabricante
+            </option>
+            <option value="otro_mayor">
+              Otro (describir en motivo técnico)
+            </option>
+          </select>
+        </div>
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            background: var(--bg-600);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 4px;
+          "
+        >
+          <input
+            type="checkbox"
+            name="requiere_externalizacion"
+            {%if form.requiere_externalizacion.value%}checked{%endif%}
+            style="width: 16px; height: 16px; accent-color: var(--accent-red)"
+            value="on"
+          />
+          <div>
+            <div style="font-size: 13px; font-weight: 600">
+              Requiere externalización
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary)">
+              Empresa externa debe intervenir. El gestor gestionará el proveedor
+              y los costos.
+            </div>
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESCRIPCIÓN TÉCNICA -->
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📝 Descripción técnica del problema</div>
+    <div style="margin-bottom: 14px">
+      <label class="form-label">Motivo técnico detallado *</label>
+      <textarea
+        name="motivo_tecnico"
+        class="form-control"
+        rows="5"
+        required
+        placeholder="Describe con detalle qué encontraste, qué revisaste, por qué no se puede reparar ahora y qué se necesitaría para resolverlo…"
+      >
+{{ form.motivo_tecnico.value|default:'' }}</textarea
+      >
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+        Sé específico. Esta información es lo que recibirá el gestor para tomar
+        acción.
+      </div>
+    </div>
+    {% if form.herramientas_faltantes %}
+    <div>
+      <label class="form-label">Herramientas que faltaron</label>
+      <textarea
+        name="herramientas_faltantes"
+        class="form-control"
+        rows="2"
+        placeholder="Lista las herramientas que hubieran sido necesarias"
+      >
+{{ form.herramientas_faltantes.value|default:'' }}</textarea
+      >
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- FOTO DE DIAGNÓSTICO -->
+  <div class="card" style="margin-bottom: 18px">
+    <div class="form-section-title">📷 Foto de diagnóstico</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px">
+      Registra el estado actual del problema. Ayuda al gestor y al próximo
+      técnico a entender la situación.
+    </div>
+    <div
+      style="
+        border: 2px dashed var(--border-strong);
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        position: relative;
+        cursor: pointer;
+      "
+      onmouseover="this.style.borderColor = 'var(--accent-red)'"
+      onmouseout="this.style.borderColor = 'var(--border-strong)'"
+    >
+      <input
+        type="file"
+        name="foto_diagnostico"
+        accept="image/*"
+        style="
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          cursor: pointer;
+          width: 100%;
+          height: 100%;
+        "
+        onchange="previewDiag(this)"
+      />
+      <div id="previewDiagBox" style="display: none; margin-bottom: 12px">
+        <img
+          id="previewDiagImg"
+          style="max-height: 180px; border-radius: 8px; max-width: 100%"
+        />
+      </div>
+      <div id="fotoDiagHint">
+        <div style="font-size: 28px; margin-bottom: 6px">📸</div>
+        <div style="font-size: 13px; font-weight: 600">
+          Foto del problema diagnosticado
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">
+          Muestra el área afectada o el componente dañado.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    style="
+      background: rgba(245, 54, 92, 0.08);
+      border: 1px solid var(--accent-red);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    "
+  >
+    <strong style="color: var(--accent-red)">⚠️ Importante:</strong> Al enviar
+    este formulario el ticket quedará marcado como
+    <strong>No reparable</strong>. El gestor recibirá una notificación con toda
+    la información y tomará las acciones necesarias.
+  </div>
+
+  <div
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <a
+      href="{% url 'app:completar_mantencion' ticket.pk %}"
+      class="btn btn-ghost"
+      >← Volver a completar reparación</a
+    >
+    <div style="display: flex; gap: 10px">
+      <a href="{% url 'app:dashboard' %}" class="btn btn-ghost">Cancelar</a>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        style="background: var(--accent-red); border-color: var(--accent-red)"
+      >
+        ✗ Confirmar: No pude repararlo
+      </button>
+    </div>
+  </div>
+</form>
+
+<script>
+  function toggleSection(id, checkbox) {
+    const sec = document.getElementById(id);
+    sec.style.display = checkbox.checked ? "block" : "none";
+  }
+
+  function previewDiag(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById("previewDiagImg").src = e.target.result;
+        document.getElementById("previewDiagBox").style.display = "block";
+        document.getElementById("fotoDiagHint").style.display = "none";
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+</script>
+{% endblock %}

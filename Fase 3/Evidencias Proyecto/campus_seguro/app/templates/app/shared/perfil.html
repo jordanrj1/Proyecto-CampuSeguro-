@@ -1,0 +1,163 @@
+{% extends 'app/base.html' %} 
+{% block title %}Mi perfil{% endblock %} 
+{% block page_title %}Mi perfil{% endblock %}
+{% block page_subtitle %}{{ usuario.rol.nombre|default:"Sin Rol" }} · {{ usuario.username }}{% endblock %}
+
+{%block content%}
+
+{% if messages %} {% for msg in messages %}
+<div
+  style="background:{% if 'error' in msg.tags %}rgba(245,54,92,0.1){% else %}rgba(45,206,137,0.1){% endif %};border:1px solid {% if 'error' in msg.tags %}var(--accent-red){% else %}var(--accent-green){% endif %};border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:{% if 'error' in msg.tags %}var(--accent-red){% else %}var(--accent-green){% endif %};"
+>
+  {{ msg }}
+</div>
+{% endfor %} {% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
+  <!-- Info de cuenta (solo lectura) -->
+  <div class="card">
+    <div class="form-section-title">Información de cuenta</div>
+    <div
+      style="display: flex; flex-direction: column; gap: 14px; font-size: 13px"
+    >
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          NOMBRE COMPLETO
+        </div>
+        <div style="font-weight: 600; font-size: 16px">
+          {{ usuario.get_full_name|default:'Sin nombre' }}
+        </div>
+      </div>
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          NOMBRE DE USUARIO
+        </div>
+        <div style="font-family: var(--font-mono)">{{ usuario.username }}</div>
+      </div>
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          EMAIL
+        </div>
+        <div>{{ usuario.email|default:'—' }}</div>
+      </div>
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          ROL
+        </div>
+        <span
+          style="
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            background: rgba(74, 143, 255, 0.15);
+            color: var(--accent-blue);
+          "
+          >{{ usuario.rol.nombre|default:"Sin Rol" }}</span
+        >
+      </div>
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          ESTADO
+        </div>
+        <span
+          style="font-size:12px;padding:3px 10px;border-radius:6px;background:{% if usuario.estado_cuenta.codigo == 'activa' %}rgba(45,206,137,0.15){% else %}rgba(244,197,66,0.15){% endif %};color:{% if usuario.estado_cuenta.codigo == 'activa' %}var(--accent-green){% else %}var(--accent-yellow){% endif %};"
+          >{{ usuario.get_estado_cuenta_display }}</span
+        >
+      </div>
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          REGISTRADO
+        </div>
+        <div>{{ usuario.fecha_registro|date:"d/m/Y" }}</div>
+      </div>
+      {# ── MODIFICACIÓN CRÍTICA: Despliegue de Especialidades Muchos a Muchos solo para Mantención ── #}
+      {% if usuario.rol == 'mantencion' %}
+      <div>
+        <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 5px">
+          ESPECIALIDADES TÉCNICAS
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;">
+          {% for esp in usuario.especialidades.all %}
+            <span style="font-size: 11.5px; padding: 3px 8px; border-radius: 6px; background: rgba(45, 206, 137, 0.15); color: var(--accent-green); font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+              🔧 {{ esp.nombre }}
+            </span>
+          {% empty %}
+            <span style="color: var(--text-muted); font-style: italic; font-size: 12.5px;">Sin especialidades registradas</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if usuario.turno %}
+      <div>
+        <div
+          style="color: var(--text-muted); font-size: 11px; margin-bottom: 2px"
+        >
+          TURNO
+        </div>
+        <div>{{ usuario.turno }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Editar nombre -->
+  <div class="card">
+    <div class="form-section-title">Editar nombre</div>
+    <form method="post">
+      {% csrf_token %}
+      <div style="margin-bottom: 14px">
+        <label class="form-label">Nombre *</label>
+        <input
+          type="text"
+          name="first_name"
+          class="form-control"
+          required
+          value="{{ usuario.first_name }}"
+          placeholder="Nombre"
+        />
+      </div>
+      <div style="margin-bottom: 18px">
+        <label class="form-label">Apellido</label>
+        <input
+          type="text"
+          name="last_name"
+          class="form-control"
+          value="{{ usuario.last_name }}"
+          placeholder="Apellido"
+        />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%">
+        Guardar cambios
+      </button>
+    </form>
+
+    <div
+      style="
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+      "
+    >
+      <div class="form-section-title">Seguridad</div>
+      <a
+        href="{% url 'app:cambiar_password' %}"
+        class="btn btn-ghost"
+        style="width: 100%; text-align: center; justify-content: center"
+        >Cambiar contraseña</a
+      >
+    </div>
+  </div>
+</div>
+{% endblock %}

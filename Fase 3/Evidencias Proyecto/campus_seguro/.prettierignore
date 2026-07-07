@@ -1,0 +1,4 @@
+# Django templates — Prettier no sabe parsear tags Django ({% %} / {{ }})
+# y los parte en múltiples líneas rompiendo el TemplateSyntaxError.
+app/templates/**/*.html
+templates/**/*.html

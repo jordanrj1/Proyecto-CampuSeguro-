@@ -1,0 +1,56 @@
+{% extends 'app/base.html' %}
+{% block title %}Materiales{% endblock %}
+{% block page_title %}Catálogo de Materiales{% endblock %}
+{% block page_subtitle %}Inventario para mantención y BI de compras{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:material_nuevo' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Nuevo material</a>
+{% endblock %}
+
+{% block content %}
+
+<form method="get" class="filters-bar">
+  <select name="categoria" class="filter-input">
+    <option value="">Todas las categorías</option>
+    {% for k, v in categorias %}<option value="{{ k }}" {% if categoria_filtro == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-primary btn-sm">Filtrar</button>
+  {% if categoria_filtro %}<a href="{% url 'app:materiales_listado' %}" class="btn btn-ghost btn-sm">✕ Limpiar</a>{% endif %}
+</form>
+
+<div class="card">
+  {% if materiales %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th><th>Material</th><th>Categoría</th><th>Unidad</th>
+          <th style="text-align:center;">Total Utilizado</th> <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in materiales %}
+        <tr>
+          <td><span class="id-mono">{{ m.codigo }}</span></td>
+          <td><strong>{{ m.nombre }}</strong>{% if m.descripcion %}<br><span style="font-size:11px;color:var(--text-muted);">{{ m.descripcion|truncatechars:50 }}</span>{% endif %}</td>
+          <td><span class="badge badge-purple">{{ m.categoria.nombre_display|default:'Sin categoría' }}</span></td>
+          <td>{{ m.get_unidad_display }}</td>
+          <td style="text-align:center;">
+            <span class="id-mono" style="font-size:14px;font-weight:700;color:var(--accent-blue);">
+              {{ m.total_utilizado|default:"0" }}
+            </span>
+          </td>
+          <td><a href="{% url 'app:material_editar' m.id %}" class="btn btn-ghost btn-sm">✏️</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">📦</div>
+    <div class="label">Sin materiales en el catálogo</div>
+    <a href="{% url 'app:material_nuevo' %}" class="btn btn-primary" style="margin-top:14px;">➕ Agregar el primero</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

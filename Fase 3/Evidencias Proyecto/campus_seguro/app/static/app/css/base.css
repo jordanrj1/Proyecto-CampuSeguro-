@@ -1,0 +1,70 @@
+/* ===================================
+   BASE STYLES - Campus Seguro DuocUC
+   Paleta oficial del kit digital
+   =================================== */
+
+:root {
+    /* Paleta Primaria DuocUC */
+    --duoc-negro: #1A1A1A;
+    --duoc-blanco: #FFFFFF;
+    --duoc-amarillo: #FFB800;
+    
+    /* Paleta Secundaria */
+    --duoc-gris: #666666;
+    --duoc-terciario: #000000;
+    --duoc-gris-claro: #EEEEEE;
+    
+    /* Colores de estado (complementarios) */
+    --estado-enviado: #2563EB;
+    --estado-pendiente: #F59E0B;
+    --estado-proceso: #7C3AED;
+    --estado-completado: #10B981;
+    
+    /* Prioridades */
+    --prioridad-alta: #EF4444;
+    --prioridad-media: #F59E0B;
+    --prioridad-baja: #3B82F6;
+    
+    /* Tipografía */
+    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-primary);
+    background-color: var(--duoc-gris-claro);
+    color: var(--duoc-negro);
+    line-height: 1.6;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--duoc-gris-claro);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--duoc-gris);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--duoc-negro);
+}
+
+/* Utilidades */
+.text-amarillo { color: var(--duoc-amarillo) !important; }
+.bg-amarillo { background-color: var(--duoc-amarillo) !important; }
+.text-negro { color: var(--duoc-negro) !important; }
+.bg-negro { background-color: var(--duoc-negro) !important; }
+.text-gris { color: var(--duoc-gris) !important; }
+.bg-gris { background-color: var(--duoc-gris) !important; }

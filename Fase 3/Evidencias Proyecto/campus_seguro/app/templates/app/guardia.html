@@ -1,0 +1,343 @@
+{% extends 'app/base.html' %}
+{% block title %}Panel Guardia{% endblock %}
+{% block page_title %}Panel de Guardia{% endblock %}
+{% block page_subtitle %}Validaciones en terreno · {{ user.turno|default:"Turno general" }}{% endblock %}
+
+{% comment %}
+   TEMPLATE: app/guardia.html
+   ─────────────────────────────────────────────────────────────
+   CONTROLADOR (views.py):
+     Función: dashboard_guardia(request)
+     URL:     /dashboard/  (el router dashboard() redirige aquí cuando user.rol == 'guardia')
+     Acceso:  Solo usuarios con rol 'guardia' y cuenta activa.
+
+   VARIABLES DE CONTEXTO (enviadas desde dashboard_guardia):
+     pendientes (QuerySet<Ticket>)
+       → Tickets con estado 'en_validacion' y sin soft-delete.
+       → Ordenados por urgencia DESC y fecha de creación DESC.
+       → Cada objeto tiene: id, titulo, urgencia, created_at,
+         creado_por (Usuario), ubicacion (Ubicacion).
+
+     pendientes_count (int)
+       → Cantidad de tickets pendientes de validar. Usado en el KPI amarillo.
+
+     mis_validaciones (QuerySet<ValidacionGuardia>)
+       → Las últimas 8 validaciones realizadas por este guardia.
+       → Tiene: ticket (FK), resultado ('valido'/'invalido'), created_at.
+
+     total_validados (int)
+       → Total histórico de validaciones de este guardia (no solo las 8 recientes).
+
+     validos (int)
+       → Cantidad de validaciones con resultado='valido'.
+
+     invalidos (int)
+       → Cantidad de validaciones con resultado='invalido'.
+
+     inasistencias (QuerySet<Inasistencia>)
+       → Últimas 3 inasistencias del guardia actual.
+       → Tiene: fecha_desde, fecha_hasta, motivo, estado (FK → EstadoCatalogo).
+
+     user (Usuario)
+       → El guardia autenticado. Viene del context processor estándar de Django
+         (request.user), no se pasa explícitamente desde la vista.
+       → Se usa para: user.turno (muestra el turno del guardia en el subtítulo).
+
+     ═══════════════════════════════════════════════════════════════
+     NUEVOS (TARJETA 08):
+     mis_revisiones (QuerySet<AsignacionTicket>)
+       → Tickets asignados específicamente a este guardia con fecha programada.
+       → Tiene: ticket (FK), fecha_programada, estado (FK → EstadoCatalogo).
+     
+     mis_revisiones_count (int)
+       → Cantidad de revisiones asignadas pendientes.
+     ═══════════════════════════════════════════════════════════════
+
+   FILTRO URGENCIA CRÍTICA (línea ~53):
+     El condicional {% if t.urgencia == "critica" %} resalta la fila en rojo tenue.
+     Corregido en sesión actual: era '="" ="critica"' (typo), ahora es '== "critica"'.
+     urgencia es un CharField del modelo Ticket con valores: baja/media/alta/critica.
+
+   URLS QUE GENERA:
+     app:validar_ticket → /guardia/validar/<ticket_id>/
+       Formulario de validación en terreno (ValidacionForm en forms.py).
+     app:detalle_ticket → /tickets/<ticket_id>/
+       Vista de detalle del ticket.
+     app:registrar_inasistencia → /inasistencias/nueva/
+       Formulario para que el guardia registre su propia inasistencia.
+
+   CONEXIONES:
+     - Modelo Ticket:            app/models.py → class Ticket
+     - Modelo ValidacionGuardia: app/models.py → class ValidacionGuardia
+     - Modelo AsignacionTicket:  app/models.py → class AsignacionTicket (TARJETA 08)
+     - Modelo Inasistencia:      app/models.py → class Inasistencia
+     - Vista que alimenta:       app/views.py → dashboard_guardia()
+     - CSS urgencia-{valor}:     static/css/main.css → .urgencia-critica, .urgencia-alta, etc.
+{% endcomment %}
+
+{%block content%}
+
+<div class="kpi-grid">
+  <div class="kpi yellow">
+    <div class="kpi-label">Pendientes</div>
+    <div class="kpi-value">{{ pendientes_count }}</div>
+    <div class="kpi-sub">por validar</div>
+  </div>
+  <div class="kpi {% if mis_revisiones_count > 0 %}blue{% else %}green{% endif %}">
+    <div class="kpi-label">Mis Revisiones</div>
+    <div class="kpi-value">{{ mis_revisiones_count }}</div>
+    <div class="kpi-sub">asignadas</div>
+  </div>
+  <div class="kpi blue">
+    <div class="kpi-label">Total validados</div>
+    <div class="kpi-value">{{ total_validados }}</div>
+    <div class="kpi-sub">histórico</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Válidos</div>
+    <div class="kpi-value">{{ validos }}</div>
+    <div class="kpi-sub">incidencias reales</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">Inválidos</div>
+    <div class="kpi-value">{{ invalidos }}</div>
+    <div class="kpi-sub">no requerían acción</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- NUEVO: Mis Revisiones Asignadas (TARJETA 08) -->
+<!-- Tickets asignados específicamente a este guardia con fecha programada -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+{% if mis_revisiones %}
+<div class="card" style="margin-bottom: 18px; border-left: 3px solid var(--accent-blue)">
+  <div class="card-title" style="color: var(--accent-blue)">
+    <i class="fa-solid fa-clipboard-list"></i> Mis Revisiones Asignadas
+  </div>
+  <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px">
+    Tickets que te fueron asignados específicamente para validar en terreno.
+  </div>
+  {% for asignacion in mis_revisiones %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    "
+  >
+    <div style="flex: 1">
+      <div
+        style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px"
+      >
+        <span
+          style="
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-muted);
+          "
+          >#{{ asignacion.ticket.id }}</span
+        >
+        <span class="urgencia-{{ asignacion.ticket.urgencia }}"
+          >{{ asignacion.ticket.get_urgencia_display }}</span
+        >
+        {% if asignacion.ticket.afecta_clase %}<span
+          style="
+            font-size: 11px;
+            background: rgba(74, 143, 255, 0.15);
+            color: var(--accent-blue);
+            padding: 2px 8px;
+            border-radius: 4px;
+          "
+          >📚 Afecta clases</span
+        >{% endif %}
+      </div>
+      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px">
+        {{ asignacion.ticket.titulo }}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary)">
+        📍 {{ asignacion.ticket.ubicacion }}
+      </div>
+      <div style="font-size: 12px; color: var(--accent-blue); margin-top: 6px">
+        📅 Fecha programada: 
+        <strong>{{ asignacion.fecha_programada|date:"d/m/Y" }}</strong>
+        {% if asignacion.fecha_programada < today %}
+        <span style="color: var(--accent-red); margin-left: 8px">⚠️ Vencida</span>
+        {% elif asignacion.fecha_programada == today %}
+        <span style="color: var(--accent-yellow); margin-left: 8px">📌 Hoy</span>
+        {% endif %}
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px">
+        Asignado por: {{ asignacion.asignado_por.get_full_name|default:"Sistema" }}
+      </div>
+    </div>
+    <div
+      style="display: flex; flex-direction: column; gap: 8px; min-width: 155px"
+    >
+      <a
+        href="{% url 'app:detalle_ticket' asignacion.ticket.id %}"
+        class="btn btn-ghost btn-sm"
+        style="text-align: center"
+        >Ver detalles</a
+      >
+      <a
+        href="{% url 'app:validar_ticket' asignacion.ticket.id %}"
+        class="btn btn-primary btn-sm"
+        style="text-align: center"
+        ><i class="fa-solid fa-shield-halved"></i> Ir a Validar</a
+      >
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title"><i class="fa-solid fa-hourglass-half" style="color:var(--accent-yellow);"></i> Validaciones pendientes</div>
+  {% if pendientes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Solicitante</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Hace</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in pendientes %}
+        <tr
+          {% if t.urgencia == "critica" %}style="background:rgba(245,54,92,0.05);"
+          {% endif %}
+        >
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:30 }}</strong></td>
+          <td>{{ t.creado_por.get_full_name|truncatechars:24 }}</td>
+          <td>
+            {{ t.ubicacion.edificio }} P{{ t.ubicacion.piso }}{%if t.ubicacion.sala%} · {{ t.ubicacion.sala }}{% endif %}
+          </td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td><span class="id-mono">{{ t.created_at|timesince }}</span></td>
+          <td>
+            <a
+              href="{% url 'app:validar_ticket' t.id %}"
+              class="btn btn-primary btn-sm"
+              ><i class="fa-solid fa-shield-halved"></i> Validar</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon"><i class="fa-solid fa-circle-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
+    <div class="label">No hay validaciones pendientes</div>
+    <div class="sub">Sin alertas activas en este momento.</div>
+  </div>
+  {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px">
+  <div class="card">
+    <div class="card-title"><i class="fa-solid fa-check-double" style="color:var(--accent-green);"></i> Mis validaciones recientes</div>
+    {% if mis_validaciones %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Resultado</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in mis_validaciones %}
+          <tr>
+            <td>
+              <strong>#{{ v.ticket.id }}</strong> · {{v.ticket.titulo|truncatechars:30}}
+            </td>
+            <td>
+              {% if v.resultado == 'valido' %}<span class="badge badge-green"
+                >Válido</span
+              >
+              {% else %}<span class="badge badge-red">Inválido</span>{% endif %}
+            </td>
+            <td>
+              <span class="id-mono">{{ v.created_at|date:"d/m H:i" }}</span>
+            </td>
+            <td>
+              <a
+                href="{% url 'app:detalle_ticket' v.ticket.id %}"
+                class="btn btn-ghost btn-sm"
+                >→</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px">
+      <div class="sub">Sin validaciones realizadas</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title"><i class="fa-solid fa-calendar-xmark" style="color:var(--text-muted);"></i> Mis inasistencias</div>
+    {% if inasistencias %} {% for i in inasistencias %}
+    <div
+      style="
+        padding: 10px;
+        background: var(--bg-700);
+        border-radius: 8px;
+        margin-bottom: 8px;
+      "
+    >
+      <div style="font-size: 12px; font-weight: 600">
+        {{ i.fecha_desde|date:"d/m" }} → {{ i.fecha_hasta|date:"d/m/Y" }}
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px">
+        {{ i.get_motivo_display }}
+      </div>
+      <div style="margin-top: 6px">
+        {% if i.estado.codigo == 'aprobada' %}<span class="badge badge-green"
+          >Aprobada</span
+        >
+        {% elif i.estado.codigo == 'rechazada' %}<span class="badge badge-red"
+          >Rechazada</span
+        >
+        {% else %}<span class="badge badge-yellow">Pendiente</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %} {% else %}
+    <div class="empty-state" style="padding: 18px">
+      <div class="sub">Sin registros</div>
+    </div>
+    {% endif %}
+    <a
+      href="{% url 'app:registrar_inasistencia' %}"
+      class="btn btn-ghost btn-full btn-sm"
+      style="margin-top: 10px"
+      >+ Registrar inasistencia</a
+    >
+  </div>
+</div>
+{% endblock %}

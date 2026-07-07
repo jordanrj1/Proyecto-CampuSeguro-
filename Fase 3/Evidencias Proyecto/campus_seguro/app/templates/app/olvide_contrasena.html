@@ -1,0 +1,64 @@
+{% extends 'app/base.html' %}
+{% block title %}Recuperar Contraseña – Campus Seguro{% endblock %}
+
+{% block auth_content %}
+<style>
+body { display: flex; align-items: center; justify-content: center; padding: 20px; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 30% 30%, rgba(244,197,66,0.06) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 70%, rgba(74,143,255,0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+.recover-wrapper {
+  max-width: 460px; width: 100%;
+  background: var(--bg-50); border: 1px solid var(--border); border-radius: 16px;
+  padding: 40px; box-shadow: var(--shadow-lg); z-index: 1; position: relative;
+}
+.recover-icon {
+  width: 64px; height: 64px;
+  background: linear-gradient(135deg, var(--accent-yellow), #f08c33);
+  border-radius: 16px; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin: 0 auto 18px;
+}
+.recover-title { font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 6px; letter-spacing: -0.4px; }
+.recover-desc { font-size: 13px; color: var(--text-secondary); text-align: center; line-height: 1.5; margin-bottom: 28px; }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+.input-group input { width: 100%; padding: 12px 16px; background: var(--bg-700); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 14px; font-family: var(--font-main); outline: none; }
+.input-group input:focus { border-color: var(--accent-blue); background: var(--bg-600); }
+.btn-submit { width: 100%; padding: 13px; background: var(--accent-blue); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn-submit:hover { background: #3a7fee; }
+.back-link { text-align: center; margin-top: 20px; font-size: 13px; }
+.back-link a { color: var(--accent-teal); font-weight: 600; }
+.back-link a:hover { text-decoration: underline; }
+.info-box { background: rgba(74,143,255,0.06); border: 1px solid rgba(74,143,255,0.2); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: var(--accent-blue); margin-bottom: 22px; line-height: 1.5; }
+</style>
+
+<div class="recover-wrapper">
+  <div class="recover-icon">🔐</div>
+  <h2 class="recover-title">Recuperar Contraseña</h2>
+  <p class="recover-desc">Ingresa tu correo institucional. Si está registrado, te enviaremos un enlace para crear una nueva contraseña.</p>
+
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+  {% endfor %}
+
+  <div class="info-box">
+    💡 El enlace de recuperación expira en 2 horas. Si no recibes el correo en 5 minutos, contacta a tu gestor institucional.
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="input-group">
+      <label>Correo Institucional</label>
+      <input type="email" name="correo" placeholder="tu.correo@duoc.cl" required autofocus>
+    </div>
+    <button type="submit" class="btn-submit">Enviar Enlace de Recuperación</button>
+  </form>
+
+  <div class="back-link">
+    <a href="{% url 'app:login' %}">← Volver al inicio de sesión</a>
+  </div>
+</div>
+{% endblock %}

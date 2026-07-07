@@ -1,0 +1,355 @@
+{% extends 'app/base.html' %} 
+{% block title %}Panel de Mantención{% endblock %}
+{% block page_title %}Panel de Mantención{% endblock %}
+{% block page_subtitle %}Tus trabajos asignados · {{ request.user.get_full_name }}{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:registrar_inasistencia' %}" class="btn btn-ghost">Registrar inasistencia</a>
+{% endblock %}
+
+{% block content %}
+
+{% if inasistencia_activa %}
+<div
+  style="
+    background: rgba(245, 54, 92, 0.12);
+    border: 1px solid var(--accent-red);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  "
+>
+  <span style="font-size: 20px; color: var(--accent-red);"><i class="fa-solid fa-circle-xmark"></i></span>
+  <div>
+    <div style="font-weight: 700; color: var(--accent-red); font-size: 14px">
+      Tienes una inasistencia activa — tus tickets están bloqueados
+    </div>
+    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px">
+      Período: {{ inasistencia_activa.fecha_desde|date:"d/m/Y" }} → {{inasistencia_activa.fecha_hasta|date:"d/m/Y"}} · {{inasistencia_activa.get_motivo_display}}
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">
+      El gestor ha sido notificado y puede reasignar tus tickets.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="kpi-label">Pendientes</div>
+    <div class="kpi-value">{{ pendientes_count }}</div>
+    <div class="kpi-sub">por reparar</div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">Completados</div>
+    <div class="kpi-value">{{ completados_count }}</div>
+    <div class="kpi-sub">reparaciones realizadas</div>
+  </div>
+  <div class="kpi red">
+    <div class="kpi-label">No reparables</div>
+    <div class="kpi-value">{{ no_reparados_count }}</div>
+    <div class="kpi-sub">escalados al gestor</div>
+  </div>
+  <div class="kpi teal">
+    <div class="kpi-label">Horas hombre</div>
+    <div class="kpi-value">{{ hh_total|floatformat:1 }}</div>
+    <div class="kpi-sub">hrs consumidas</div>
+  </div>
+</div>
+
+<!-- Trabajos asignados -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title"><i class="fa-solid fa-screwdriver-wrench" style="color:var(--accent-teal);"></i> Mis trabajos asignados</div>
+  {% if pendientes %} {% for ticket in pendientes %}
+  <div
+    style="
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      "
+    >
+      <div style="flex: 1">
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+          "
+        >
+          <span
+            style="
+              font-family: var(--font-mono);
+              font-size: 12px;
+              color: var(--text-muted);
+            "
+            >#{{ ticket.pk }}</span
+          >
+          <span class="urgencia-{{ ticket.urgencia }}"
+            >{{ ticket.get_urgencia_display }}</span
+          >
+          {% if ticket.afecta_clase %}<span
+            style="
+              font-size: 11px;
+              background: rgba(74, 143, 255, 0.15);
+              color: var(--accent-blue);
+              padding: 2px 8px;
+              border-radius: 6px;
+            "
+            >Afecta clases</span
+          >{% endif %} {% if ticket.riesgo_electrico %}<span
+            style="
+              font-size: 11px;
+              background: rgba(245, 54, 92, 0.15);
+              color: var(--accent-red);
+              padding: 2px 8px;
+              border-radius: 6px;
+            "
+            >Riesgo eléctrico</span
+          >{% endif %}
+        </div>
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 6px">
+          {{ ticket.titulo }}
+        </div>
+        <div
+          style="
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+          "
+        >
+          📍 {{ ticket.ubicacion }}
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted)">
+          Reportado por {{ ticket.creado_por.get_full_name }} · {{ticket.created_at|date:"d/m/Y H:i"}} {%if ticket.gestor_responsable%} · Gestor: {{ ticket.gestor_responsable.get_full_name }}{% endif %}
+        </div>
+        {% if ticket.inicio_trabajo_at %}
+        <div
+          style="font-size: 12px; color: var(--accent-green); margin-top: 6px"
+        >
+          ▶ Trabajo iniciado: {{ ticket.inicio_trabajo_at|date:"d/m/Y H:i" }}
+        </div>
+        {% endif %}
+      </div>
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: 140px;
+        "
+      >
+        {% if not inasistencia_activa %} 
+          {% if not ticket.inicio_trabajo_at %}
+            <form method="post" action="{% url 'app:tomar_trabajo' ticket.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary" 
+                      style="width: 100%; {% if not ticket.esta_estimado %}opacity: 0.35; filter: grayscale(80%); cursor: not-allowed;{% endif %}" 
+                      {% if not ticket.esta_estimado %}disabled{% endif %}>
+                <i class="fa-solid fa-play"></i> Tomar trabajo
+              </button>
+            </form>
+
+            {% if not ticket.esta_estimado %}
+              <a href="{% url 'app:estimar_ticket' ticket.pk %}" class="btn btn-ghost"
+                 style="text-align: center; border-color: var(--accent-blue); color: var(--accent-blue); width: 100%">
+                <i class="fa-solid fa-stopwatch"></i> Estimar trabajo
+              </a>
+            {% else %}
+              <div style="font-size: 11px; color: var(--accent-green); text-align: center; margin-top: 4px; font-weight: 600;">
+                ✓ Estimado: {{ ticket.obtener_tiempo_estimado }} hrs
+              </div>
+            {% endif %}
+
+          {% else %}
+          <div style="font-size: 12px; color: var(--text-secondary); background: rgba(74, 143, 255, 0.1); padding: 8px; border-radius: 8px; text-align: center; border: 1px solid rgba(74, 143, 255, 0.2); font-weight: 600; margin-bottom: 4px;">
+            ⏱️ Tiempo Estimado: {{ ticket.obtener_tiempo_estimado }} hrs
+          </div>
+
+          <a
+            href="{% url 'app:completar_mantencion' ticket.pk %}"
+            class="btn btn-primary"
+            style="text-align: center"
+            ><i class="fa-solid fa-pen-to-square"></i> Registrar Avance / Cierre</a
+          >
+
+          <a
+            href="{% url 'app:no_reparable' ticket.pk %}"
+            class="btn btn-ghost"
+            style="
+              text-align: center;
+              border-color: var(--accent-red);
+              color: var(--accent-red);
+            "
+            ><i class="fa-solid fa-circle-xmark"></i> No reparable</a
+          >
+          {% endif %}
+        {% else %}
+        <span
+          style="
+            font-size: 12px;
+            color: var(--accent-red);
+            text-align: center;
+            padding: 8px;
+            background: rgba(245, 54, 92, 0.1);
+            border-radius: 8px;
+          "
+          >Bloqueado por inasistencia</span
+        >
+        {% endif %}
+        <a
+          href="{% url 'app:trazabilidad_ticket' ticket.pk %}"
+          class="btn btn-ghost"
+          style="text-align: center; font-size: 12px"
+          >Ver trazabilidad</a
+        >
+      </div>
+    </div>
+    {% if ticket.descripcion %}
+    <div
+      style="
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-secondary);
+      "
+    >
+      {{ ticket.descripcion|truncatechars:200 }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %} {% else %}
+  <div class="empty-state">
+    <div class="icon"><i class="fa-solid fa-circle-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
+    <div class="label">No tienes trabajos pendientes</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Historial reciente de reparaciones -->
+<div class="card" style="margin-bottom: 18px">
+  <div class="card-title"><i class="fa-solid fa-clock-rotate-left" style="color:var(--accent-blue);"></i> Historial de reparaciones</div>
+  {% if historial %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticket</th>
+          <th>Título</th>
+          <th>Fecha</th>
+          <th>HH</th>
+          <th>Tiempo finalización</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in historial %}
+        <tr>
+          <td style="font-family: var(--font-mono); font-size: 12px">
+            #{{ r.ticket.pk }}
+          </td>
+          <td style="font-size: 13px">
+            {{ r.ticket.titulo|truncatechars:35 }}
+          </td>
+          <td style="font-size: 12px; color: var(--text-muted)">
+            {{ r.ticket.created_at|date:"d/m/Y H:i" }}
+          </td>
+          <td style="font-size: 13px; font-weight: 600; color: var(--accent-green);">
+            {% if r.hh_reales %}{{ r.hh_reales|floatformat:2 }} hrs{% else %}—{% endif %}
+          </td>
+
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {% if r.ticket.cerrado_at %}
+              {{ r.ticket.created_at|timesince:r.ticket.cerrado_at }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            <a
+              href="{% url 'app:trazabilidad_ticket' r.ticket.pk %}"
+              class="btn btn-ghost btn-sm"
+              >Ver</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon"><i class="fa-solid fa-inbox" style="color:var(--text-muted);opacity:0.6;"></i></div>
+    <div class="label">Sin historial de reparaciones</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Inasistencias propias -->
+<div class="card">
+  <div
+    class="card-title"
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <span><i class="fa-solid fa-calendar-xmark" style="color:var(--text-muted);"></i> Mis inasistencias</span>
+    <a
+      href="{% url 'app:registrar_inasistencia' %}"
+      class="btn btn-ghost btn-sm"
+      >+ Registrar</a
+    >
+  </div>
+  {% if inasistencias %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Período</th>
+          <th>Motivo</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ina in inasistencias %}
+        <tr>
+          <td style="font-size: 13px">
+            {{ ina.fecha_desde|date:"d/m/Y" }} → {{ina.fecha_hasta|date:"d/m/Y"}}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary)">
+            {{ ina.get_motivo_display }}
+          </td>
+          <td>
+            <span
+              style="font-size:11px;padding:3px 8px;border-radius:6px;
+              background:{% if ina.estado.codigo == 'aprobada' %}rgba(45,206,137,0.15){% elif ina.estado.codigo == 'rechazada' %}rgba(245,54,92,0.15){% else %}rgba(244,197,66,0.15){% endif %};
+              color:{% if ina.estado.codigo == 'aprobada' %}var(--accent-green){% elif ina.estado.codigo == 'rechazada' %}var(--accent-red){% else %}var(--accent-yellow){% endif %};"
+            >
+              {{ ina.get_estado_display }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon"><i class="fa-solid fa-calendar-check" style="color:var(--accent-green);opacity:0.6;"></i></div>
+    <div class="label">Sin inasistencias registradas</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

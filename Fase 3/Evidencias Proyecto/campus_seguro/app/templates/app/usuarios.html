@@ -1,0 +1,243 @@
+{% extends 'app/base.html' %} 
+{% block title %}Usuarios – Gestión{% endblock %}
+{% block page_title %}Gestión de Usuarios{% endblock %}
+{% block page_subtitle %}Administra, suspende y restablece contraseñas{% endblock %}
+
+{% block content %}
+
+<form method="get" class="filters-bar">
+  <select name="rol" class="filter-input">
+    <option value="">Todos los roles</option>
+    {% for k, v in roles %}
+    <option value="{{ k }}" {% if filtros.rol == k %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  <select name="estado" class="filter-input">
+    <option value="">Todos los estados</option>
+    {% for k, v in estados %}
+    <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary btn-sm">Filtrar</button>
+  <a href="{% url 'app:gestor_usuarios' %}" class="btn btn-ghost btn-sm"
+    >✕ Limpiar</a
+  >
+</form>
+
+<div class="card">
+  {% if usuarios %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Correo</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Vínculo</th>
+          <th>Especialidad</th>
+          <th>Registro</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px">
+              <div
+                class="avatar role-{{ u.rol.codigo }}"
+                style="width: 32px; height: 32px; font-size: 12px"
+              >
+                {{ u.first_name|first|upper }}{{ u.last_name|first|upper }}
+              </div>
+              <div>
+                <strong>{{ u.get_full_name }}</strong><br />
+                <span style="font-size: 11px; color: var(--text-muted)"
+                  >{{ u.rut }}</span
+                >
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="id-mono" style="font-size: 12px"
+              >{{ u.correo_institucional }}</span
+            >
+          </td>
+          <td>
+            {% if u.rol.codigo == 'usuario' %}<span class="badge badge-blue"
+              >Usuario</span
+            >
+            {% elif u.rol.codigo == 'gestor' %}<span class="badge badge-teal"
+              >Gestor</span
+            >
+            {% elif u.rol.codigo == 'guardia' %}<span class="badge badge-yellow"
+              >Guardia</span
+            >
+            {% elif u.rol.codigo == 'mantencion' %}<span class="badge badge-green"
+              >Mantención</span
+            >{% endif %}
+          </td>
+          <td>
+            {% if u.estado_cuenta.codigo == 'activa' %}<span
+              class="badge badge-green"
+              >Activa</span
+            >
+            {% elif u.estado_cuenta.codigo == 'pendiente' %}<span
+              class="badge badge-yellow"
+              >Pendiente</span
+            >
+            {% elif u.estado_cuenta.codigo == 'suspendida' %}<span
+              class="badge badge-red"
+              >Suspendida</span
+            >
+            {% elif u.estado_cuenta.codigo == 'rechazada' %}<span
+              class="badge badge-gray"
+              >Rechazada</span
+            >{% endif %}
+          </td>
+          {# Columna de Vínculo Pura (Solo muestra Alumno, Docente, etc.) #}
+          <td>
+            {{ u.get_vinculo_display|default:"—" }}
+          </td>
+
+          {# Columna de Especialidad Ajustada con botón de acción #}
+          <td>
+            {% if u.rol.codigo == 'mantencion' %}
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 140px;">
+                <span style="font-size: 13px;">
+                  {% for esp in u.especialidades.all %}
+                    {{ esp.nombre }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    <span style="color:var(--text-muted); font-style:italic;">Sin asignar</span>
+                  {% endfor %}
+                </span>
+                <button type="button" class="btn btn-ghost btn-sm" 
+                        style="padding: 2px 6px; font-size: 11px; border-color: var(--border);"
+                        onclick="abrirModalEspecialidades('{{ u.id }}', '{{ u.get_full_name|escapejs }}', [{% for e in u.especialidades.all %}{{ e.id }}, {% endfor %}])"
+                        title="Modificar Oficios">
+                  ✏️
+                </button>
+              </div>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="id-mono">{{ u.fecha_registro|date:"d/m/Y" }}</span>
+          </td>
+          <td style="display: flex; gap: 4px">
+            {%if u.estado_cuenta.codigo == 'activa' or u.estado_cuenta.codigo == 'suspendida'%}
+            <form
+              method="post"
+              action="{% url 'app:suspender_usuario' u.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %} {% if u.estado_cuenta.codigo == 'suspendida' %}
+              <button class="btn btn-success btn-sm" title="Reactivar">
+                ▶
+              </button>
+              {% else %}
+              <button class="btn btn-warning btn-sm" title="Suspender">
+                ⏸
+              </button>
+              {% endif %}
+            </form>
+            <form
+              method="post"
+              action="{% url 'app:reset_usuario_gestor' u.id %}"
+              style="display: inline"
+            >
+              {% csrf_token %}
+              <button
+                class="btn btn-ghost btn-sm"
+                title="Generar enlace de reset"
+                onclick="return confirm('¿Generar enlace de recuperación para {{ u.get_full_name|escapejs }}?')"
+              >
+                🔑
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">👥</div>
+    <div class="label">Sin usuarios</div>
+  </div>
+  {% endif %}
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+    {% if usuarios.has_previous %}
+    <a href="?{% if filtros.rol %}rol={{ filtros.rol }}&{% endif %}{% if filtros.estado %}estado={{ filtros.estado }}&{% endif %}page={{ usuarios.previous_page_number }}" class="btn btn-ghost btn-sm">← Anterior</a>
+    {% else %}
+    <button class="btn btn-ghost btn-sm" disabled style="opacity:0.35;cursor:not-allowed;">← Anterior</button>
+    {% endif %}
+    <span style="font-size:12px;color:var(--text-muted);padding:0 8px;">Página {{ usuarios.number }} de {{ usuarios.paginator.num_pages }}</span>
+    {% if usuarios.has_next %}
+    <a href="?{% if filtros.rol %}rol={{ filtros.rol }}&{% endif %}{% if filtros.estado %}estado={{ filtros.estado }}&{% endif %}page={{ usuarios.next_page_number }}" class="btn btn-ghost btn-sm">Siguiente →</a>
+    {% else %}
+    <button class="btn btn-ghost btn-sm" disabled style="opacity:0.35;cursor:not-allowed;">Siguiente →</button>
+    {% endif %}
+  </div>
+</div>
+<div id="modalEsp" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="width: 100%; max-width: 420px; background: var(--bg-850); border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.5); padding: 20px; position: relative;">
+    <div style="font-weight: 700; font-size: 16px; margin-bottom: 4px; color: var(--text-primary);" id="modalTitulo">Asignar Especialidades</div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;" id="modalSubtitulo">Técnico Mantención</div>
+    
+    <form method="post" id="formModalEsp" data-url-base="{% url 'app:actualizar_especialidades_mantenedor' pk=0 %}">
+      {% csrf_token %}
+      <div style="display: flex; flex-direction: column; gap: 10px; max-height: 240px; overflow-y: auto; margin-bottom: 20px; padding-right: 4px;">
+        {% for esp in todas_especialidades %}
+          <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-700); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: background 0.15s;">
+            <input type="checkbox" name="especialidades_usuario" value="{{ esp.id }}" class="esp-checkbox" style="width: 16px; height: 16px; accent-color: var(--accent-green);">
+            <span style="font-size: 13px; font-weight: 500;">{{ esp.nombre }}</span>
+          </label>
+        {% empty %}
+          <div style="color: var(--text-muted); font-size: 12px; font-style: italic;">No hay especialidades sembradas en el sistema.</div>
+        {% endfor %}
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-ghost" onclick="cerrarModalEsp()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="background: var(--accent-green); border-color: var(--accent-green);">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function abrirModalEspecialidades(idUsuario, nombreUsuario, especialidadesAsignadasIds) {
+    const modal = document.getElementById('modalEsp');
+    const form = document.getElementById('formModalEsp');
+    const titulo = document.getElementById('modalTitulo');
+    
+    form.action = form.dataset.urlBase.replace('/0/', `/${idUsuario}/`);
+    titulo.innerText = `⚙️ Especialidades de ${nombreUsuario}`;
+    
+    // Limpiamos y marcamos los checkboxes que el técnico ya tenga activos
+    document.querySelectorAll('.esp-checkbox').forEach(cb => {
+        cb.checked = especialidadesAsignadasIds.includes(parseInt(cb.value));
+    });
+    
+    modal.style.display = 'flex';
+}
+
+function cerrarModalEsp() {
+    document.getElementById('modalEsp').style.display = 'none';
+}
+
+// Cerrar al hacer clic fuera del contenedor del modal
+document.getElementById('modalEsp').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalEsp();
+});
+</script>
+{% endblock %}

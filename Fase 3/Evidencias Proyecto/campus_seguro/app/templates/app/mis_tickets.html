@@ -1,0 +1,129 @@
+{% extends 'app/base.html' %} {% block title %}Mis Tickets – Campus Seguro{%endblock%}
+{% block breadcrumb %}<span class="sep">›</span> Mis Tickets{% endblock %}
+{% block page_title %}Mis Tickets{% endblock %}
+{% block page_subtitle %}Historial completo de tus reportes{% endblock %}
+{% block topbar_actions %}
+<a href="{% url 'app:crear_ticket' %}" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Nuevo ticket</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="filters-bar">
+  <select name="estado" class="filter-input" onchange="this.form.submit()">
+    <option value="">Todos los estados</option>
+    {% for k, v in estados %}
+    <option value="{{ k }}" {% if estado_filtro == k %}selected{% endif %}>
+      {{ v }}
+    </option>
+    {% endfor %}
+  </select>
+  {% if estado_filtro %}<a
+    href="{% url 'app:mis_tickets' %}"
+    class="btn btn-ghost btn-sm"
+    >✕ Limpiar</a
+  >{% endif %}
+</form>
+
+<div class="card">
+  {% if tickets %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Categoría</th>
+          <th>Ubicación</th>
+          <th>Urgencia</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td><span class="id-mono">#{{ t.id }}</span></td>
+          <td><strong>{{ t.titulo|truncatechars:35 }}</strong></td>
+          <td>{{ t.categoria.nombre_display|default:'Sin Categoría' }}</td>
+          <td>{{ t.ubicacion }}</td>
+          <td>
+            <span class="urgencia-{{ t.urgencia }}"
+              >{{ t.get_urgencia_display }}</span
+            >
+          </td>
+          <td>
+            {% if t.estado.codigo == 'cerrado' %}<span class="badge badge-green"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'pausado' %}<span
+              class="badge badge-yellow"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'no_reparado' %}<span
+              class="badge badge-red"
+              >{{ t.get_estado_display }}</span
+            >
+            {% elif t.estado.codigo == 'enviado' %}<span
+              class="badge badge-blue"
+              >{{ t.get_estado_display }}</span
+            >
+            {% else %}<span class="badge badge-teal"
+              >{{ t.get_estado_display }}</span
+            >{% endif %}
+          </td>
+          <td>
+            <span class="id-mono">{{ t.created_at|date:"d/m/Y H:i" }}</span>
+          </td>
+          <td>
+            <a
+              href="{% url 'app:detalle_ticket' t.id %}"
+              class="btn btn-ghost btn-sm"
+              >Ver</a
+            >
+            {% if t.es_editable %}
+            <a
+              href="{% url 'app:editar_ticket' t.id %}"
+              class="btn btn-ghost btn-sm"
+              >✏️</a
+            >
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="icon">📭</div>
+    <div class="label">Sin tickets que mostrar</div>
+    <div class="sub">No hay tickets que coincidan con los filtros aplicados.</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+  {% if page_obj.has_previous %}
+    <a href="?{% if estado_filtro %}estado={{ estado_filtro }}&{% endif %}page={{ page_obj.previous_page_number }}" class="page-link">‹</a>
+  {% else %}
+    <span class="page-link disabled">‹</span>
+  {% endif %}
+
+  {% for num in page_obj.paginator.page_range %}
+    {% if num == page_obj.number %}
+      <span class="page-link active">{{ num }}</span>
+    {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+      <a href="?{% if estado_filtro %}estado={{ estado_filtro }}&{% endif %}page={{ num }}" class="page-link">{{ num }}</a>
+    {% endif %}
+  {% endfor %}
+
+  {% if page_obj.has_next %}
+    <a href="?{% if estado_filtro %}estado={{ estado_filtro }}&{% endif %}page={{ page_obj.next_page_number }}" class="page-link">›</a>
+  {% else %}
+    <span class="page-link disabled">›</span>
+  {% endif %}
+  <span class="page-info">{{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+</div>
+{% endif %}
+{% endblock %}
